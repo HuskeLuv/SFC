@@ -12,6 +12,8 @@ import {
   CARD_VALUE_CLASS,
   type CardColor,
 } from './cardStyles';
+import { ConteudoSensivel, TextoSensivel } from '@/components/common/valores/Sensivel';
+import type { SensibilidadeValor } from '@/utils/valoresOcultos';
 
 interface MetricCardProps {
   title: string;
@@ -23,6 +25,11 @@ interface MetricCardProps {
    * Use "neutral" quando a variação é nula/zero/indisponível.
    */
   changeDirection?: 'up' | 'down' | 'neutral';
+  /**
+   * Esconder valores: como `value` reage ao olho. 'auto' (padrão) esconde só se tiver R$/US$;
+   * 'sensivel' sempre; 'visivel' nunca (ex.: dólar de "Mercado hoje"). `change` esconde só os R$.
+   */
+  valor?: SensibilidadeValor;
 }
 
 const MetricCard: React.FC<MetricCardProps> = ({
@@ -31,6 +38,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
   color = 'primary',
   change,
   changeDirection,
+  valor = 'auto',
 }) => {
   return (
     <div className={`${CARD_BASE_CLASS} ${CARD_COLOR_CLASSES[color]}`}>
@@ -39,7 +47,9 @@ const MetricCard: React.FC<MetricCardProps> = ({
           {title}
         </p>
       </div>
-      <p className={CARD_VALUE_CLASS}>{value}</p>
+      <p className={CARD_VALUE_CLASS}>
+        <ConteudoSensivel modo={valor}>{value}</ConteudoSensivel>
+      </p>
       {change ? (
         <p
           className={`mt-1 text-xs font-semibold ${
@@ -50,7 +60,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
                 : 'text-green-700 dark:text-green-400'
           }`}
         >
-          {change}
+          <TextoSensivel texto={change} />
         </p>
       ) : null}
     </div>

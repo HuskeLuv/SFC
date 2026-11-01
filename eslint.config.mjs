@@ -1,6 +1,11 @@
 import { dirname } from "path";
 import { fileURLToPath } from "url";
 import { FlatCompat } from "@eslint/eslintrc";
+import {
+  GLOBS_VALORES_OCULTOS,
+  IGNORES_VALORES_OCULTOS,
+  pluginValoresOcultos,
+} from "./eslint/valoresOcultos.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -21,6 +26,16 @@ const eslintConfig = [
           destructuredArrayIgnorePattern: "^_",
         },
       ],
+    },
+  },
+  // Esconder valores: valor em dinheiro no JSX sem <Sensivel>/<ValorVisivel>. 'error' desde o
+  // fechamento da Fase 1, com zero ocorrências nas pastas cobertas (eslint/valoresOcultos.mjs).
+  {
+    files: GLOBS_VALORES_OCULTOS,
+    ignores: IGNORES_VALORES_OCULTOS,
+    plugins: { mf: pluginValoresOcultos },
+    rules: {
+      "mf/valor-sem-sensivel": "error",
     },
   },
 ];

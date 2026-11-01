@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/table/tableStyles';
 import { MOBILE_SEGMENTED_NAV, mobileTabClassName } from '@/components/ui/tabs/ResponsiveTabNav';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 
 type PeriodPill = 'ano' | '12m' | '24m' | '36m' | 'inicio';
 type GroupByType = 'ativo' | 'classe' | 'tipo';
@@ -299,7 +300,7 @@ export default function ProventosConsolidado() {
                     <tr key={month} className={TABLE_STYLES.row}>
                       <td className={TABLE_STYLES.td}>{month}</td>
                       <td className={`${TABLE_STYLES.td} text-right`}>
-                        {formatCurrency(data.total)}
+                        <Sensivel>{formatCurrency(data.total)}</Sensivel>
                       </td>
                     </tr>
                   ))}
@@ -334,7 +335,7 @@ export default function ProventosConsolidado() {
                     <tr key={year} className={TABLE_STYLES.row}>
                       <td className={TABLE_STYLES.td}>{year}</td>
                       <td className={`${TABLE_STYLES.td} text-right`}>
-                        {formatCurrency(data.total)}
+                        <Sensivel>{formatCurrency(data.total)}</Sensivel>
                       </td>
                     </tr>
                   ))}

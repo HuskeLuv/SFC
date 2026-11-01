@@ -1,4 +1,5 @@
 'use client';
+import { Sensivel, ValorVisivel } from '@/components/common/valores/Sensivel';
 import React from 'react';
 import { quantoFaltaClass } from '@/components/carteira/shared/quantoFaltaClass';
 import { useCarteiraStocks } from '@/hooks/useStocks';
@@ -114,6 +115,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
     },
     {
       key: 'quantidade',
+      valor: 'sensivel-curto',
       header: 'Quantidade',
       align: 'right',
       render: (a, f) => f.formatNumber(a.quantidade),
@@ -122,6 +124,7 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
     },
     {
       key: 'precoAquisicao',
+      valor: 'sensivel',
       header: usd('Preco Medio'),
       align: 'right',
       render: (a, f) => f.formatCurrency(a.precoAquisicao),
@@ -141,10 +144,13 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
     },
     {
       key: 'cotacaoAtual',
+      valor: 'visivel',
       header: usd('Cotacao Atual'),
       align: 'right',
       render: (a, f) => (
-        <span className="text-gray-900 dark:text-white">{f.formatCurrency(a.cotacaoAtual)}</span>
+        <span className="text-gray-900 dark:text-white">
+          <ValorVisivel>{f.formatCurrency(a.cotacaoAtual)}</ValorVisivel>
+        </span>
       ),
       renderSectionTotal: () => '-',
       renderGrandTotal: () => '-',
@@ -286,16 +292,21 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
       <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>-</td>
       <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>-</td>
       <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>
-        {formatCurrency(
-          ((data?.totalGeral as unknown as Record<string, unknown>)?.valorAplicado as number) ?? 0,
-        )}
+        <Sensivel>
+          {formatCurrency(
+            ((data?.totalGeral as unknown as Record<string, unknown>)?.valorAplicado as number) ??
+              0,
+          )}
+        </Sensivel>
       </td>
       <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>-</td>
       <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>
-        {formatCurrency(
-          ((data?.totalGeral as unknown as Record<string, unknown>)?.valorAtualizado as number) ??
-            0,
-        )}
+        <Sensivel>
+          {formatCurrency(
+            ((data?.totalGeral as unknown as Record<string, unknown>)?.valorAtualizado as number) ??
+              0,
+          )}
+        </Sensivel>
       </td>
       <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>-</td>
       <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>-</td>
@@ -398,13 +409,13 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
                           {item.dataCompra ? formatWallClockDate(item.dataCompra) : '-'}
                         </td>
                         <td className={`${TABLE_STYLES.td} text-right`}>
-                          {formatCurrency(item.cotacaoAtual)}
+                          <ValorVisivel>{formatCurrency(item.cotacaoAtual)}</ValorVisivel>
                         </td>
                         <td className={`${TABLE_STYLES.td} text-right`}>
-                          {formatCurrency(item.necessidadeAporte)}
+                          <Sensivel>{formatCurrency(item.necessidadeAporte)}</Sensivel>
                         </td>
                         <td className={`${TABLE_STYLES.td} text-right`}>
-                          {formatNumber(item.loteAproximado)}
+                          <Sensivel curto>{formatNumber(item.loteAproximado)}</Sensivel>
                         </td>
                       </tr>
                     ))}

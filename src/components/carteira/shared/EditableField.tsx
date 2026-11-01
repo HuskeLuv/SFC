@@ -7,6 +7,9 @@ import { useState, useEffect } from 'react';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { MobileEditSheet } from '@/components/ui/sheet/MobileEditSheet';
 import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
+import { renderSensivel } from '@/components/common/valores/Sensivel';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
+import { MASCARA_VALOR, type SensibilidadeValor } from '@/utils/valoresOcultos';
 
 interface EditableFieldProps {
   value: number;
@@ -26,6 +29,12 @@ interface EditableFieldProps {
   mobileLabel?: string;
   /** Celular: tipo do campo no sheet (padrão 'decimal'). */
   mobileKind?: 'currency' | 'decimal' | 'integer';
+  /**
+   * Esconder valores: como o texto PARADO reage ao olho ('sensivel'/'sensivel-curto' = pílula; o
+   * input e o sheet sempre mostram o número). Padrão 'visivel': o único uso hoje é o formulário
+   * /ativos/[id]/editar, que fica visível (decisão 3 do Wellington).
+   */
+  valor?: SensibilidadeValor;
 }
 
 const EditableField: React.FC<EditableFieldProps> = ({
@@ -40,8 +49,10 @@ const EditableField: React.FC<EditableFieldProps> = ({
   className = '',
   mobileLabel,
   mobileKind = 'decimal',
+  valor = 'visivel',
 }) => {
   const isBelowLg = useIsBelowLg();
+  const { ativo, mascarar } = useValoresOcultos();
   const [isEditing, setIsEditing] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value.toString());
@@ -79,6 +90,14 @@ const EditableField: React.FC<EditableFieldProps> = ({
   };
 
   const displayValue = formatDisplay ? formatDisplay(value) : value.toString();
+  const display = renderSensivel(displayValue, valor);
+  // O nome acessível do botão não pode revelar o que a pílula esconde.
+  const ariaValor =
+    !ativo || valor === 'visivel'
+      ? displayValue
+      : valor === 'auto'
+        ? mascarar(displayValue)
+        : MASCARA_VALOR;
 
   // Celular: toque abre o sheet de edição, que chama o MESMO onSubmit.
   if (isBelowLg) {
@@ -89,10 +108,10 @@ const EditableField: React.FC<EditableFieldProps> = ({
           type="button"
           data-mf-edit="valor"
           onClick={() => setSheetOpen(true)}
-          aria-label={`Editar ${label.toLowerCase()}: ${displayValue}`}
+          aria-label={`Editar ${label.toLowerCase()}: ${ariaValor}`}
           className={`${TABLE_MOBILE_STYLES.editButton} -mx-2 max-w-full text-left tabular-nums text-gray-900 dark:text-white`}
         >
-          <span className="min-w-0 truncate">{displayValue}</span>
+          <span className="min-w-0 truncate">{display}</span>
           {suffix && <span className="text-gray-500">{suffix}</span>}
         </button>
         <MobileEditSheet
@@ -132,7 +151,7 @@ const EditableField: React.FC<EditableFieldProps> = ({
           className={`cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded ${className}`}
           onClick={() => setIsEditing(true)}
         >
-          <span className="text-sm font-medium text-gray-900 dark:text-white">{displayValue}</span>
+          <span className="text-sm font-medium text-gray-900 dark:text-white">{display}</span>
         </div>
       )}
     </>

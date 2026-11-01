@@ -3,6 +3,8 @@ import React, { useMemo } from 'react';
 import { ApexOptions } from 'apexcharts';
 import dynamic from 'next/dynamic';
 import { PIE_MOBILE_RESPONSIVE } from './pieMobileResponsive';
+import { usePizzaSensivel } from './usePizzaSensivel';
+import { useChaveGraficoSensivel } from '../useOpcoesGraficoSensiveis';
 
 // Dynamically import the ReactApexChart component
 const ReactApexChart = dynamic(() => import('react-apexcharts'), {
@@ -146,6 +148,10 @@ export default function PieChartPrevidenciaSegurosAtivo({
     [chartData.labels, isDarkMode, data],
   );
 
+  // Esconder valores: tooltip e centro da rosca em R$ mascarados; fatias e % ficam.
+  const opcoesSeguras = usePizzaSensivel(options);
+  const chaveSensivel = useChaveGraficoSensivel();
+
   if (!data || data.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -158,7 +164,13 @@ export default function PieChartPrevidenciaSegurosAtivo({
 
   return (
     <div className="w-full">
-      <ReactApexChart options={options} series={chartData.series} type="donut" height={300} />
+      <ReactApexChart
+        key={chaveSensivel}
+        options={opcoesSeguras}
+        series={chartData.series}
+        type="donut"
+        height={300}
+      />
     </div>
   );
 }

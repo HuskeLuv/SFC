@@ -1,4 +1,5 @@
 'use client';
+import { Sensivel, ValorVisivel } from '@/components/common/valores/Sensivel';
 import React from 'react';
 import { quantoFaltaClass } from '@/components/carteira/shared/quantoFaltaClass';
 import { useReit } from '@/hooks/useReit';
@@ -102,6 +103,7 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
     },
     {
       key: 'quantidade',
+      valor: 'sensivel-curto',
       header: 'Quantidade',
       align: 'right',
       render: (a, f) => f.formatNumber(a.quantidade),
@@ -110,6 +112,7 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
     },
     {
       key: 'precoAquisicao',
+      valor: 'sensivel',
       header: usd('Preco Medio'),
       align: 'right',
       render: (a, f) => f.formatCurrency(a.precoAquisicao),
@@ -129,10 +132,13 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
     },
     {
       key: 'cotacaoAtual',
+      valor: 'visivel',
       header: usd('Cotacao Atual'),
       align: 'right',
       render: (a, f) => (
-        <span className="text-gray-900 dark:text-white">{f.formatCurrency(a.cotacaoAtual)}</span>
+        <span className="text-gray-900 dark:text-white">
+          <ValorVisivel>{f.formatCurrency(a.cotacaoAtual)}</ValorVisivel>
+        </span>
       ),
       renderSectionTotal: () => '-',
       renderGrandTotal: () => '-',
@@ -241,16 +247,21 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
       <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>-</td>
       <td className={`${TABLE_STYLES.compact.td} font-semibold text-center`}>-</td>
       <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>
-        {formatCurrency(
-          ((data?.totalGeral as unknown as Record<string, unknown>)?.valorAplicado as number) ?? 0,
-        )}
+        <Sensivel>
+          {formatCurrency(
+            ((data?.totalGeral as unknown as Record<string, unknown>)?.valorAplicado as number) ??
+              0,
+          )}
+        </Sensivel>
       </td>
       <td className={`${TABLE_STYLES.compact.td} font-semibold text-center`}>-</td>
       <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>
-        {formatCurrency(
-          ((data?.totalGeral as unknown as Record<string, unknown>)?.valorAtualizado as number) ??
-            0,
-        )}
+        <Sensivel>
+          {formatCurrency(
+            ((data?.totalGeral as unknown as Record<string, unknown>)?.valorAtualizado as number) ??
+              0,
+          )}
+        </Sensivel>
       </td>
       <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>-</td>
       <td className={`${TABLE_STYLES.compact.td} font-semibold text-right`}>-</td>
@@ -375,13 +386,13 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
                       <tr key={index} className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
                         <td className={`${TABLE_STYLES.td} font-medium`}>{item.nome}</td>
                         <td className={`${TABLE_STYLES.td} text-right font-medium`}>
-                          {formatCurrency(item.cotacaoAtual)}
+                          <ValorVisivel>{formatCurrency(item.cotacaoAtual)}</ValorVisivel>
                         </td>
                         <td className={`${TABLE_STYLES.td} text-right font-medium`}>
-                          {formatCurrency(item.necessidadeAporte)}
+                          <Sensivel>{formatCurrency(item.necessidadeAporte)}</Sensivel>
                         </td>
                         <td className={`${TABLE_STYLES.td} text-right font-medium`}>
-                          {formatNumber(item.loteAproximado)}
+                          <Sensivel curto>{formatNumber(item.loteAproximado)}</Sensivel>
                         </td>
                       </tr>
                     ))}

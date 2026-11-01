@@ -22,6 +22,8 @@ import { simplifyAssetName } from '@/utils/assetDisplayName';
 import type { ColumnDef, Formatters } from './GenericAssetTable';
 import type { MoverAlvo } from '@/types/carteiraMover';
 import { useCarteiraMover } from '@/components/carteira/mover/CarteiraDnd';
+import { Sensivel, TextoSensivel, renderSensivel } from '@/components/common/valores/Sensivel';
+import type { SensibilidadeValor } from '@/utils/valoresOcultos';
 
 /**
  * Abas da carteira em CARTÕES abaixo de lg (PWA fase 1, fatia B — telas c/d do protótipo).
@@ -30,6 +32,9 @@ import { useCarteiraMover } from '@/components/carteira/mover/CarteiraDnd';
  * cálculo novo: os ativos já chegam enriquecidos (percentualCarteira, quantoFalta,
  * necessidadeAporte) e os subtotais/totais saem dos MESMOS `renderSectionTotal`/`renderGrandTotal`
  * das colunas. "Ordenar" reordena uma CÓPIA dentro de cada seção (os totais não mudam).
+ *
+ * Esconder valores: cada célula sai pelo `ColumnDef.valor` da coluna (`celulaSensivel`), o
+ * número da quantidade do subtítulo vira pílula curta e o resumo da aba esconde os R$.
  */
 
 // ── Contexto de um cartão (as células editáveis leem o "assunto" e o rótulo) ────────────────
@@ -200,12 +205,14 @@ export function RentabilidadeDelta({
 export interface AssetTabMobileSummaryProps {
   heroLabel: string;
   heroValue: string;
+  /** Esconder valores: modo do número principal (padrão 'auto'). */
+  heroValor?: SensibilidadeValor;
   /** Linhas de apoio sob o número principal (ex.: abas EUA: "equivale a R$ X"). */
   heroSubtitles?: string[];
   /** Rentabilidade da aba (sob o número principal). */
   rentabilidade?: { value: number; formatPercentage: (v: number) => string };
   /** Linha de mini-indicadores (Rendimento, Saldo início do mês…). */
-  minis?: { label: string; value: string; negative?: boolean }[];
+  minis?: { label: string; value: string; negative?: boolean; valor?: SensibilidadeValor }[];
   necessidadeAporte?: string;
   /** O `CaixaParaInvestirCard` da aba (mesma API do desktop). */
   caixa?: ReactNode;
@@ -214,6 +221,7 @@ export interface AssetTabMobileSummaryProps {
 export function AssetTabMobileSummary({
   heroLabel,
   heroValue,
+  heroValor = 'auto',
   heroSubtitles = [],
   rentabilidade,
   minis = [],
@@ -225,7 +233,7 @@ export function AssetTabMobileSummary({
       <section className="rounded-2xl border border-gray-200 bg-white px-4 py-3.5 dark:border-gray-800 dark:bg-white/[0.03]">
         <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{heroLabel}</p>
         <p className={twMerge(CARD_HERO_VALUE_CLASS, 'text-gray-800 dark:text-white/90')}>
-          {heroValue}
+          {renderSensivel(heroValue, heroValor)}
         </p>
         {rentabilidade && (
           <RentabilidadeDelta
@@ -236,7 +244,7 @@ export function AssetTabMobileSummary({
         )}
         {heroSubtitles.map((t) => (
           <p key={t} className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-            {t}
+            <TextoSensivel texto={t} />
           </p>
         ))}
         {minis.length > 0 && (
@@ -250,7 +258,7 @@ export function AssetTabMobileSummary({
                     m.negative && TABLE_MOBILE_STYLES.negative,
                   )}
                 >
-                  {m.value}
+                  {renderSensivel(m.value, m.valor ?? 'auto')}
                 </dd>
               </div>
             ))}
@@ -263,7 +271,7 @@ export function AssetTabMobileSummary({
             <div className={twMerge(TABLE_MOBILE_STYLES.needBlock, 'min-w-0')}>
               <p className="text-xs font-medium">Necessidade de aporte</p>
               <p className="mt-1 text-lg font-semibold tabular-nums break-words">
-                {necessidadeAporte}
+                {renderSensivel(necessidadeAporte, 'auto')}
               </p>
               <p className="text-[11px] opacity-80">para chegar nos objetivos</p>
             </div>
@@ -315,6 +323,24 @@ export function cardTitleOf(ativo: unknown, titleFromName = false): string {
   const ticker = String(a.ticker ?? '').trim();
   const nome = simplifyAssetName(a.nome as string | undefined);
   return (titleFromName ? nome || ticker : ticker || nome) || String(a.nome ?? '');
+}
+
+/** Conteúdo vazio de célula: traço, travessão ou nada — não vira pílula. */
+const isCelulaVazia = (node: ReactNode) =>
+  node === undefined ||
+  node === null ||
+  node === false ||
+  node === '' ||
+  node === '-' ||
+  node === '—';
+
+/**
+ * Conteúdo de uma coluna com o modo do "esconder valores" (`ColumnDef.valor`): 'auto' esconde só
+ * strings com R$/US$. Traço não vira pílula. No modo visível (olho aberto, chave desligada) o DOM
+ * sai igual ao de hoje.
+ */
+export function celulaSensivel(node: ReactNode, modo: SensibilidadeValor = 'auto'): ReactNode {
+  return isCelulaVazia(node) ? node : renderSensivel(node, modo);
 }
 
 const isEmptyTotal = (node: ReactNode) => node === undefined || node === null || node === '-';
@@ -380,22 +406,37 @@ export default function AssetCardSections<TAtivo, TSecao>({
 
   const titleOf = (a: TAtivo) => cardTitleOf(a, titleFromName);
 
-  const subtitleOf = (a: TAtivo): string | null => {
-    if (getSubtitle) return getSubtitle(a, formatters) || null;
+  // Esconder valores: só o NÚMERO da quantidade vira pílula curta ("[pílula] ações").
+  const subtitleOf = (a: TAtivo): ReactNode => {
+    if (getSubtitle) {
+      const s = getSubtitle(a, formatters);
+      return s ? <TextoSensivel texto={s} /> : null;
+    }
     const r = rec(a);
     const nome = String(r.nome ?? '').trim();
     const title = titleOf(a);
-    const parts: string[] = [];
+    const parts: ReactNode[] = [];
     if (nome && simplifyAssetName(nome) !== title && nome !== title) parts.push(nome);
     if (!isPlanejado(a) && typeof r.quantidade === 'number') {
       const unit = quantityUnit && r.quantidade === 1 ? singularUnit(quantityUnit) : quantityUnit;
-      parts.push(`${formatNumber(r.quantidade)}${unit ? ` ${unit}` : ''}`);
+      parts.push(
+        <>
+          <Sensivel curto>{formatNumber(r.quantidade)}</Sensivel>
+          {unit ? ` ${unit}` : ''}
+        </>,
+      );
     }
-    return parts.join(' · ') || null;
+    if (parts.length === 0) return null;
+    return parts.map((p, i) => (
+      <React.Fragment key={i}>
+        {i > 0 ? ' · ' : ''}
+        {p}
+      </React.Fragment>
+    ));
   };
 
   const textOf = (col: ColumnDef<TAtivo, TSecao>, a: TAtivo) =>
-    (col.mobileRender ?? col.render)(a, formatters);
+    celulaSensivel((col.mobileRender ?? col.render)(a, formatters), col.valor);
 
   // Cabeçalho do cartão (só texto: ele inteiro é o <button> que abre/fecha).
   const headColumns: ResponsiveColumn<TAtivo>[] = [
@@ -437,7 +478,11 @@ export default function AssetCardSections<TAtivo, TSecao>({
         ) : (
           <>
             <span className="block whitespace-nowrap">
-              {valueCol ? textOf(valueCol, a) : formatCurrency(num(rec(a).valorAtualizado))}
+              {valueCol ? (
+                textOf(valueCol, a)
+              ) : (
+                <Sensivel>{formatCurrency(num(rec(a).valorAtualizado))}</Sensivel>
+              )}
             </span>
             {byKey.has('rentabilidade') && (
               <RentabilidadeDelta
@@ -494,7 +539,7 @@ export default function AssetCardSections<TAtivo, TSecao>({
         }}
       >
         <div className="text-[15px] font-semibold tabular-nums text-gray-800 dark:text-gray-100">
-          {col.render(a, formatters)}
+          {celulaSensivel(col.render(a, formatters), col.valor)}
         </div>
       </AssetCardContext.Provider>
     </div>
@@ -662,9 +707,9 @@ export default function AssetCardSections<TAtivo, TSecao>({
     );
   }
 
-  const valorTotalGeral =
-    valueCol?.renderGrandTotal?.(totalGeral, formatters) ??
-    formatCurrency(num(totalGeral.valorAtualizado));
+  const valorTotalGeral = valueCol?.renderGrandTotal
+    ? celulaSensivel(valueCol.renderGrandTotal(totalGeral, formatters), valueCol.valor)
+    : renderSensivel(formatCurrency(num(totalGeral.valorAtualizado)), 'sensivel');
 
   const totalItems = TOTAL_KEYS.map((key) => byKey.get(key))
     .filter((col): col is ColumnDef<TAtivo, TSecao> => !!col?.renderGrandTotal)
@@ -680,7 +725,11 @@ export default function AssetCardSections<TAtivo, TSecao>({
           col.renderGrandTotal!(totalGeral, formatters)
         ),
     }))
-    .filter(({ node }) => !isEmptyTotal(node));
+    .filter(({ node }) => !isEmptyTotal(node))
+    .map(({ col, node }) => ({
+      col,
+      node: col.key === 'quantoFalta' ? node : celulaSensivel(node, col.valor),
+    }));
 
   const countLabel = [
     `${posicoesCount} ${posicoesCount === 1 ? 'ativo' : 'ativos'}`,
@@ -720,7 +769,10 @@ export default function AssetCardSections<TAtivo, TSecao>({
         const key = getSectionKey(secao);
         const expanded = expandedSections.has(key);
         const bodyId = `${baseId}-secao-${i}`;
-        const subtotal = valueCol?.renderSectionTotal?.(secao, formatters);
+        const subtotalBruto = valueCol?.renderSectionTotal?.(secao, formatters);
+        const subtotal = isEmptyTotal(subtotalBruto)
+          ? subtotalBruto
+          : celulaSensivel(subtotalBruto, valueCol?.valor);
         return (
           <div key={key ?? i} className="flex flex-col gap-2">
             <CardSectionBand
@@ -813,9 +865,21 @@ const RESUMO_APORTES_COLUMNS: ResponsiveColumn<ResumoAporteItem>[] = [
       </>
     ),
   },
-  { id: 'necessidade', header: 'Nec. aporte', mobile: 'value', cell: (i) => i.necessidade },
-  { id: 'cotacao', header: 'Cotação', mobile: 'field', cell: (i) => i.cotacao },
-  { id: 'lote', header: 'Lote aprox.', mobile: 'field', cell: (i) => i.lote },
+  {
+    id: 'necessidade',
+    header: 'Nec. aporte',
+    mobile: 'value',
+    cell: (i) => i.necessidade,
+    valor: 'sensivel',
+  },
+  { id: 'cotacao', header: 'Cotação', mobile: 'field', cell: (i) => i.cotacao, valor: 'visivel' },
+  {
+    id: 'lote',
+    header: 'Lote aprox.',
+    mobile: 'field',
+    cell: (i) => i.lote,
+    valor: 'sensivel-curto',
+  },
 ];
 
 const RESUMO_APORTES_DATA_COLUMN: ResponsiveColumn<ResumoAporteItem> = {
@@ -854,11 +918,15 @@ export function UsdTotalMobile({ aplicado, atualizado }: { aplicado: string; atu
     <dl className="grid grid-cols-2 gap-x-3 gap-y-2 border-t border-gray-200 pt-3 dark:border-gray-700">
       <div className="min-w-0">
         <dt className="text-[11px] text-gray-500 dark:text-gray-400">Aplicado em USD</dt>
-        <dd className="text-sm font-semibold tabular-nums break-words">{aplicado}</dd>
+        <dd className="text-sm font-semibold tabular-nums break-words">
+          <Sensivel>{aplicado}</Sensivel>
+        </dd>
       </div>
       <div className="min-w-0">
         <dt className="text-[11px] text-gray-500 dark:text-gray-400">Atualizado em USD</dt>
-        <dd className="text-sm font-semibold tabular-nums break-words">{atualizado}</dd>
+        <dd className="text-sm font-semibold tabular-nums break-words">
+          <Sensivel>{atualizado}</Sensivel>
+        </dd>
       </div>
     </dl>
   );

@@ -1,4 +1,5 @@
 'use client';
+import { ConteudoSensivel, Sensivel } from '@/components/common/valores/Sensivel';
 
 import { logger } from '@/lib/logger';
 import React, { useState, useMemo } from 'react';
@@ -44,7 +45,7 @@ const ImoveisBensMetricCard: React.FC<ImoveisBensMetricCardProps> = ({
       <p className="text-xs font-medium opacity-80 mb-1">{title}</p>
       {/* Celular: mesmo encolhimento do CARD_VALUE_CLASS (valores milionários cabem a 320px). */}
       <p className="text-xl font-semibold max-lg:text-lg max-lg:tabular-nums max-lg:break-words max-[359px]:text-base">
-        {value}
+        <ConteudoSensivel>{value}</ConteudoSensivel>
       </p>
     </div>
   );
@@ -113,13 +114,17 @@ const ImoveisBensTableRow: React.FC<ImoveisBensTableRowProps> = ({
       </td>
       <td className={`${TABLE_STYLES.compact.td} text-center`}>{ativo.cidade}</td>
       <td className={`${TABLE_STYLES.compact.td} text-center`}>{ativo.mandato}</td>
-      <td className={`${TABLE_STYLES.compact.td} text-right`}>{formatNumber(ativo.quantidade)}</td>
       <td className={`${TABLE_STYLES.compact.td} text-right`}>
-        {formatCurrency(ativo.precoAquisicao)}
+        <Sensivel curto>{formatNumber(ativo.quantidade)}</Sensivel>
       </td>
-      <td className={`${TABLE_STYLES.compact.td} text-right`}>{formatCurrency(ativo.melhorias)}</td>
       <td className={`${TABLE_STYLES.compact.td} text-right`}>
-        {formatCurrency(ativo.valorTotal)}
+        <Sensivel>{formatCurrency(ativo.precoAquisicao)}</Sensivel>
+      </td>
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
+        <Sensivel>{formatCurrency(ativo.melhorias)}</Sensivel>
+      </td>
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
+        <Sensivel>{formatCurrency(ativo.valorTotal)}</Sensivel>
       </td>
       <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {isEditingValor ? (
@@ -141,7 +146,7 @@ const ImoveisBensTableRow: React.FC<ImoveisBensTableRowProps> = ({
             onClick={() => setIsEditingValor(true)}
           >
             <span className="text-gray-900 dark:text-white">
-              {formatCurrency(ativo.valorAtualizado)}
+              <Sensivel>{formatCurrency(ativo.valorAtualizado)}</Sensivel>
             </span>
           </div>
         )}
@@ -214,7 +219,9 @@ export function ImoveisBensMobileList({
       cell: (a) => formatCurrency(a.valorAtualizado),
       mobileCell: (a) => (
         <>
-          <span className="block">{formatCurrency(a.valorAtualizado)}</span>
+          <span className="block">
+            <Sensivel>{formatCurrency(a.valorAtualizado)}</Sensivel>
+          </span>
           <span
             className={`block text-xs font-medium ${
               a.rentabilidade < 0 ? TABLE_MOBILE_STYLES.negative : TABLE_MOBILE_STYLES.positive
@@ -231,10 +238,18 @@ export function ImoveisBensMobileList({
     <div className="space-y-3">
       <dl className={TABLE_MOBILE_STYLES.cardDetailGrid}>
         <ImovelDetail label="Mandato">{a.mandato || '—'}</ImovelDetail>
-        <ImovelDetail label="Quantidade">{formatNumber(a.quantidade)}</ImovelDetail>
-        <ImovelDetail label="Aquisição">{formatCurrency(a.precoAquisicao)}</ImovelDetail>
-        <ImovelDetail label="Melhorias">{formatCurrency(a.melhorias)}</ImovelDetail>
-        <ImovelDetail label="Valor total">{formatCurrency(a.valorTotal)}</ImovelDetail>
+        <ImovelDetail label="Quantidade">
+          <Sensivel curto>{formatNumber(a.quantidade)}</Sensivel>
+        </ImovelDetail>
+        <ImovelDetail label="Aquisição">
+          <Sensivel>{formatCurrency(a.precoAquisicao)}</Sensivel>
+        </ImovelDetail>
+        <ImovelDetail label="Melhorias">
+          <Sensivel>{formatCurrency(a.melhorias)}</Sensivel>
+        </ImovelDetail>
+        <ImovelDetail label="Valor total">
+          <Sensivel>{formatCurrency(a.valorTotal)}</Sensivel>
+        </ImovelDetail>
         <ImovelDetail label="% da aba">{formatPercentage(a.percentualCarteira)}</ImovelDetail>
         <ImovelDetail label="Risco cart.">{formatPercentage(a.riscoPorAtivo)}</ImovelDetail>
       </dl>
@@ -245,7 +260,7 @@ export function ImoveisBensMobileList({
         <div className="min-w-0">
           <div className={TABLE_MOBILE_STYLES.cardDetailLabel}>Valor atualizado</div>
           <div className="text-sm font-medium tabular-nums text-gray-800 dark:text-gray-100">
-            {formatCurrency(a.valorAtualizado)}
+            <Sensivel>{formatCurrency(a.valorAtualizado)}</Sensivel>
           </div>
         </div>
         <button
@@ -285,12 +300,12 @@ export function ImoveisBensMobileList({
         <div className={TABLE_MOBILE_STYLES.cardHeader}>
           <span className="font-semibold">Total geral</span>
           <span className="font-semibold tabular-nums">
-            {formatCurrency(totalGeral.valorAtualizado)}
+            <Sensivel>{formatCurrency(totalGeral.valorAtualizado)}</Sensivel>
           </span>
         </div>
         <dl className={`${TABLE_MOBILE_STYLES.cardDetailGrid} mt-2`}>
           <ImovelDetail label="Valor total">
-            {formatCurrency(totalGeral.valorAplicado)}
+            <Sensivel>{formatCurrency(totalGeral.valorAplicado)}</Sensivel>
           </ImovelDetail>
           <ImovelDetail label="Rentabilidade">
             {formatPercentage(totalGeral.rentabilidade)}
@@ -458,15 +473,21 @@ export default function ImoveisBensTable({ totalCarteira = 0 }: ImoveisBensTable
                   <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
                   <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
                   <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                    {formatNumber(dataComRisco?.totalGeral?.quantidade || 0)}
+                    <Sensivel curto>
+                      {formatNumber(dataComRisco?.totalGeral?.quantidade || 0)}
+                    </Sensivel>
                   </td>
                   <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
                   <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
                   <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                    {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
+                    <Sensivel>
+                      {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
+                    </Sensivel>
                   </td>
                   <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                    {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
+                    <Sensivel>
+                      {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
+                    </Sensivel>
                   </td>
                   <td className={`${TABLE_STYLES.compact.td} text-right`}>
                     {formatPercentage(dataComRisco?.totalGeral?.risco || 0)}

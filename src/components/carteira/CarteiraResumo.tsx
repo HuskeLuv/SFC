@@ -9,6 +9,7 @@ import MarketIndicatorsCards from './MarketIndicatorsCards';
 import CaixaParaInvestirCard from '@/components/carteira/shared/CaixaParaInvestirCard';
 import MetricCard from '@/components/carteira/shared/MetricCard';
 import { CARD_HERO_VALUE_CLASS } from '@/components/carteira/shared/cardStyles';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { DownloadIcon, PlusIcon } from '@/icons';
 import { useReservaEmergencia } from '@/hooks/useReservaEmergencia';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
@@ -259,19 +260,19 @@ export default function CarteiraResumo() {
           Carteira total
         </p>
         <p className={`${CARD_HERO_VALUE_CLASS} text-gray-900 dark:text-white`}>
-          {formatCurrency(carteiraTotal)}
+          <Sensivel>{formatCurrency(carteiraTotal)}</Sensivel>
         </p>
         <dl className="mt-2 grid grid-cols-2 gap-3">
           <div className="min-w-0">
             <dt className="text-xs text-gray-500 dark:text-gray-400">Valor aplicado</dt>
             <dd className="text-[15px] font-semibold tabular-nums text-gray-800 dark:text-white/90">
-              {formatCurrency(resumo.valorAplicado)}
+              <Sensivel>{formatCurrency(resumo.valorAplicado)}</Sensivel>
             </dd>
           </div>
           <div className="min-w-0">
             <dt className="text-xs text-gray-500 dark:text-gray-400">Saldo bruto</dt>
             <dd className="text-[15px] font-semibold tabular-nums text-gray-800 dark:text-white/90">
-              {formatCurrency(resumo.saldoBruto)}
+              <Sensivel>{formatCurrency(resumo.saldoBruto)}</Sensivel>
             </dd>
           </div>
         </dl>

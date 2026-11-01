@@ -5,6 +5,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import IRSummaryCard from './IRSummaryCard';
 import IRStateMessage from './IRStateMessage';
 import { CATEGORIA_LABEL, formatBRL, formatYearMonth } from './irFormatters';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 import { ResponsiveCardList } from '@/components/ui/table/ResponsiveTable';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
@@ -103,7 +104,7 @@ export default function IRMensalRendaVariavel() {
                 if (r.lucroBruto < 0)
                   return (
                     <span className="text-[#D92D20] dark:text-[#F97066]">
-                      Prej. {formatBRL(Math.abs(r.lucroBruto))}
+                      Prej. <Sensivel curto>{formatBRL(Math.abs(r.lucroBruto))}</Sensivel>
                     </span>
                   );
                 return '—';
@@ -148,16 +149,16 @@ export default function IRMensalRendaVariavel() {
                           <div>
                             <div className="text-emerald-600 dark:text-emerald-400">Isento</div>
                             <div className="text-xs text-gray-500 dark:text-gray-400">
-                              Vendas {formatBRL(r.vendasTotal)}
+                              Vendas <Sensivel>{formatBRL(r.vendasTotal)}</Sensivel>
                             </div>
                           </div>
                         ) : r.irDevido > 0 ? (
                           <div>
                             <div className="font-medium text-gray-900 dark:text-white">
-                              {formatBRL(r.irDevido)}
+                              <Sensivel>{formatBRL(r.irDevido)}</Sensivel>
                             </div>
                             <div className="text-xs text-gray-500 dark:text-gray-400">
-                              Lucro {formatBRL(r.lucroTributavel)}
+                              Lucro <Sensivel>{formatBRL(r.lucroTributavel)}</Sensivel>
                             </div>
                           </div>
                         ) : (
@@ -165,7 +166,7 @@ export default function IRMensalRendaVariavel() {
                             <div className="text-gray-500">—</div>
                             {r.lucroBruto < 0 && (
                               <div className="text-xs text-red-500 dark:text-red-400">
-                                Prej. {formatBRL(Math.abs(r.lucroBruto))}
+                                Prej. <Sensivel curto>{formatBRL(Math.abs(r.lucroBruto))}</Sensivel>
                               </div>
                             )}
                           </div>
@@ -176,7 +177,11 @@ export default function IRMensalRendaVariavel() {
                   <td
                     className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-semibold text-gray-900 dark:text-white`}
                   >
-                    {mes.irTotalDevido > 0 ? formatBRL(mes.irTotalDevido) : '—'}
+                    {mes.irTotalDevido > 0 ? (
+                      <Sensivel>{formatBRL(mes.irTotalDevido)}</Sensivel>
+                    ) : (
+                      '—'
+                    )}
                   </td>
                 </tr>
               ))}

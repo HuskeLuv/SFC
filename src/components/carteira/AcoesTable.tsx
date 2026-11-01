@@ -1,4 +1,5 @@
 'use client';
+import { Sensivel, ValorVisivel } from '@/components/common/valores/Sensivel';
 import React from 'react';
 import { quantoFaltaClass } from '@/components/carteira/shared/quantoFaltaClass';
 import { formatPct } from '@/utils/format';
@@ -77,6 +78,7 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
     },
     {
       key: 'quantidade',
+      valor: 'sensivel-curto',
       header: 'Quantidade',
       align: 'right',
       render: (a, f) => f.formatNumber(a.quantidade),
@@ -85,6 +87,7 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
     },
     {
       key: 'precoAquisicao',
+      valor: 'sensivel',
       header: 'Preço Médio',
       align: 'right',
       render: (a, f) => f.formatCurrency(a.precoAquisicao),
@@ -101,9 +104,14 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
     },
     {
       key: 'cotacaoAtual',
+      valor: 'visivel',
       header: 'Cotação Atual',
       align: 'right',
-      render: (a, f) => <span>{f.formatCurrency(a.cotacaoAtual)}</span>,
+      render: (a, f) => (
+        <span>
+          <ValorVisivel>{f.formatCurrency(a.cotacaoAtual)}</ValorVisivel>
+        </span>
+      ),
       renderSectionTotal: () => '-',
       renderGrandTotal: () => '-',
     },
@@ -170,10 +178,20 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
       key: 'necessidadeAporte',
       header: 'Nec. Aporte R$',
       align: 'right',
-      render: (a, f) => <span>{f.formatCurrency(a.necessidadeAporte)}</span>,
-      renderSectionTotal: (s, f) => <span>{f.formatCurrency(s.totalNecessidadeAporte)}</span>,
+      render: (a, f) => (
+        <span>
+          <Sensivel>{f.formatCurrency(a.necessidadeAporte)}</Sensivel>
+        </span>
+      ),
+      renderSectionTotal: (s, f) => (
+        <span>
+          <Sensivel>{f.formatCurrency(s.totalNecessidadeAporte)}</Sensivel>
+        </span>
+      ),
       renderGrandTotal: (t, f) => (
-        <span>{f.formatCurrency((t?.necessidadeAporte as number) || 0)}</span>
+        <span>
+          <Sensivel>{f.formatCurrency((t?.necessidadeAporte as number) || 0)}</Sensivel>
+        </span>
       ),
     },
     {

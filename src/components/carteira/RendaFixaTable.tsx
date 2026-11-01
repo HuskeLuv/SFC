@@ -1,4 +1,5 @@
 'use client';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRendaFixa } from '@/hooks/useRendaFixa';
@@ -229,14 +230,18 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
         )}
       </td>
       <td className={`${TABLE_STYLES.compact.td} text-right`}>
-        {formatCurrency(ativo.valorInicialAplicado)}
+        <Sensivel>{formatCurrency(ativo.valorInicialAplicado)}</Sensivel>
       </td>
-      <td className={`${TABLE_STYLES.compact.td} text-right`}>{formatCurrency(ativo.aporte)}</td>
-      <td className={`${TABLE_STYLES.compact.td} text-right`}>{formatCurrency(ativo.resgate)}</td>
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
+        <Sensivel>{formatCurrency(ativo.aporte)}</Sensivel>
+      </td>
+      <td className={`${TABLE_STYLES.compact.td} text-right`}>
+        <Sensivel>{formatCurrency(ativo.resgate)}</Sensivel>
+      </td>
       <td className={`${TABLE_STYLES.compact.td} text-right`}>
         {ativo.isAutoUpdated ? (
           <div title="Sincronizado automaticamente (PU Tesouro Direto)" className="px-1 py-0.5">
-            {formatCurrency(ativo.valorAtualizado)}
+            <Sensivel>{formatCurrency(ativo.valorAtualizado)}</Sensivel>
           </div>
         ) : isEditingValor ? (
           <input
@@ -267,7 +272,7 @@ const RendaFixaTableRow: React.FC<RendaFixaTableRowProps> = ({
             className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-1 py-0.5 rounded"
             onClick={() => setIsEditingValor(true)}
           >
-            {formatCurrency(ativo.valorAtualizado)}
+            <Sensivel>{formatCurrency(ativo.valorAtualizado)}</Sensivel>
           </div>
         )}
       </td>
@@ -362,16 +367,16 @@ const RendaFixaSection: React.FC<RendaFixaSectionProps> = ({
         <td className={`${TABLE_STYLES.compact.td} text-center text-white`}>-</td>
         <td className={`${TABLE_STYLES.compact.td} text-center text-white`}>-</td>
         <td className={`${TABLE_STYLES.compact.td} text-right text-white`}>
-          {formatCurrency(secao.totalValorAplicado)}
+          <Sensivel>{formatCurrency(secao.totalValorAplicado)}</Sensivel>
         </td>
         <td className={`${TABLE_STYLES.compact.td} text-right text-white`}>
-          {formatCurrency(secao.totalAporte)}
+          <Sensivel>{formatCurrency(secao.totalAporte)}</Sensivel>
         </td>
         <td className={`${TABLE_STYLES.compact.td} text-right text-white`}>
-          {formatCurrency(secao.totalResgate)}
+          <Sensivel>{formatCurrency(secao.totalResgate)}</Sensivel>
         </td>
         <td className={`${TABLE_STYLES.compact.td} text-right text-white`}>
-          {formatCurrency(secao.totalValorAtualizado)}
+          <Sensivel>{formatCurrency(secao.totalValorAtualizado)}</Sensivel>
         </td>
         <td className={`${TABLE_STYLES.compact.td} text-right text-white`}>
           {formatPercentageSimple(secao.percentualTotal)}
@@ -593,7 +598,9 @@ export function RendaFixaMobileList({
       cell: (a) => formatCurrency(a.valorAtualizado),
       mobileCell: (a) => (
         <>
-          <span className="block">{formatCurrency(a.valorAtualizado)}</span>
+          <span className="block">
+            <Sensivel>{formatCurrency(a.valorAtualizado)}</Sensivel>
+          </span>
           <span
             className={`block text-xs font-medium ${
               a.rentabilidade < 0 ? TABLE_MOBILE_STYLES.negative : TABLE_MOBILE_STYLES.positive
@@ -642,9 +649,15 @@ export function RendaFixaMobileList({
     return (
       <div className="space-y-3">
         <dl className={TABLE_MOBILE_STYLES.cardDetailGrid}>
-          <DetailItem label="Aplicado">{formatCurrency(a.valorInicialAplicado)}</DetailItem>
-          <DetailItem label="Aportes">{formatCurrency(a.aporte)}</DetailItem>
-          <DetailItem label="Resgates">{formatCurrency(a.resgate)}</DetailItem>
+          <DetailItem label="Aplicado">
+            <Sensivel>{formatCurrency(a.valorInicialAplicado)}</Sensivel>
+          </DetailItem>
+          <DetailItem label="Aportes">
+            <Sensivel>{formatCurrency(a.aporte)}</Sensivel>
+          </DetailItem>
+          <DetailItem label="Resgates">
+            <Sensivel>{formatCurrency(a.resgate)}</Sensivel>
+          </DetailItem>
           <DetailItem label="Vencimento">
             {a.semVencimento ? (
               '—'
@@ -673,9 +686,13 @@ export function RendaFixaMobileList({
             ) : (
               <>
                 IR se resgatar hoje:{' '}
-                <b className="font-semibold tabular-nums">{formatCurrency(a.ir.ir + a.ir.iof)}</b> ·
-                líquido{' '}
-                <b className="font-semibold tabular-nums">{formatCurrency(a.ir.valorLiquido)}</b>
+                <b className="font-semibold tabular-nums">
+                  <Sensivel>{formatCurrency(a.ir.ir + a.ir.iof)}</Sensivel>
+                </b>{' '}
+                · líquido{' '}
+                <b className="font-semibold tabular-nums">
+                  <Sensivel>{formatCurrency(a.ir.valorLiquido)}</Sensivel>
+                </b>
               </>
             )}
           </p>
@@ -692,7 +709,7 @@ export function RendaFixaMobileList({
               <div className="min-w-0">
                 <div className={TABLE_MOBILE_STYLES.cardDetailLabel}>Valor atualizado</div>
                 <div className="text-sm font-medium tabular-nums text-gray-800 dark:text-gray-100">
-                  {formatCurrency(a.valorAtualizado)}
+                  <Sensivel>{formatCurrency(a.valorAtualizado)}</Sensivel>
                 </div>
               </div>
               <span className="inline-flex min-h-11 items-center gap-1 text-right text-xs text-gray-500 dark:text-gray-400">
@@ -716,7 +733,9 @@ export function RendaFixaMobileList({
             editRow(
               a,
               'valorAtualizado',
-              <span className="tabular-nums">{formatCurrency(a.valorAtualizado)}</span>,
+              <span className="tabular-nums">
+                <Sensivel>{formatCurrency(a.valorAtualizado)}</Sensivel>
+              </span>,
             )
           )}
           {editRow(a, 'observacoes', a.observacoes || 'Nenhuma', !a.observacoes)}
@@ -800,13 +819,19 @@ export function RendaFixaMobileList({
         <div className={TABLE_MOBILE_STYLES.cardHeader}>
           <span className="font-semibold">Total geral</span>
           <span className="font-semibold tabular-nums">
-            {formatCurrency(totalGeral.valorAtualizado)}
+            <Sensivel>{formatCurrency(totalGeral.valorAtualizado)}</Sensivel>
           </span>
         </div>
         <dl className={`${TABLE_MOBILE_STYLES.cardDetailGrid} mt-2`}>
-          <DetailItem label="Aplicado">{formatCurrency(totalGeral.valorAplicado)}</DetailItem>
-          <DetailItem label="Aportes">{formatCurrency(totalGeral.aporte)}</DetailItem>
-          <DetailItem label="Resgates">{formatCurrency(totalGeral.resgate)}</DetailItem>
+          <DetailItem label="Aplicado">
+            <Sensivel>{formatCurrency(totalGeral.valorAplicado)}</Sensivel>
+          </DetailItem>
+          <DetailItem label="Aportes">
+            <Sensivel>{formatCurrency(totalGeral.aporte)}</Sensivel>
+          </DetailItem>
+          <DetailItem label="Resgates">
+            <Sensivel>{formatCurrency(totalGeral.resgate)}</Sensivel>
+          </DetailItem>
           <DetailItem label="Rentabilidade">
             {formatPercentage(totalGeral.rentabilidade)}
           </DetailItem>
@@ -1059,16 +1084,20 @@ export default function RendaFixaTable({ totalCarteira = 0 }: RendaFixaTableProp
                     <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
                     <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>
                     <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                      {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
+                      <Sensivel>
+                        {formatCurrency(dataComRisco?.totalGeral?.valorAplicado || 0)}
+                      </Sensivel>
                     </td>
                     <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                      {formatCurrency(dataComRisco?.totalGeral?.aporte || 0)}
+                      <Sensivel>{formatCurrency(dataComRisco?.totalGeral?.aporte || 0)}</Sensivel>
                     </td>
                     <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                      {formatCurrency(dataComRisco?.totalGeral?.resgate || 0)}
+                      <Sensivel>{formatCurrency(dataComRisco?.totalGeral?.resgate || 0)}</Sensivel>
                     </td>
                     <td className={`${TABLE_STYLES.compact.td} text-right`}>
-                      {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
+                      <Sensivel>
+                        {formatCurrency(dataComRisco?.totalGeral?.valorAtualizado || 0)}
+                      </Sensivel>
                     </td>
                     <td className={`${TABLE_STYLES.compact.td} text-right`}>100.00%</td>
                     <td className={`${TABLE_STYLES.compact.td} text-center`}>-</td>

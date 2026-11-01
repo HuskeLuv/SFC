@@ -1,6 +1,8 @@
 import React from 'react';
 import Link from 'next/link';
 import { simplifyAssetName } from '@/utils/assetDisplayName';
+import { TextoSensivel } from '@/components/common/valores/Sensivel';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 
 interface AssetNameLinkProps {
   portfolioId: string;
@@ -23,6 +25,9 @@ interface AssetNameLinkProps {
  * dos ativos manuais. Nunca quebra linha: nomes longos (fundos CVM) são
  * cortados com reticências, e o nome completo fica no `title` (hover) e na
  * página de detalhes. Antes mostrava ticker + razão social em duas linhas.
+ *
+ * Esconder valores: nome de ativo manual pode trazer "R$ valor" — vira pílula no texto e sai
+ * mascarado no title/aria-label.
  */
 const AssetNameLink: React.FC<AssetNameLinkProps> = ({
   portfolioId,
@@ -32,6 +37,7 @@ const AssetNameLink: React.FC<AssetNameLinkProps> = ({
   className = '',
   variant,
 }) => {
+  const { mascarar } = useValoresOcultos();
   const tickerLimpo = (ticker || '').trim();
   const nomeSimples = simplifyAssetName(nome);
   const principal = nomeComoPrincipal
@@ -41,13 +47,13 @@ const AssetNameLink: React.FC<AssetNameLinkProps> = ({
   const completo = [tickerLimpo, (nome || '').trim()]
     .filter((s, i, arr) => s && arr.indexOf(s) === i)
     .join(' — ');
-  const title = completo && completo !== principal ? completo : undefined;
+  const title = completo && completo !== principal ? mascarar(completo) : undefined;
 
   if (variant === 'card-link') {
     return (
       <Link
         href={`/ativos/${portfolioId}`}
-        aria-label={`Ver detalhes do ativo ${principal}`}
+        aria-label={mascarar(`Ver detalhes do ativo ${principal}`)}
         className={`inline-flex min-h-11 items-center gap-1 text-sm font-medium text-mf-patrimonio dark:text-mf-tranquilidade ${className}`}
       >
         Ver detalhes do ativo
@@ -70,7 +76,7 @@ const AssetNameLink: React.FC<AssetNameLinkProps> = ({
       title={title}
       className={`block max-w-[20rem] truncate hover:underline hover:text-brand-600 dark:hover:text-brand-400 ${className}`}
     >
-      {principal}
+      <TextoSensivel texto={principal} />
     </Link>
   );
 };

@@ -1,4 +1,5 @@
 'use client';
+import { Sensivel, ValorVisivel } from '@/components/common/valores/Sensivel';
 import React from 'react';
 import { quantoFaltaClass } from '@/components/carteira/shared/quantoFaltaClass';
 import { formatPct } from '@/utils/format';
@@ -75,6 +76,7 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
     },
     {
       key: 'quantidade',
+      valor: 'sensivel-curto',
       header: 'Quantidade',
       align: 'right',
       render: (a, f) => f.formatNumber(a.quantidade),
@@ -83,6 +85,7 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
     },
     {
       key: 'precoAquisicao',
+      valor: 'sensivel',
       header: 'Preço Médio',
       align: 'right',
       render: (a, f) => f.formatCurrency(a.precoAquisicao),
@@ -99,10 +102,13 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
     },
     {
       key: 'cotacaoAtual',
+      valor: 'visivel',
       header: 'Cotação Atual',
       align: 'right',
       render: (a, f) => (
-        <span className="text-gray-900 dark:text-white">{f.formatCurrency(a.cotacaoAtual)}</span>
+        <span className="text-gray-900 dark:text-white">
+          <ValorVisivel>{f.formatCurrency(a.cotacaoAtual)}</ValorVisivel>
+        </span>
       ),
       renderSectionTotal: () => '-',
       renderGrandTotal: () => '-',
@@ -275,7 +281,7 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
                       <tr key={index} className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
                         <td className={`${TABLE_STYLES.td} font-medium`}>{item.ticker}</td>
                         <td className={`${TABLE_STYLES.td} text-right font-medium`}>
-                          {formatCurrency(item.cotacaoAtual)}
+                          <ValorVisivel>{formatCurrency(item.cotacaoAtual)}</ValorVisivel>
                         </td>
                         <td className={`${TABLE_STYLES.td} text-right font-medium`}>
                           <span
@@ -285,11 +291,11 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
                                 : 'text-gray-600 dark:text-gray-400'
                             }
                           >
-                            {formatCurrency(item.necessidadeAporte)}
+                            <Sensivel>{formatCurrency(item.necessidadeAporte)}</Sensivel>
                           </span>
                         </td>
                         <td className={`${TABLE_STYLES.td} text-right font-medium`}>
-                          {formatNumber(item.loteAproximado)}
+                          <Sensivel curto>{formatNumber(item.loteAproximado)}</Sensivel>
                         </td>
                       </tr>
                     ))}

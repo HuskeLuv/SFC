@@ -5,6 +5,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import IRSummaryCard from './IRSummaryCard';
 import IRStateMessage from './IRStateMessage';
 import { formatBRL, formatYearMonth } from './irFormatters';
+import { Sensivel, ValorVisivel } from '@/components/common/valores/Sensivel';
 import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 import { ResponsiveCardList } from '@/components/ui/table/ResponsiveTable';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
@@ -104,7 +105,8 @@ export default function IRStocksUs() {
         <IRSummaryCard
           label="Limite mensal de isenção"
           value={formatBRL(35000)}
-          subtext="Vendas em ME até R$ 35k/mês são isentas"
+          valor="visivel"
+          subtext={<ValorVisivel>Vendas em ME até R$ 35k/mês são isentas</ValorVisivel>}
         />
       </div>
 
@@ -152,7 +154,7 @@ export default function IRStocksUs() {
                 <span
                   className={m.lucroBrutoBrl < 0 ? 'text-[#D92D20] dark:text-[#F97066]' : undefined}
                 >
-                  {formatBRL(m.lucroBrutoBrl)}
+                  <Sensivel>{formatBRL(m.lucroBrutoBrl)}</Sensivel>
                 </span>
               ),
             },
@@ -183,7 +185,7 @@ export default function IRStocksUs() {
                     />
                   </td>
                   <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right`}>
-                    {formatBRL(m.vendasTotalBrl)}
+                    <Sensivel>{formatBRL(m.vendasTotalBrl)}</Sensivel>
                   </td>
                   <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-medium`}>
                     <span
@@ -195,7 +197,7 @@ export default function IRStocksUs() {
                             : ''
                       }
                     >
-                      {formatBRL(m.lucroBrutoBrl)}
+                      <Sensivel>{formatBRL(m.lucroBrutoBrl)}</Sensivel>
                     </span>
                   </td>
                   <td className={`${TABLE_STYLES.td} whitespace-nowrap text-center`}>
@@ -216,7 +218,7 @@ export default function IRStocksUs() {
                   <td
                     className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-semibold text-gray-900 dark:text-white`}
                   >
-                    {m.irDevido > 0 ? formatBRL(m.irDevido) : '—'}
+                    {m.irDevido > 0 ? <Sensivel>{formatBRL(m.irDevido)}</Sensivel> : '—'}
                   </td>
                 </tr>
               ))}

@@ -87,6 +87,9 @@ jobs:
       # ativado em prisma/seedOrcamentoV2.ts). O demo fica fora do beta: a tela de hoje e os
       # snapshots orcamento-*/planilha-* não mudam. Nunca ORCAMENTO_V2_ACESSO=todos aqui.
       ORCAMENTO_V2_HABILITADO: 'true'
+      # Esconder valores (Fase 1): olho, cookie e faixa ligados no e2e (valores-ocultos-*.spec.ts).
+      # Produção continua desligada até o PR de fechamento da Fase 1 (app.env).
+      VALORES_OCULTOS_HABILITADO: 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

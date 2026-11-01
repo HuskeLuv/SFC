@@ -21,6 +21,10 @@ const MOBILE_OPTIONS: ApexOptions = {
   chart: { width: '100%' },
 };
 
+/** % da legenda do celular (visível com o olho fechado: é percentual, não valor). */
+const formatarPercentual1 = (v: number) =>
+  v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
 interface PieChartCarteiraInvestimentosProps {
   distribuicao: {
     reservaEmergencia: {
@@ -302,11 +306,7 @@ export default function PieChartCarteiraInvestimentos({
                 {item.label}
               </span>
               <span className="shrink-0 font-medium tabular-nums text-gray-800 dark:text-white/90">
-                {item.percentual.toLocaleString('pt-BR', {
-                  minimumFractionDigits: 1,
-                  maximumFractionDigits: 1,
-                })}
-                %
+                {formatarPercentual1(item.percentual)}%
               </span>
             </li>
           ))}

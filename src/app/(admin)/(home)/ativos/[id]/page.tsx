@@ -31,6 +31,14 @@ import { useMoverOpcoes } from '@/hooks/useMoverOpcoes';
 import { useMoverInvestimento } from '@/hooks/useMoverInvestimento';
 import MoverInvestimento from '@/components/carteira/mover/MoverInvestimento';
 import { NaCarteiraCartao, NaCarteiraLinha } from '@/components/carteira/mover/AtivoNaCarteira';
+import {
+  Sensivel,
+  TextoSensivel,
+  ValorVisivel,
+  renderSensivel,
+} from '@/components/common/valores/Sensivel';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
+import type { SensibilidadeValor } from '@/utils/valoresOcultos';
 
 /**
  * Valor na moeda GRAVADA da posição (Carteira EUA em US$: stock/REIT em dólar mostram US$ e o
@@ -103,10 +111,27 @@ interface ExtratoItem {
   quantity: number;
   total: number;
   detail?: string;
+  /** Provento: valor por cota/ação (o `detail` é "unitário x quantidade"). */
+  valorUnitario?: number;
 }
 
 const signedClass = (value: number) =>
   value < 0 ? TABLE_MOBILE_STYLES.negative : TABLE_MOBILE_STYLES.positive;
+
+/**
+ * Qtd do extrato. Provento mostra "unitário x quantidade": com o olho fechado, o unitário (dinheiro
+ * do usuário) e a quantidade viram pílulas e o " x " fica. Olho aberto: o mesmo texto de sempre.
+ */
+function QtdExtrato({ item, unitario }: { item: ExtratoItem; unitario: string | null }) {
+  const { ativo } = useValoresOcultos();
+  if (item.detail === undefined) return <Sensivel curto>{formatNumber(item.quantity)}</Sensivel>;
+  if (!ativo || unitario === null) return <>{item.detail}</>;
+  return (
+    <>
+      <Sensivel>{unitario}</Sensivel> x <Sensivel curto>{formatNumber(item.quantity)}</Sensivel>
+    </>
+  );
+}
 
 const historicoMensalColumns = (
   formatCurrency: (value: number) => string,
@@ -116,6 +141,7 @@ const historicoMensalColumns = (
     id: 'saldo',
     header: 'Saldo atual',
     mobile: 'value',
+    valor: 'sensivel',
     cell: (r) => formatCurrency(r.saldoBruto),
   },
   {
@@ -138,11 +164,18 @@ const historicoMensalColumns = (
     mobile: 'field',
     cell: (r) => (r.cdi !== null ? formatPercentage(r.cdi) : '—'),
   },
-  { id: 'qtde', header: 'Qtde', mobile: 'detail', cell: (r) => formatNumber(r.quantidade) },
+  {
+    id: 'qtde',
+    header: 'Qtde',
+    mobile: 'detail',
+    valor: 'sensivel-curto',
+    cell: (r) => formatNumber(r.quantidade),
+  },
   {
     id: 'proventos',
     header: 'Proventos',
     mobile: 'detail',
+    valor: 'sensivel',
     cell: (r) => formatCurrency(r.proventos),
   },
 ];
@@ -161,12 +194,23 @@ const extratoColumns = (
     ),
   },
   { id: 'data', header: 'Data', mobile: 'subtitle', cell: (item) => formatDate(item.data) },
-  { id: 'valor', header: 'Valor', mobile: 'value', cell: (item) => formatCurrency(item.total) },
+  {
+    id: 'valor',
+    header: 'Valor',
+    mobile: 'value',
+    valor: 'sensivel',
+    cell: (item) => formatCurrency(item.total),
+  },
   {
     id: 'qtd',
     header: 'Qtd',
     mobile: 'detail',
-    cell: (item) => item.detail ?? formatNumber(item.quantity),
+    cell: (item) => (
+      <QtdExtrato
+        item={item}
+        unitario={item.valorUnitario !== undefined ? formatCurrency(item.valorUnitario) : null}
+      />
+    ),
   },
 ];
 
@@ -522,6 +566,7 @@ function AtivoDetalheContent() {
           p.quantidade > 0
             ? `${formatCurrency(valorUnitario)} x ${formatNumber(p.quantidade)}`
             : undefined,
+        valorUnitario: p.quantidade > 0 ? valorUnitario : undefined,
       });
     });
 
@@ -571,6 +616,25 @@ function AtivoDetalheContent() {
       ? `custo em R$: ${formatMoeda(posicao.valorAplicadoBRL)}`
       : undefined;
 
+  // Esconder valores: quantidade, preço médio e dinheiro da posição viram pílula; a cotação fica.
+  const paresPosicao: Array<[string, string, SensibilidadeValor]> = [
+    ['Quantidade', formatNumber(posicao.quantidade), 'sensivel-curto'],
+    ['Preço médio', formatCurrency(posicao.precoMedio), 'sensivel'],
+    ['Última cotação', formatCurrency(posicao.cotacaoAtual), 'visivel'],
+    ['Valor aplicado', formatCurrency(posicao.valorAplicado), 'sensivel'],
+    ...(custoEmReais && posicao.valorAplicadoBRL != null
+      ? [
+          ['Custo em R$', formatMoeda(posicao.valorAplicadoBRL), 'sensivel'] as [
+            string,
+            string,
+            SensibilidadeValor,
+          ],
+        ]
+      : []),
+    ['Rentabilidade', formatPercentage(posicao.rentabilidade), 'auto'],
+    ['Resultado', formatCurrency(posicao.resultado), 'sensivel'],
+  ];
+
   return (
     <div className="space-y-6 max-lg:space-y-4">
       {isBelowLg ? (
@@ -598,37 +662,32 @@ function AtivoDetalheContent() {
           <section aria-label="Posição" data-mf-ativo-hero="" className={TABLE_MOBILE_STYLES.card}>
             <p className="text-xs text-gray-500 dark:text-gray-400">Saldo bruto</p>
             <p className={`${CARD_HERO_VALUE_CLASS} text-gray-900 dark:text-white`}>
-              {formatCurrency(posicao.saldoBruto)}
+              <Sensivel>{formatCurrency(posicao.saldoBruto)}</Sensivel>
             </p>
             <p className={`text-sm font-medium tabular-nums ${signedClass(posicao.resultado)}`}>
-              {formatCurrency(posicao.resultado)} ({formatPercentage(posicao.rentabilidade)})
+              <Sensivel>{formatCurrency(posicao.resultado)}</Sensivel>
+              {` (${formatPercentage(posicao.rentabilidade)})`}
             </p>
             {temProventos && (
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                inclui {formatCurrency(posicao.proventosRecebidos ?? 0)} de proventos
+                {'inclui '}
+                <Sensivel>{formatCurrency(posicao.proventosRecebidos ?? 0)}</Sensivel>
+                {' de proventos'}
               </p>
             )}
             {saldoEmReais && (
               <p className="text-xs text-gray-500 tabular-nums dark:text-gray-400">
-                {saldoEmReais}
-                {linhaCambio ? ` · ${linhaCambio}` : ''}
+                <TextoSensivel texto={saldoEmReais} />
+                {linhaCambio ? <ValorVisivel>{` · ${linhaCambio}`}</ValorVisivel> : ''}
               </p>
             )}
             <dl className={`mt-3 ${TABLE_MOBILE_STYLES.cardDetailGrid}`}>
-              {[
-                ['Quantidade', formatNumber(posicao.quantidade)],
-                ['Preço médio', formatCurrency(posicao.precoMedio)],
-                ['Última cotação', formatCurrency(posicao.cotacaoAtual)],
-                ['Valor aplicado', formatCurrency(posicao.valorAplicado)],
-                ...(custoEmReais && posicao.valorAplicadoBRL != null
-                  ? [['Custo em R$', formatMoeda(posicao.valorAplicadoBRL)]]
-                  : []),
-                ['Rentabilidade', formatPercentage(posicao.rentabilidade)],
-                ['Resultado', formatCurrency(posicao.resultado)],
-              ].map(([label, value]) => (
+              {paresPosicao.map(([label, value, modo]) => (
                 <div key={label} className="min-w-0">
                   <dt className={TABLE_MOBILE_STYLES.cardDetailLabel}>{label}</dt>
-                  <dd className={`${TABLE_MOBILE_STYLES.cardDetailValue} break-words`}>{value}</dd>
+                  <dd className={`${TABLE_MOBILE_STYLES.cardDetailValue} break-words`}>
+                    {renderSensivel(value, modo)}
+                  </dd>
                 </div>
               ))}
             </dl>
@@ -678,8 +737,16 @@ function AtivoDetalheContent() {
 
           {/* Resumo - MetricCards */}
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-7">
-            <MetricCard title="Quantidade" value={formatNumber(data.posicao.quantidade)} />
-            <MetricCard title="Preço médio" value={formatCurrency(data.posicao.precoMedio)} />
+            <MetricCard
+              title="Quantidade"
+              value={formatNumber(data.posicao.quantidade)}
+              valor="sensivel-curto"
+            />
+            <MetricCard
+              title="Preço médio"
+              value={formatCurrency(data.posicao.precoMedio)}
+              valor="sensivel"
+            />
             <MetricCard
               title="Rentabilidade"
               value={formatPercentage(data.posicao.rentabilidade)}
@@ -691,22 +758,29 @@ function AtivoDetalheContent() {
               }
               changeDirection="neutral"
             />
-            <MetricCard title="Última cotação" value={formatCurrency(data.posicao.cotacaoAtual)} />
+            <MetricCard
+              title="Última cotação"
+              value={formatCurrency(data.posicao.cotacaoAtual)}
+              valor="visivel"
+            />
             <MetricCard
               title="Valor aplicado"
               value={formatCurrency(data.posicao.valorAplicado)}
+              valor="sensivel"
               change={custoEmReais}
               changeDirection="neutral"
             />
             <MetricCard
               title="Saldo bruto"
               value={formatCurrency(data.posicao.saldoBruto)}
+              valor="sensivel"
               change={saldoEmReais}
               changeDirection="neutral"
             />
             <MetricCard
               title="Resultado"
               value={formatCurrency(data.posicao.resultado)}
+              valor="sensivel"
               color={data.posicao.resultado >= 0 ? 'success' : 'error'}
               change={
                 (data.posicao.proventosRecebidos ?? 0) > 0
@@ -780,10 +854,10 @@ function AtivoDetalheContent() {
                           {formatMonthYear(row.date)}
                         </StandardTableBodyCell>
                         <StandardTableBodyCell align="right">
-                          {formatCurrency(row.saldoBruto)}
+                          <Sensivel>{formatCurrency(row.saldoBruto)}</Sensivel>
                         </StandardTableBodyCell>
                         <StandardTableBodyCell align="right">
-                          {formatNumber(row.quantidade)}
+                          <Sensivel curto>{formatNumber(row.quantidade)}</Sensivel>
                         </StandardTableBodyCell>
                         <StandardTableBodyCell align="right">
                           {formatPercentage(row.rentabilidade)}
@@ -795,7 +869,7 @@ function AtivoDetalheContent() {
                           {row.cdi !== null ? formatPercentage(row.cdi) : '—'}
                         </StandardTableBodyCell>
                         <StandardTableBodyCell align="right">
-                          {formatCurrency(row.proventos)}
+                          <Sensivel>{formatCurrency(row.proventos)}</Sensivel>
                         </StandardTableBodyCell>
                       </StandardTableRow>
                     ))}
@@ -838,7 +912,7 @@ function AtivoDetalheContent() {
                               Valor Total
                             </p>
                             <p className="text-xs font-normal text-gray-800 dark:text-gray-200">
-                              {formatCurrency(p.valorTotal)}
+                              <Sensivel>{formatCurrency(p.valorTotal)}</Sensivel>
                             </p>
                           </div>
                           <div className="text-right">
@@ -846,7 +920,7 @@ function AtivoDetalheContent() {
                               QTDE
                             </p>
                             <p className="text-xs font-normal text-gray-800 dark:text-gray-200">
-                              {formatNumber(p.quantidade)}
+                              <Sensivel curto>{formatNumber(p.quantidade)}</Sensivel>
                             </p>
                           </div>
                         </div>
@@ -979,10 +1053,17 @@ function AtivoDetalheContent() {
                           {formatDate(item.data)}
                         </StandardTableBodyCell>
                         <StandardTableBodyCell align="right">
-                          {item.detail ?? formatNumber(item.quantity)}
+                          <QtdExtrato
+                            item={item}
+                            unitario={
+                              item.valorUnitario !== undefined
+                                ? formatCurrency(item.valorUnitario)
+                                : null
+                            }
+                          />
                         </StandardTableBodyCell>
                         <StandardTableBodyCell align="right">
-                          {formatCurrency(item.total)}
+                          <Sensivel>{formatCurrency(item.total)}</Sensivel>
                         </StandardTableBodyCell>
                       </StandardTableRow>
                     ))}

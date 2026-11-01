@@ -5,6 +5,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import IRSummaryCard from './IRSummaryCard';
 import IRStateMessage from './IRStateMessage';
 import { formatBRL, formatYearMonth } from './irFormatters';
+import { Sensivel, ValorVisivel } from '@/components/common/valores/Sensivel';
 import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 import { ResponsiveCardList } from '@/components/ui/table/ResponsiveTable';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
@@ -64,7 +65,7 @@ export default function IRCripto() {
         <IRSummaryCard
           label="Meses isentos"
           value={mesesIsentos.toString()}
-          subtext="Vendas até R$ 35k/mês são isentas"
+          subtext={<ValorVisivel>Vendas até R$ 35k/mês são isentas</ValorVisivel>}
         />
       </div>
 
@@ -106,7 +107,7 @@ export default function IRCripto() {
                 <span
                   className={m.lucroBruto < 0 ? 'text-[#D92D20] dark:text-[#F97066]' : undefined}
                 >
-                  {formatBRL(m.lucroBruto)}
+                  <Sensivel>{formatBRL(m.lucroBruto)}</Sensivel>
                 </span>
               ),
             },
@@ -133,7 +134,7 @@ export default function IRCripto() {
                     {formatYearMonth(m.yearMonth)}
                   </td>
                   <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right`}>
-                    {formatBRL(m.vendasTotal)}
+                    <Sensivel>{formatBRL(m.vendasTotal)}</Sensivel>
                   </td>
                   <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-medium`}>
                     <span
@@ -145,7 +146,7 @@ export default function IRCripto() {
                             : ''
                       }
                     >
-                      {formatBRL(m.lucroBruto)}
+                      <Sensivel>{formatBRL(m.lucroBruto)}</Sensivel>
                     </span>
                   </td>
                   <td className={`${TABLE_STYLES.td} whitespace-nowrap text-center`}>
@@ -166,7 +167,7 @@ export default function IRCripto() {
                   <td
                     className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-semibold text-gray-900 dark:text-white`}
                   >
-                    {m.irDevido > 0 ? formatBRL(m.irDevido) : '—'}
+                    {m.irDevido > 0 ? <Sensivel>{formatBRL(m.irDevido)}</Sensivel> : '—'}
                   </td>
                 </tr>
               ))}

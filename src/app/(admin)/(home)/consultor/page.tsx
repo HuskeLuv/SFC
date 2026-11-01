@@ -19,6 +19,7 @@ import TopClientsCard from '@/components/consultor/TopClientsCard';
 import RiskAlertList from '@/components/consultor/RiskAlertList';
 import AportesResgatesTable from '@/components/consultor/AportesResgatesTable';
 import AssetDistributionChart from '@/components/consultor/AssetDistributionChart';
+import { Sensivel, ValorVisivel } from '@/components/common/valores/Sensivel';
 
 type ConsultantOverview = {
   totalClients: number;
@@ -867,6 +868,7 @@ const ConsultantDashboardPage = () => {
                     metric: client.patrimony,
                     metricLabel: 'Patrimônio',
                     metricFormatter: (val: number) => currencyFormatter.format(val),
+                    metricValor: 'sensivel' as const,
                   }))}
                 />
                 <TopClientsCard
@@ -1010,16 +1012,24 @@ const ConsultantDashboardPage = () => {
                                     </div>
                                   </TableCell>
                                   <TableCell className={TABLE_STYLES.td}>
-                                    {summary
-                                      ? currencyFormatter.format(summary.currentBalance)
-                                      : '—'}
+                                    {summary ? (
+                                      <Sensivel>
+                                        {currencyFormatter.format(summary.currentBalance)}
+                                      </Sensivel>
+                                    ) : (
+                                      '—'
+                                    )}
                                   </TableCell>
                                   <TableCell className={TABLE_STYLES.td}>
-                                    {summary
-                                      ? `${percentageFormatter.format(
+                                    {summary ? (
+                                      <ValorVisivel>
+                                        {`${percentageFormatter.format(
                                           summary.monthlyReturnPercentage,
-                                        )}%`
-                                      : '—'}
+                                        )}%`}
+                                      </ValorVisivel>
+                                    ) : (
+                                      '—'
+                                    )}
                                   </TableCell>
                                   <TableCell className={TABLE_STYLES.td}>{'—'}</TableCell>
                                   <TableCell className={TABLE_STYLES.td}>
@@ -1160,14 +1170,24 @@ const ConsultantDashboardPage = () => {
                                   </div>
                                 </TableCell>
                                 <TableCell className={TABLE_STYLES.td}>
-                                  {summary ? currencyFormatter.format(summary.currentBalance) : '—'}
+                                  {summary ? (
+                                    <Sensivel>
+                                      {currencyFormatter.format(summary.currentBalance)}
+                                    </Sensivel>
+                                  ) : (
+                                    '—'
+                                  )}
                                 </TableCell>
                                 <TableCell className={TABLE_STYLES.td}>
-                                  {summary
-                                    ? `${percentageFormatter.format(
+                                  {summary ? (
+                                    <ValorVisivel>
+                                      {`${percentageFormatter.format(
                                         summary.monthlyReturnPercentage,
-                                      )}%`
-                                    : '—'}
+                                      )}%`}
+                                    </ValorVisivel>
+                                  ) : (
+                                    '—'
+                                  )}
                                 </TableCell>
                                 <TableCell className={TABLE_STYLES.td}>{'—'}</TableCell>
                                 <TableCell className={TABLE_STYLES.td}>

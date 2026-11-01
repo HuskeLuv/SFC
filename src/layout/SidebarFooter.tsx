@@ -3,15 +3,17 @@
 import React from 'react';
 import { ThemeToggleButton } from '@/components/common/ThemeToggleButton';
 import NotificationDropdown from '@/components/header/NotificationDropdown';
+import OlhoValoresButton from '@/components/common/valores/OlhoValoresButton';
 import UserDropdown from '@/components/header/UserDropdown';
 import { useAuth } from '@/hooks/useAuth';
 import { useExitActing } from '@/hooks/useExitActing';
 import { useSidebar } from '@/context/SidebarContext';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 
 /**
  * Footer fixo da sidebar (#1 do checklist mai/28) — substitui a topbar
- * removida em D.1. Contém: tema, notificações, perfil e a pill de
- * personificação (quando consultor está atuando).
+ * removida em D.1. Contém: tema, olho do "esconder valores" (com a flag),
+ * notificações, perfil e a pill de personificação (quando consultor está atuando).
  *
  * Quando a sidebar está colapsada (não isExpanded e não hover), só os
  * ícones aparecem. Quando expandida, ícones + texto.
@@ -20,6 +22,7 @@ export default function SidebarFooter() {
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
   const { actingClient } = useAuth();
   const { exitActing: handleExitActing, leaving: leavingActing } = useExitActing();
+  const { habilitado: olhoHabilitado } = useValoresOcultos();
 
   const showLabels = isExpanded || isHovered || isMobileOpen;
 
@@ -52,13 +55,35 @@ export default function SidebarFooter() {
           </button>
         </div>
       )}
-      <div
-        className={`flex items-center ${showLabels ? 'justify-between gap-2' : 'flex-col gap-2'}`}
-      >
-        <ThemeToggleButton />
-        <NotificationDropdown />
-        <UserDropdown />
-      </div>
+      {!olhoHabilitado ? (
+        <div
+          className={`flex items-center ${showLabels ? 'justify-between gap-2' : 'flex-col gap-2'}`}
+        >
+          <ThemeToggleButton />
+          <NotificationDropdown />
+          <UserDropdown />
+        </div>
+      ) : showLabels ? (
+        // Esconder valores (decisão 8): tema · olho · sino numa linha (3 × 44px + gaps cabem nos
+        // 160px úteis) e o perfil embaixo em largura total — na mesma linha ficaria com ~12px.
+        <>
+          <div className="flex items-center gap-2">
+            <ThemeToggleButton />
+            <OlhoValoresButton variant="sidebar" />
+            <NotificationDropdown />
+          </div>
+          <div className="mt-2 flex items-center">
+            <UserDropdown />
+          </div>
+        </>
+      ) : (
+        <div className="flex flex-col items-center gap-2">
+          <ThemeToggleButton />
+          <OlhoValoresButton variant="sidebar" />
+          <NotificationDropdown />
+          <UserDropdown />
+        </div>
+      )}
     </div>
   );
 }

@@ -4,6 +4,11 @@ import { logger } from '@/lib/logger';
 import React, { useEffect, useState, useMemo } from 'react';
 import { ApexOptions } from 'apexcharts';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import {
+  useChaveGraficoSensivel,
+  useOpcoesGraficoSensiveis,
+  type OpcoesGraficoSensiveis,
+} from './useOpcoesGraficoSensiveis';
 
 interface ApexChartWrapperProps {
   options: ApexOptions;
@@ -18,6 +23,11 @@ interface ApexChartWrapperProps {
   mobileOptions?: ApexOptions;
   /** PWA fase 1: altura abaixo de lg (padrão: `height`). */
   mobileHeight?: string | number;
+  /**
+   * Esconder valores: ajustes do mascaramento (ex.: `eixosSemSimbolo` para eixos "2000K"). O
+   * mascaramento vale sempre, sobre as opções FINAIS (depois das mobileOptions).
+   */
+  valoresOcultos?: OpcoesGraficoSensiveis;
 }
 
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>
@@ -45,6 +55,7 @@ const ApexChartWrapper: React.FC<ApexChartWrapperProps> = ({
   height = '350',
   mobileOptions,
   mobileHeight,
+  valoresOcultos,
 }) => {
   const isBelowLg = useIsBelowLg();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -119,6 +130,10 @@ const ApexChartWrapper: React.FC<ApexChartWrapperProps> = ({
     [isBelowLg, mobileOptions, sanitizedOptions],
   );
 
+  // Esconder valores: sobre as opções FINAIS (mobileOptions incluídas). Olho aberto = mesma ref.
+  const finalOptions = useOpcoesGraficoSensiveis(effectiveOptions, valoresOcultos);
+  const chaveSensivel = useChaveGraficoSensivel();
+
   useEffect(() => {
     // Importação dinâmica do ReactApexChart apenas no client-side
     const loadChart = async () => {
@@ -142,14 +157,14 @@ const ApexChartWrapper: React.FC<ApexChartWrapperProps> = ({
   }
 
   const chartProps = {
-    options: effectiveOptions,
+    options: finalOptions,
     series: [...series],
     type,
     width,
     height: isBelowLg && mobileHeight !== undefined ? mobileHeight : height,
   };
 
-  return <Chart {...chartProps} />;
+  return <Chart key={chaveSensivel} {...chartProps} />;
 };
 
 export default ApexChartWrapper;

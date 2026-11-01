@@ -1,11 +1,18 @@
 import React from 'react';
+import { ConteudoSensivel } from '@/components/common/valores/Sensivel';
+import type { SensibilidadeValor } from '@/utils/valoresOcultos';
 
 interface IRSummaryCardProps {
   label: string;
   value: string;
-  subtext?: string;
+  subtext?: React.ReactNode;
   color?: string;
   highlight?: boolean;
+  /**
+   * Esconder valores: como `value` reage ao olho. 'auto' (padrão) esconde só o que tem R$/US$;
+   * 'visivel' para regra pública (ex.: limite de isenção). O `subtext` em texto esconde só os R$.
+   */
+  valor?: SensibilidadeValor;
 }
 
 export default function IRSummaryCard({
@@ -14,6 +21,7 @@ export default function IRSummaryCard({
   subtext,
   color,
   highlight,
+  valor = 'auto',
 }: IRSummaryCardProps) {
   return (
     <div
@@ -29,9 +37,13 @@ export default function IRSummaryCard({
       <p
         className={`mt-2 text-2xl font-bold max-lg:text-xl max-lg:break-words ${color ?? 'text-gray-900 dark:text-white'}`}
       >
-        {value}
+        <ConteudoSensivel modo={valor}>{value}</ConteudoSensivel>
       </p>
-      {subtext && <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{subtext}</p>}
+      {subtext && (
+        <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+          <ConteudoSensivel>{subtext}</ConteudoSensivel>
+        </p>
+      )}
     </div>
   );
 }

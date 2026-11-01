@@ -4,6 +4,8 @@ import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import MobileEditSheet from '@/components/ui/sheet/MobileEditSheet';
 import { formatDecimalInput, parseDecimalInput } from '@/lib/ui/numberInput';
 import { MobileEditTrigger, useAssetCardContext } from './AssetCardSections';
+import { Sensivel } from '@/components/common/valores/Sensivel';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 
 interface EditableValorCellProps {
   ativoId: string;
@@ -39,7 +41,11 @@ const parseValorMonetarioMobile = (str: string): number | null => {
   return parseDecimalInput(str, 'pt-BR');
 };
 
-/** Celular (PWA fase 1): valor + "Editar" → MobileEditSheet de moeda. */
+/**
+ * Celular (PWA fase 1): valor + "Editar" → MobileEditSheet de moeda.
+ * Esconder valores: parado, o valor vira pílula e o aria/aviso de salvo saem mascarados; o sheet
+ * (formulário) mostra o número para editar.
+ */
 const ValorMobile: React.FC<EditableValorCellProps> = ({
   ativoId,
   valorAtualizado,
@@ -49,14 +55,17 @@ const ValorMobile: React.FC<EditableValorCellProps> = ({
   subject: subjectProp,
 }) => {
   const card = useAssetCardContext();
+  const { mascarar } = useValoresOcultos();
   const [open, setOpen] = useState(false);
   const subject = subjectProp ?? card?.subject ?? 'ativo';
   return (
     <>
       <MobileEditTrigger
         field="valor"
-        display={formatCurrency(valorAtualizado)}
-        ariaLabel={`Editar valor atualizado de ${subject}, hoje ${formatCurrency(valorAtualizado)}`}
+        display={<Sensivel>{formatCurrency(valorAtualizado)}</Sensivel>}
+        ariaLabel={mascarar(
+          `Editar valor atualizado de ${subject}, hoje ${formatCurrency(valorAtualizado)}`,
+        )}
         onOpen={() => setOpen(true)}
       />
       <MobileEditSheet
@@ -72,7 +81,7 @@ const ValorMobile: React.FC<EditableValorCellProps> = ({
         parseValue={locale === 'pt-BR' ? parseValorMonetarioMobile : undefined}
         min={0}
         onSubmit={(v) => onUpdateValorAtualizado(ativoId, v as number)}
-        savedMessage={(v) => `Valor de ${subject} salvo: ${formatCurrency(v as number)}`}
+        savedMessage={(v) => mascarar(`Valor de ${subject} salvo: ${formatCurrency(v as number)}`)}
       />
     </>
   );
@@ -151,7 +160,7 @@ const ValorDesktop: React.FC<EditableValorCellProps> = ({
         setIsEditing(true);
       }}
     >
-      {formatCurrency(valorAtualizado)}
+      <Sensivel>{formatCurrency(valorAtualizado)}</Sensivel>
     </div>
   );
 };

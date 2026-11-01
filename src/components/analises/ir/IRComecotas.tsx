@@ -5,6 +5,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import IRSummaryCard from './IRSummaryCard';
 import IRStateMessage from './IRStateMessage';
 import { FUNDO_TIPO_LABEL, formatBRL, formatDate, formatPercent } from './irFormatters';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 import { ResponsiveCardList } from '@/components/ui/table/ResponsiveTable';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
@@ -133,7 +134,7 @@ export default function IRComecotas() {
                         f.rendimentoEstimado > 0 ? 'text-emerald-600 dark:text-emerald-400' : ''
                       }
                     >
-                      {formatBRL(f.rendimentoEstimado)}
+                      <Sensivel>{formatBRL(f.rendimentoEstimado)}</Sensivel>
                     </span>
                   </td>
                   <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right`}>
@@ -145,7 +146,7 @@ export default function IRComecotas() {
                     {f.isentoComeCotas ? (
                       <span className="text-emerald-600 dark:text-emerald-400">Isento</span>
                     ) : (
-                      formatBRL(f.irEstimado)
+                      <Sensivel>{formatBRL(f.irEstimado)}</Sensivel>
                     )}
                   </td>
                 </tr>

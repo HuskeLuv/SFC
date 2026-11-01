@@ -5,6 +5,8 @@ import { EtfAlocacaoAtivo } from '@/types/etf';
 
 import dynamic from 'next/dynamic';
 import { PIE_MOBILE_RESPONSIVE } from './pieMobileResponsive';
+import { usePizzaSensivel } from './usePizzaSensivel';
+import { useChaveGraficoSensivel } from '../useOpcoesGraficoSensiveis';
 // Dynamically import the ReactApexChart component
 const ReactApexChart = dynamic(() => import('react-apexcharts'), {
   ssr: false,
@@ -130,6 +132,10 @@ const PieChartEtfAtivo: React.FC<PieChartEtfAtivoProps> = ({ data, isDarkMode = 
     [data, isDarkMode],
   );
 
+  // Esconder valores: a série é o valor de cada ativo — centro e tooltip mascarados; fatias ficam.
+  const opcoesSeguras = usePizzaSensivel(options, { serieEmValor: true });
+  const chaveSensivel = useChaveGraficoSensivel();
+
   const series = data.map((item) => item.valor);
 
   if (data.length === 0) {
@@ -148,7 +154,13 @@ const PieChartEtfAtivo: React.FC<PieChartEtfAtivoProps> = ({ data, isDarkMode = 
   return (
     <div className="flex justify-center">
       <div id="chartEtfAtivo" className="w-full">
-        <ReactApexChart options={options} series={series} type="donut" height={300} />
+        <ReactApexChart
+          key={chaveSensivel}
+          options={opcoesSeguras}
+          series={series}
+          type="donut"
+          height={300}
+        />
       </div>
     </div>
   );

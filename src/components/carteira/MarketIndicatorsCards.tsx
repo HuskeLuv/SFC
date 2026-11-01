@@ -137,6 +137,8 @@ export default function MarketIndicatorsCards({ extraCards }: MarketIndicatorsCa
           color={card.color}
           change={card.change}
           changeDirection={card.changeDirection}
+          // Esconder valores: cotações públicas de mercado ficam visíveis com o olho fechado.
+          valor="visivel"
         />
       ))}
     </div>

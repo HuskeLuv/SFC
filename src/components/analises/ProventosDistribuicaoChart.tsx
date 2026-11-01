@@ -6,6 +6,10 @@ import { ApexOptions } from 'apexcharts';
 import { GroupedProventoData } from '@/hooks/useProventos';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { PIE_MOBILE_RESPONSIVE } from '@/components/charts/pie/pieMobileResponsive';
+import {
+  useChaveGraficoSensivel,
+  useOpcoesGraficoSensiveis,
+} from '@/components/charts/useOpcoesGraficoSensiveis';
 
 const hasFunctionValue = (value: unknown): boolean => {
   if (typeof value === 'function') return true;
@@ -32,6 +36,7 @@ const ApexChartWrapper = React.memo(
   }) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [Chart, setChart] = useState<React.ComponentType<any> | null>(null);
+    const chaveSensivel = useChaveGraficoSensivel();
 
     // JSON-stringify destrói callbacks (formatters); preserva `options` íntegro quando há funções.
     const sanitizedOptions = useMemo(() => {
@@ -64,7 +69,15 @@ const ApexChartWrapper = React.memo(
       );
     }
 
-    return <Chart options={sanitizedOptions} series={series} type={type} height={height} />;
+    return (
+      <Chart
+        key={chaveSensivel}
+        options={sanitizedOptions}
+        series={series}
+        type={type}
+        height={height}
+      />
+    );
   },
 );
 
@@ -191,6 +204,9 @@ export default function ProventosDistribuicaoChart({
     [series, labels, viewMode, isBelowLg],
   );
 
+  // Esconder valores (decisão 7): tooltip e centro da rosca em R$ mascarados; % e yield ficam.
+  const opcoesFinais = useOpcoesGraficoSensiveis(options);
+
   const chartSeries = useMemo(() => series, [series]);
 
   return (
@@ -200,7 +216,7 @@ export default function ProventosDistribuicaoChart({
         className={`min-w-[600px] xl:min-w-full${isBelowLg ? ' mscreen:min-w-0' : ''}`}
       >
         <ApexChartWrapper
-          options={options}
+          options={opcoesFinais}
           series={chartSeries}
           type="donut"
           height={isBelowLg ? 340 : 400}

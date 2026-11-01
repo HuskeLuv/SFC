@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import NotificationDropdown from '@/components/header/NotificationDropdown';
+import OlhoValoresButton from '@/components/common/valores/OlhoValoresButton';
 import useGoBack from '@/hooks/useGoBack';
 import { useAuth } from '@/hooks/useAuth';
 import { useExitActing } from '@/hooks/useExitActing';
@@ -15,7 +16,7 @@ import { useThemeColorSync } from './useThemeColorSync';
 
 /**
  * Cabeçalho compacto da casca mobile (abaixo de lg): voltar ou logo, título da página, ano do
- * Fluxo (em /fluxodecaixa), sino e avatar (abre o painel Mais na seção Conta). Substitui o
+ * Fluxo (em /fluxodecaixa), olho do "esconder valores" (com a flag), sino e avatar (abre o painel Mais na seção Conta). Substitui o
  * botão hambúrguer flutuante, que cobria os títulos. Com personificação, a faixa "Vendo como".
  */
 export default function MobileHeader() {
@@ -85,6 +86,8 @@ export default function MobileHeader() {
             {title}
           </p>
           {showYear ? <CashflowYearSelect compact /> : null}
+          {/* Esconder valores: olho logo antes do sino (null sem a flag). */}
+          <OlhoValoresButton variant="mobile" />
           <NotificationDropdown placement="down" />
           <button
             type="button"

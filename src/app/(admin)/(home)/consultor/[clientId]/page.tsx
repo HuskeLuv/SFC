@@ -14,6 +14,12 @@ import Badge from '@/components/ui/badge/Badge';
 import dynamic from 'next/dynamic';
 import type { ApexOptions } from 'apexcharts';
 import { useAuth } from '@/hooks/useAuth';
+import {
+  useChaveGraficoSensivel,
+  useOpcoesGraficoSensiveis,
+} from '@/components/charts/useOpcoesGraficoSensiveis';
+import { Sensivel, ValorVisivel } from '@/components/common/valores/Sensivel';
+import type { SensibilidadeValor } from '@/utils/valoresOcultos';
 
 type ClientSummary = {
   currentBalance: number;
@@ -343,6 +349,19 @@ const ClientConsultantDetailPage = () => {
   }, [authLoading, user, router]);
 
   const wealthSeries = useMemo(() => buildWealthSeries(detail), [detail]);
+  const wealthOptions = useMemo<ApexOptions>(
+    () => ({
+      ...wealthChartOptions,
+      xaxis: {
+        ...wealthChartOptions.xaxis,
+        categories: wealthSeries.map((item) => item.label),
+      },
+    }),
+    [wealthSeries],
+  );
+  // Esconder valores: sobre as opções finais (olho aberto = mesma referência).
+  const wealthOptionsFinais = useOpcoesGraficoSensiveis(wealthOptions, { eixosSemSimbolo: true });
+  const chaveSensivel = useChaveGraficoSensivel();
 
   const totalBalances = detail?.balances?.total;
   const monthlyBalances = detail?.balances?.monthly;
@@ -357,28 +376,38 @@ const ClientConsultantDetailPage = () => {
         : 0;
     const indicePoupanca = savingsIndex(monthlyBalances ?? totalBalances);
 
-    return [
+    const lista: Array<{
+      title: string;
+      value: string;
+      helper: string;
+      valor: SensibilidadeValor;
+    }> = [
       {
         title: 'Saldo atual',
         value: currencyFormatter.format(saldoAtual),
         helper: 'Fluxo de caixa consolidado',
+        valor: 'sensivel',
       },
       {
         title: 'Total investido',
         value: currencyFormatter.format(totalInvestido),
         helper: 'Somatório dos ativos em carteira',
+        valor: 'sensivel',
       },
       {
         title: 'Rentabilidade acumulada',
         value: `${percentageFormatter.format(rentabilidadeAcumulada)}%`,
         helper: 'Com base no saldo atual x investido',
+        valor: 'visivel',
       },
       {
         title: 'Índice de poupança',
         value: `${percentageFormatter.format(indicePoupanca)}%`,
         helper: 'Proporção de renda preservada no mês',
+        valor: 'visivel',
       },
     ];
+    return lista;
   }, [detail, totalBalances, monthlyBalances]);
 
   const portfolioSummary = useMemo(() => {
@@ -486,7 +515,11 @@ const ClientConsultantDetailPage = () => {
                   <Card key={card.title}>
                     <CardTitle>{card.title}</CardTitle>
                     <p className="mt-3 text-2xl font-semibold text-gray-900 dark:text-white">
-                      {card.value}
+                      {card.valor === 'sensivel' ? (
+                        <Sensivel>{card.value}</Sensivel>
+                      ) : (
+                        <ValorVisivel>{card.value}</ValorVisivel>
+                      )}
                     </p>
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{card.helper}</p>
                   </Card>
@@ -507,13 +540,8 @@ const ClientConsultantDetailPage = () => {
                 <div className="mt-6">
                   {wealthSeries.length ? (
                     <ReactApexChart
-                      options={{
-                        ...wealthChartOptions,
-                        xaxis: {
-                          ...wealthChartOptions.xaxis,
-                          categories: wealthSeries.map((item) => item.label),
-                        },
-                      }}
+                      key={chaveSensivel}
+                      options={wealthOptionsFinais}
                       series={[
                         {
                           name: 'Patrimônio',
@@ -574,7 +602,9 @@ const ClientConsultantDetailPage = () => {
                                 }`}
                               >
                                 {signedValue >= 0 ? '+' : '−'}
-                                {currencyFormatter.format(Math.abs(signedValue))}
+                                <Sensivel>
+                                  {currencyFormatter.format(Math.abs(signedValue))}
+                                </Sensivel>
                               </p>
                               <div className="mt-1 flex justify-end">
                                 <Badge variant="light" color={badge.color} size="sm">
@@ -627,13 +657,16 @@ const ClientConsultantDetailPage = () => {
                                   {item.label}
                                 </TableCell>
                                 <TableCell className={TABLE_STYLES.td}>
-                                  {currencyFormatter.format(item.invested)}
+                                  <Sensivel>{currencyFormatter.format(item.invested)}</Sensivel>
                                 </TableCell>
                                 <TableCell className={TABLE_STYLES.td}>
-                                  {currencyFormatter.format(item.current)}
+                                  <Sensivel>{currencyFormatter.format(item.current)}</Sensivel>
                                 </TableCell>
                                 <TableCell className={TABLE_STYLES.td}>
-                                  {percentageFormatter.format(item.percentage)}%
+                                  <ValorVisivel>
+                                    {percentageFormatter.format(item.percentage)}
+                                  </ValorVisivel>
+                                  %
                                 </TableCell>
                               </TableRow>
                             ))}

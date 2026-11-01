@@ -1,4 +1,5 @@
 'use client';
+import { ConteudoSensivel, Sensivel } from '@/components/common/valores/Sensivel';
 import React, { useMemo } from 'react';
 import { formatPct } from '@/utils/format';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '../ui/table';
@@ -74,7 +75,9 @@ const ReservaEmergenciaMetricCard: React.FC<ReservaEmergenciaMetricCardProps> = 
   return (
     <div className={`rounded-lg p-4 ${colorClasses[color]}`}>
       <p className="text-xs font-medium opacity-80 mb-1">{title}</p>
-      <p className="text-xl font-semibold">{value}</p>
+      <p className="text-xl font-semibold">
+        <ConteudoSensivel>{value}</ConteudoSensivel>
+      </p>
     </div>
   );
 };
@@ -114,16 +117,16 @@ const ReservaEmergenciaTableRow: React.FC<ReservaEmergenciaTableRowProps> = ({
       </TableCell>
       <TableCell className={`${TABLE_STYLES.compact.td} text-center`}>{ativo.benchmark}</TableCell>
       <TableCell className={`${TABLE_STYLES.compact.td} text-right font-mono`}>
-        {formatCurrency(ativo.valorInicial)}
+        <Sensivel>{formatCurrency(ativo.valorInicial)}</Sensivel>
       </TableCell>
       <TableCell className={`${TABLE_STYLES.compact.td} text-right font-mono`}>
-        {formatCurrency(ativo.aporte)}
+        <Sensivel>{formatCurrency(ativo.aporte)}</Sensivel>
       </TableCell>
       <TableCell className={`${TABLE_STYLES.compact.td} text-right font-mono`}>
-        {formatCurrency(ativo.resgate)}
+        <Sensivel>{formatCurrency(ativo.resgate)}</Sensivel>
       </TableCell>
       <TableCell className={`${TABLE_STYLES.compact.td} text-right font-mono`}>
-        {formatCurrency(ativo.valorAtualizado)}
+        <Sensivel>{formatCurrency(ativo.valorAtualizado)}</Sensivel>
       </TableCell>
       <TableCell className={`${TABLE_STYLES.compact.td} text-center`}>
         {formatPercentage(ativo.percentualCarteira)}
@@ -220,7 +223,9 @@ function ReservaEmergenciaMobileList({
       cell: (a) => formatCurrency(a.valorAtualizado),
       mobileCell: (a) => (
         <>
-          <span className="block">{formatCurrency(a.valorAtualizado)}</span>
+          <span className="block">
+            <Sensivel>{formatCurrency(a.valorAtualizado)}</Sensivel>
+          </span>
           <span
             className={`block text-xs font-medium ${
               a.rentabilidade < 0 ? TABLE_MOBILE_STYLES.negative : TABLE_MOBILE_STYLES.positive
@@ -255,13 +260,13 @@ function ReservaEmergenciaMobileList({
                 {formatDate(a.vencimento)}
               </ReservaEmergenciaDetail>
               <ReservaEmergenciaDetail label="Valor inicial">
-                {formatCurrency(a.valorInicial)}
+                <Sensivel>{formatCurrency(a.valorInicial)}</Sensivel>
               </ReservaEmergenciaDetail>
               <ReservaEmergenciaDetail label="Aportes">
-                {formatCurrency(a.aporte)}
+                <Sensivel>{formatCurrency(a.aporte)}</Sensivel>
               </ReservaEmergenciaDetail>
               <ReservaEmergenciaDetail label="Resgates">
-                {formatCurrency(a.resgate)}
+                <Sensivel>{formatCurrency(a.resgate)}</Sensivel>
               </ReservaEmergenciaDetail>
               <ReservaEmergenciaDetail label="% da aba">
                 {formatPercentage(a.percentualCarteira)}
@@ -287,18 +292,18 @@ function ReservaEmergenciaMobileList({
         <div className={TABLE_MOBILE_STYLES.cardHeader}>
           <span className="font-semibold">Total geral</span>
           <span className="font-semibold tabular-nums">
-            {formatCurrency(total.valorAtualizado)}
+            <Sensivel>{formatCurrency(total.valorAtualizado)}</Sensivel>
           </span>
         </div>
         <dl className={`${TABLE_MOBILE_STYLES.cardDetailGrid} mt-2`}>
           <ReservaEmergenciaDetail label="Valor inicial">
-            {formatCurrency(total.valorInicial)}
+            <Sensivel>{formatCurrency(total.valorInicial)}</Sensivel>
           </ReservaEmergenciaDetail>
           <ReservaEmergenciaDetail label="Aportes">
-            {formatCurrency(total.aporte)}
+            <Sensivel>{formatCurrency(total.aporte)}</Sensivel>
           </ReservaEmergenciaDetail>
           <ReservaEmergenciaDetail label="Resgates">
-            {formatCurrency(total.resgate)}
+            <Sensivel>{formatCurrency(total.resgate)}</Sensivel>
           </ReservaEmergenciaDetail>
           <ReservaEmergenciaDetail label="Rentabilidade">
             {formatPercentage(total.rentabilidade)}
@@ -455,16 +460,16 @@ export default function ReservaEmergenciaTable({
                     <TableCell className={TABLE_STYLES.compact.td}></TableCell>
                     <TableCell className={TABLE_STYLES.compact.td}></TableCell>
                     <TableCell className={`${TABLE_STYLES.compact.td} text-right font-mono`}>
-                      {formatCurrency(totais.valorInicial)}
+                      <Sensivel>{formatCurrency(totais.valorInicial)}</Sensivel>
                     </TableCell>
                     <TableCell className={`${TABLE_STYLES.compact.td} text-right font-mono`}>
-                      {formatCurrency(totais.aporte)}
+                      <Sensivel>{formatCurrency(totais.aporte)}</Sensivel>
                     </TableCell>
                     <TableCell className={`${TABLE_STYLES.compact.td} text-right font-mono`}>
-                      {formatCurrency(totais.resgate)}
+                      <Sensivel>{formatCurrency(totais.resgate)}</Sensivel>
                     </TableCell>
                     <TableCell className={`${TABLE_STYLES.compact.td} text-right font-mono`}>
-                      {formatCurrency(totais.valorAtualizado)}
+                      <Sensivel>{formatCurrency(totais.valorAtualizado)}</Sensivel>
                     </TableCell>
                     <TableCell className={`${TABLE_STYLES.compact.td} text-center`}>
                       {sortedAtivos.length > 0 ? formatPct(100) : '—'}

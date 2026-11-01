@@ -1,6 +1,8 @@
 'use client';
 import React, { useMemo } from 'react';
 import { GroupedProventoData } from '@/hooks/useProventos';
+import { Sensivel } from '@/components/common/valores/Sensivel';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 
 interface ProventosDistribuicaoCardsProps {
   grouped: Record<string, GroupedProventoData>;
@@ -40,6 +42,8 @@ export default function ProventosDistribuicaoCards({
   grouped,
   groupBy,
 }: ProventosDistribuicaoCardsProps) {
+  // Cartões coloridos (texto branco): a pílula usa o tom de superfície inversa (decisão 5).
+  const { ativo: valoresOcultos } = useValoresOcultos();
   const { entries, total } = useMemo(() => {
     const items = Object.entries(grouped).sort((a, b) => b[1].total - a[1].total);
     const sum = items.reduce((s, [, d]) => s + d.total, 0);
@@ -64,7 +68,9 @@ export default function ProventosDistribuicaoCards({
         return (
           <div
             key={key}
-            className={`rounded-2xl ${color} p-5 text-white min-h-[160px] flex flex-col justify-between`}
+            className={`rounded-2xl ${color} p-5 text-white min-h-[160px] flex flex-col justify-between${
+              valoresOcultos ? ' mf-sup-inverso' : ''
+            }`}
           >
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide opacity-90">{title}</p>
@@ -72,7 +78,9 @@ export default function ProventosDistribuicaoCards({
             </div>
             <div className="mt-4">
               <p className="text-xs opacity-90">Total acumulado:</p>
-              <p className="text-lg font-bold">{formatCurrency(data.total)}</p>
+              <p className="text-lg font-bold">
+                <Sensivel>{formatCurrency(data.total)}</Sensivel>
+              </p>
             </div>
           </div>
         );
