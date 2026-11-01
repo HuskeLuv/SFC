@@ -1,6 +1,7 @@
 import React from 'react';
 import { formatBRL } from '@/utils/format';
 import { MYFINANCE_BRAND } from '@/constants/brandColors';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 
 /** Texto da parte do banco de uma célula (editor do desktop e do celular). */
 export const textoParteBanco = (valorBanco: number): string =>
@@ -11,8 +12,10 @@ export const textoParteBanco = (valorBanco: number): string =>
  * digitado; ao editar, o usuário vê quanto do total veio do banco).
  */
 export function BancoIndicator({ valorBanco }: { valorBanco: number }) {
+  // Texto de apoio fora do campo: com o olho fechado o R$ sai do title/aria-label (decisão 3).
+  const { mascarar } = useValoresOcultos();
   if (!(valorBanco > 0)) return null;
-  const texto = textoParteBanco(valorBanco);
+  const texto = mascarar(textoParteBanco(valorBanco));
   return (
     <span
       data-mf-parte-banco=""

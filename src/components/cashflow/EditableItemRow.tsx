@@ -7,6 +7,7 @@ import { DeleteItemButton } from './DeleteItemButton';
 import { EditableItemData } from '@/hooks/useGroupEditMode';
 import { CommentIndicator } from './CommentIndicator';
 import { BancoIndicator } from './BancoIndicator';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { FixedCell, MonthCell, AnnualCell } from './GridCells';
 import { GRID, currentMonthIndex } from './cashflowGridStyles';
 import { isInvestment, READONLY_REASON_TEXT } from '@/lib/cashflow/itemCapabilities';
@@ -283,7 +284,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
                 >
                   {renderComment(index)}
                   <span style={cellColor ? { color: cellColor } : undefined}>
-                    {formatCurrency(value || 0)}
+                    <Sensivel>{formatCurrency(value || 0)}</Sensivel>
                   </span>
                 </div>
               </MonthCell>
@@ -291,7 +292,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
           })}
 
       <AnnualCell className={`text-gray-800 dark:text-gray-100 ${rowBg}`}>
-        {formatCurrency(isEditing ? calculatedAnnualTotal : itemAnnualTotal)}
+        <Sensivel>{formatCurrency(isEditing ? calculatedAnnualTotal : itemAnnualTotal)}</Sensivel>
       </AnnualCell>
     </TableRow>
   );

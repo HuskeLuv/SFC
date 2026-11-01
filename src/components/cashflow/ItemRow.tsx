@@ -6,6 +6,7 @@ import { TableRow } from '@/components/ui/table';
 import { CashflowItem, CashflowGroup } from '@/types/cashflow';
 import { formatCurrency, formatPercent } from '@/utils/formatters';
 import { CommentIndicator } from './CommentIndicator';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { FixedCell, MonthCell, AnnualCell } from './GridCells';
 import { GRID, currentMonthIndex } from './cashflowGridStyles';
 import { useDropHint } from './CashflowDnd';
@@ -165,14 +166,14 @@ const ItemRowComponent: React.FC<ItemRowProps> = ({
                 />
               )}
               <span style={cellColor ? { color: cellColor } : undefined}>
-                {formatCurrency(value || 0)}
+                <Sensivel>{formatCurrency(value || 0)}</Sensivel>
               </span>
             </div>
           </MonthCell>
         );
       })}
       <AnnualCell className={`text-gray-800 dark:text-gray-100 ${GRID.rowBg}`}>
-        {formatCurrency(itemAnnualTotal)}
+        <Sensivel>{formatCurrency(itemAnnualTotal)}</Sensivel>
       </AnnualCell>
     </TableRow>
   );
