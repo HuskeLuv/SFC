@@ -5,11 +5,15 @@
  * aba, via useNaCarteiraAtivo) e as contas sobre o custo — ação: P/L e yield sobre custo; FII:
  * P/VP e rendimento sobre custo. LPA ≤ 0 ⇒ só o yield ("—" no P/L). Com o consultor agindo, é a
  * posição do cliente. Sem posição: uma linha dizendo que o ativo não está na carteira.
+ *
+ * Esconder valores (Fase 5): quantidade (pílula curta) e preço médio viram pílula; os múltiplos e
+ * o yield sobre custo são índices/% e ficam.
  */
 import { formatarNumeroBR } from '@/services/analiseAtivos/regras/valuation/arredondamento';
 import type { SuaPosicaoCenario } from '@/services/analiseAtivos/regras/valuation/montarCenarios';
 import { TEXTOS_CENARIOS } from '@/services/analiseAtivos/textosCenarios';
 import { formatarTexto } from '@/services/analiseAtivos/textos';
+import TextoComSensiveis from '@/components/analiseAtivos/comum/TextoComSensiveis';
 import { reais } from '@/components/analiseAtivos/ativo/cenarios/TabelaMetodos';
 
 const T = TEXTOS_CENARIOS.suaPosicao;
@@ -42,10 +46,11 @@ export default function LinhaSuaPosicao({ posicao, classe, consultor, carregando
     <div className={caixa} data-sua-posicao="posicao">
       <span className="font-semibold text-gray-800 dark:text-white/90">{titulo}</span>
       <span>
-        {formatarTexto(fii ? T.fii : T.acao, {
-          n: formatarNumeroBR(posicao.quantidade, 0),
-          valor: reais(posicao.pm),
-        })}
+        <TextoComSensiveis
+          template={fii ? T.fii : T.acao}
+          vars={{ n: formatarNumeroBR(posicao.quantidade, 0), valor: reais(posicao.pm) }}
+          modos={{ n: 'curto', valor: posicao.pm === null ? undefined : 'sensivel' }}
+        />
       </span>
       <span>
         {fii ? T.pvpSobreCusto : T.plSobreCusto}{' '}

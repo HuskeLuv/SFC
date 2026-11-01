@@ -10,6 +10,10 @@
  * meses (padrão 60), prioridade e situação com os enums do schema. O aviso diz que o objetivo
  * também vira uma linha no Fluxo de Caixa — com o consultor agindo, no Planejamento e no Fluxo de
  * Caixa DO CLIENTE (a rota grava no targetUserId).
+ *
+ * Esconder valores (Fase 5): formulário — os campos (inclusive o nome, que leva a renda) ficam
+ * visíveis (decisão 3). Valor do objetivo e já disponível (R$ e cotas, calculados fora do campo)
+ * viram pílula; a cotação de hoje (mercado) fica.
  */
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { Modal } from '@/components/ui/modal';
@@ -27,6 +31,7 @@ import { formatarNumeroBR } from '@/services/analiseAtivos/regras/valuation/arre
 import type { MetaRendaCenario } from '@/services/analiseAtivos/regras/valuation/montarCenarios';
 import { TEXTOS_CENARIOS } from '@/services/analiseAtivos/textosCenarios';
 import { formatarTexto } from '@/services/analiseAtivos/textos';
+import TextoComSensiveis from '@/components/analiseAtivos/comum/TextoComSensiveis';
 
 const T = TEXTOS_CENARIOS.objetivo;
 export const PRAZO_PADRAO_MESES = 60;
@@ -157,22 +162,30 @@ export default function ConfirmarObjetivoPlanejamento({
           className="m-0 font-medium text-gray-800 tabular-nums dark:text-white/90"
           data-objetivo-valor=""
         >
-          {formatarTexto(T.valorValor, {
-            valor: `R$ ${formatarNumeroBR(meta.target, 2)}`,
-            cotas: formatarNumeroBR(meta.cotas, 0),
-            n: cot,
-          })}
+          <TextoComSensiveis
+            template={T.valorValor}
+            vars={{
+              valor: `R$ ${formatarNumeroBR(meta.target, 2)}`,
+              cotas: formatarNumeroBR(meta.cotas, 0),
+              n: cot,
+            }}
+            modos={{ valor: 'sensivel', cotas: 'curto', n: 'visivel' }}
+          />
         </dd>
         <dt className="text-gray-500 dark:text-gray-400">{T.campos.disponivel}</dt>
         <dd
           className="m-0 font-medium text-gray-800 tabular-nums dark:text-white/90"
           data-objetivo-disponivel=""
         >
-          {formatarTexto(T.disponivelValor, {
-            valor: `R$ ${formatarNumeroBR(meta.available, 2)}`,
-            cotas: formatarNumeroBR(Math.min(meta.quantidade, meta.cotas), 0),
-            n: cot,
-          })}
+          <TextoComSensiveis
+            template={T.disponivelValor}
+            vars={{
+              valor: `R$ ${formatarNumeroBR(meta.available, 2)}`,
+              cotas: formatarNumeroBR(Math.min(meta.quantidade, meta.cotas), 0),
+              n: cot,
+            }}
+            modos={{ valor: 'sensivel', cotas: 'curto', n: 'visivel' }}
+          />
         </dd>
       </dl>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
