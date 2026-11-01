@@ -10,8 +10,8 @@
  * Strings devolvidas por render/getValue/cell (fora do JSX) não são acusadas: a autodetecção de
  * R$/US$ dos componentes compartilhados e os testes com sentinelas cobrem esses casos.
  *
- * Nível: 'error' nas pastas da Fase 1 (fechada com zero ocorrências). A fase em andamento entra
- * em 'warn' (GLOBS_VALORES_OCULTOS_FASE2) e passa para GLOBS_VALORES_OCULTOS no fechamento.
+ * Nível: 'error' nas pastas da Fase 1 e da Fase 2 (ambas fechadas com zero ocorrências). A Fase 2
+ * fica em GLOBS_VALORES_OCULTOS_FASE2 (bloco próprio por causa da opção `formattersExtras`).
  *
  * Fluxo de caixa: o formatCurrency DEPRECATED (src/utils/formatters.ts) é formatNumber, sem "R$".
  * A regra pega formatCurrency/formatBRL no JSX e, na Fase 2, o num() do Orçamento v2 (opção
@@ -159,9 +159,8 @@ export const IGNORES_VALORES_OCULTOS = [
 ];
 
 /**
- * Fase 2 (em andamento, 'warn'): Fluxo de caixa e Orçamento v1/v2. O integrador move estes globs
- * para GLOBS_VALORES_OCULTOS ('error') no fechamento da fase (mantendo OPCOES_VALORES_OCULTOS_FASE2
- * nesses globs).
+ * Fase 2 ('error' desde o fechamento): Fluxo de caixa e Orçamento v1/v2, com a opção
+ * OPCOES_VALORES_OCULTOS_FASE2 (num() do Orçamento v2).
  */
 export const OPCOES_VALORES_OCULTOS_FASE2 = { formattersExtras: ['num'] };
 

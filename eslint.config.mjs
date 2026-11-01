@@ -41,13 +41,14 @@ const eslintConfig = [
       "mf/valor-sem-sensivel": "error",
     },
   },
-  // Fase 2 (Fluxo de caixa e Orçamento) em andamento: 'warn' até o fechamento da fase.
+  // Fase 2 (Fluxo de caixa e Orçamento v1/v2): 'error' desde o fechamento da fase, com zero
+  // ocorrências. Bloco próprio porque leva a opção formattersExtras (num() do Orçamento v2).
   {
     files: GLOBS_VALORES_OCULTOS_FASE2,
     ignores: IGNORES_VALORES_OCULTOS_FASE2,
     plugins: { mf: pluginValoresOcultos },
     rules: {
-      "mf/valor-sem-sensivel": ["warn", OPCOES_VALORES_OCULTOS_FASE2],
+      "mf/valor-sem-sensivel": ["error", OPCOES_VALORES_OCULTOS_FASE2],
     },
   },
 ];
