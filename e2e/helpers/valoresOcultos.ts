@@ -87,3 +87,15 @@ export async function expectNumerosAusentes(
   const expostos = numeros.filter((n) => texto.includes(n));
   expect(expostos, 'números da posição ainda visíveis com o olho fechado').toEqual([]);
 }
+
+/**
+ * Tamanho do documento (scrollWidth/scrollHeight). Fechar o olho não pode alargar a página (o
+ * "valor oculto" do leitor de tela escapava das tabelas com rolagem e criava rolagem horizontal;
+ * no celular o viewport de layout passava de 390px e a barra de baixo saía da tela).
+ */
+export async function tamanhoDoDocumento(page: Page): Promise<{ largura: number; altura: number }> {
+  return page.evaluate(() => ({
+    largura: document.documentElement.scrollWidth,
+    altura: document.documentElement.scrollHeight,
+  }));
+}

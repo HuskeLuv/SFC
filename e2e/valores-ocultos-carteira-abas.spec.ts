@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { COOKIE_VALORES_OCULTOS } from './helpers/valoresOcultos';
+import { COOKIE_VALORES_OCULTOS, tamanhoDoDocumento } from './helpers/valoresOcultos';
 import { waitCarteiraReady, waitForIdle } from './helpers/mobileFit';
 
 /**
@@ -128,6 +128,7 @@ for (const variante of VARIANTES) {
         await expect(page.locator('[data-mf-content] [data-mf-sensivel]')).toHaveCount(0);
         const textoAberto = (await textoExposto(page)).replace(REGEX_PERCENTUAL, ' ');
         const numeros = [...new Set(textoAberto.match(new RegExp(REGEX_NUMERO_POSICAO)) ?? [])];
+        const { largura: larguraAberto } = await tamanhoDoDocumento(page);
 
         // Olho fechado: cookie antes de abrir a página.
         await context.addCookies([
@@ -140,6 +141,11 @@ for (const variante of VARIANTES) {
         ]);
         await abrirAba(page, aba);
         await expect(page.locator('html')).toHaveAttribute('data-valores-ocultos', '');
+        // A pílula não alarga a página (sem rolagem horizontal nova).
+        expect(
+          (await tamanhoDoDocumento(page)).largura,
+          'largura do documento',
+        ).toBeLessThanOrEqual(larguraAberto);
 
         const texto = await textoExposto(page);
         const monetarios = [...new Set(texto.match(new RegExp(REGEX_VALOR_MONETARIO)) ?? [])];

@@ -4,6 +4,7 @@ import {
   coletarValoresExpostos,
   expectNumerosAusentes,
   ligarValoresOcultos,
+  tamanhoDoDocumento,
 } from './helpers/valoresOcultos';
 import { openCarteiraTab } from './helpers/mobileFit';
 
@@ -76,6 +77,7 @@ async function conferirTela(page: Page, url: string, pronto: string) {
   await page.waitForTimeout(1_500);
   const graficos = await page.locator('[data-mf-content] .apexcharts-canvas').count();
   const numeros = await coletarNumerosDaPosicao(page);
+  const { largura: larguraAberto } = await tamanhoDoDocumento(page);
 
   await ligarValoresOcultos(page.context(), new URL(page.url()).origin);
   await page.reload({ waitUntil: 'domcontentloaded' });
@@ -87,6 +89,10 @@ async function conferirTela(page: Page, url: string, pronto: string) {
     .toBeGreaterThanOrEqual(graficos);
   await page.waitForTimeout(1_000);
   await expect(page.locator('[data-mf-content] .mf-sensivel').first()).toBeVisible();
+  // A pílula não alarga a página: no celular o viewport de layout ficaria > 390px.
+  expect((await tamanhoDoDocumento(page)).largura, 'largura do documento').toBeLessThanOrEqual(
+    larguraAberto,
+  );
 
   const ficam = await numerosQuePodemFicar(page);
   await expectNumerosAusentes(
