@@ -62,6 +62,12 @@ test.describe('esconder valores — Planejar (preparo da Fase 3)', () => {
 
     await alternarOlho(page, true);
     await expect(page.getByText(FAIXA)).toHaveCount(0);
+    // Acumulação: os dois campos lado a lado seguem alinhados com as pílulas no cabeçalho.
+    const painel = page.locator('[data-mf-content] aside').first();
+    await expect(painel.locator('.mf-sensivel').first()).toBeVisible();
+    const topo = async (rotulo: string) =>
+      Math.round((await painel.getByLabel(rotulo, { exact: true }).boundingBox())!.y);
+    expect(await topo('Aportes mensais')).toBe(await topo('Patrimônio inicial'));
     // Espera o debounce do autosave: com os campos travados, nada é gravado.
     await page.waitForTimeout(2_000);
     expect(escritas).toEqual([]);

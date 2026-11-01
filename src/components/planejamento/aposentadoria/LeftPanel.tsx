@@ -11,6 +11,7 @@ import {
 } from '@/services/planejamento/aposentadoria';
 import type { PlanoUpsertPayload } from '@/hooks/useAposentadoria';
 import { ConteudoSensivel, Sensivel } from '@/components/common/valores/Sensivel';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import { formatBRL, fPct, MONTH_OPTIONS } from './utils';
 import type { AutoField, AutoValues } from './autoFields';
 
@@ -231,6 +232,7 @@ function MoneyField({
   step = 100,
   onChange,
   hint,
+  emPar = false,
 }: {
   label: string;
   value: number;
@@ -238,17 +240,25 @@ function MoneyField({
   step?: number;
   onChange: (v: number) => void;
   hint?: React.ReactNode;
+  /** Campo lado a lado com outro (grade de 2 colunas): o cabeçalho tem de alinhar com o vizinho. */
+  emPar?: boolean;
 }) {
   const id = useId();
+  const { ativo } = useValoresOcultos();
+  // Olho fechado: a pílula (largura fixa) não quebra como o eco "R$ 3.456,78" quebra hoje, então
+  // um cabeçalho do par ficaria com 1 linha e o outro com 2, desalinhando os campos. Duas linhas
+  // fixas no par mantêm os campos alinhados (e na altura de hoje). Olho aberto: classes de hoje.
+  const cabecalho = 'mb-1 flex items-center justify-between' + (ativo && emPar ? ' min-h-8' : '');
   return (
     <div className="mb-3">
-      <div className="mb-1 flex items-center justify-between">
+      <div className={cabecalho}>
         <label htmlFor={id} className="text-xs text-gray-500 dark:text-gray-400">
           {label}
         </label>
         {/* Eco do campo fora dele: vira pílula; o campo continua com o número (decisão 3). */}
         <span className="text-xs font-semibold text-gray-800 dark:text-white/90">
-          <Sensivel>{formatBRL(value)}</Sensivel>
+          {/* ml-2 só existe na pílula: sem ela, a pílula encosta no rótulo. */}
+          <Sensivel className="ml-2">{formatBRL(value)}</Sensivel>
         </span>
       </div>
       <div className="flex">
@@ -545,6 +555,7 @@ export default function LeftPanel({
             sliderMax={F.patrimonio.max}
             step={F.patrimonio.step}
             onChange={(v) => onChange({ patrimonio: v })}
+            emPar
             hint={badge('patrimonio', formatBRL)}
           />
           <MoneyField
@@ -553,6 +564,7 @@ export default function LeftPanel({
             sliderMax={F.aporteM.max}
             step={F.aporteM.step}
             onChange={(v) => onChange({ aporteM: v })}
+            emPar
             hint={badge('aporteM', formatBRL)}
           />
         </div>
