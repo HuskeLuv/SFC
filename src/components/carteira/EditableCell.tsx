@@ -1,5 +1,6 @@
-"use client";
-import React, { useState, useRef, useEffect } from "react";
+'use client';
+import React, { useState, useRef, useEffect } from 'react';
+import { TextoSensivel } from '@/components/common/valores/Sensivel';
 
 interface EditableCellProps {
   value: number;
@@ -13,7 +14,7 @@ interface EditableCellProps {
   max?: number;
   formatValue?: (value: number) => string;
   parseValue?: (rawValue: string) => number;
-  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
 }
 
 export default function EditableCell({
@@ -22,8 +23,8 @@ export default function EditableCell({
   onStartEdit,
   onStopEdit,
   onValueChange,
-  className = "",
-  suffix = "%",
+  className = '',
+  suffix = '%',
   min = 0,
   max = 100,
   formatValue,
@@ -93,7 +94,9 @@ export default function EditableCell({
       onClick={onStartEdit}
       className={`cursor-pointer px-2 py-1 rounded transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 ${className}`}
     >
-      {formatValue ? formatValue(value) : `${value.toFixed(1)}${suffix}`}
+      {/* Esconder valores: parado, o valor em R$ (meta da Reserva de Emergência) vira pílula; o
+          número aparece ao editar (decisão 3). Os % ficam. */}
+      <TextoSensivel texto={formatValue ? formatValue(value) : `${value.toFixed(1)}${suffix}`} />
     </div>
   );
-} 
+}

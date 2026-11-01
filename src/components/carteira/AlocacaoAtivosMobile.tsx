@@ -8,6 +8,8 @@ import { CATEGORIA_CORES } from '@/lib/carteiraCategoryColors';
 import { formatDecimalInput, parseDecimalInput } from '@/lib/ui/numberInput';
 import { CATEGORIA_TO_TAB } from './carteiraTabsConfig';
 import AlocacaoMetaSheet, { type AlocacaoMetaField } from './AlocacaoMetaSheet';
+import { Sensivel, TextoSensivel } from '@/components/common/valores/Sensivel';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 
 /** Linha já calculada pela AlocacaoAtivosTable (mesmo cálculo do desktop; aqui só exibição). */
 export interface AlocacaoLinha {
@@ -113,6 +115,8 @@ export default function AlocacaoAtivosMobile({
   children,
 }: AlocacaoAtivosMobileProps) {
   const [editing, setEditing] = useState<string | null>(null);
+  // Esconder valores: o texto de apoio do AlocacaoMetaSheet (string) sai com "R$ •••••".
+  const { mascarar } = useValoresOcultos();
   // Vem do hook (não é estado local): trocar de aba desmonta este componente, e as metas aplicadas
   // continuam no useAlocacaoConfig — a barra Salvar/Descartar precisa continuar aparecendo.
   const dirty = new Set(changedCategorias);
@@ -227,7 +231,7 @@ export default function AlocacaoAtivosMobile({
                   </span>
                 )}
                 <span className="shrink-0 text-[15px] font-semibold tabular-nums text-gray-800 dark:text-white/90">
-                  {formatarMoeda(linha.total)}
+                  <Sensivel>{formatarMoeda(linha.total)}</Sensivel>
                 </span>
               </div>
 
@@ -261,7 +265,8 @@ export default function AlocacaoAtivosMobile({
                 <div className="min-w-0">
                   <dt className={TABLE_MOBILE_STYLES.cardDetailLabel}>Mín · Máx</dt>
                   <dd className={`${TABLE_MOBILE_STYLES.cardDetailValue} break-words`}>
-                    {fmt(linha.alocacaoMinimo)} · {fmt(linha.alocacaoMaximo)}
+                    <TextoSensivel texto={fmt(linha.alocacaoMinimo)} /> ·{' '}
+                    <TextoSensivel texto={fmt(linha.alocacaoMaximo)} />
                     {changed && <ChangedDot />}
                   </dd>
                 </div>
@@ -272,7 +277,7 @@ export default function AlocacaoAtivosMobile({
                   <dd
                     className={`${TABLE_MOBILE_STYLES.cardDetailValue} break-words font-semibold`}
                   >
-                    {fmt(linha.percentualTarget)}
+                    <TextoSensivel texto={fmt(linha.percentualTarget)} />
                     {changed && <ChangedDot />}
                   </dd>
                 </div>
@@ -283,14 +288,18 @@ export default function AlocacaoAtivosMobile({
                   className={`inline-flex items-center gap-1.5 text-[13px] font-medium tabular-nums ${qf.tone}`}
                 >
                   <span aria-hidden="true" className={`h-2 w-2 rounded-full ${qf.dot}`} />
-                  {qf.label}
+                  <TextoSensivel texto={qf.label} />
                 </span>
                 <span className="text-[13px] tabular-nums text-gray-600 dark:text-gray-400">
-                  {linha.necessidadeAporte > 0
-                    ? `Aporte ${formatarMoeda(linha.necessidadeAporte)}`
-                    : linha.excessoAporte > 0
-                      ? `Excesso ${formatarMoeda(linha.excessoAporte)}`
-                      : 'Sem aporte'}
+                  <TextoSensivel
+                    texto={
+                      linha.necessidadeAporte > 0
+                        ? `Aporte ${formatarMoeda(linha.necessidadeAporte)}`
+                        : linha.excessoAporte > 0
+                          ? `Excesso ${formatarMoeda(linha.excessoAporte)}`
+                          : 'Sem aporte'
+                    }
+                  />
                 </span>
                 <button
                   type="button"
@@ -314,7 +323,9 @@ export default function AlocacaoAtivosMobile({
       <dl className={`${TABLE_MOBILE_STYLES.totalCard} flex flex-col gap-1.5 text-sm`}>
         <div className="flex justify-between gap-3">
           <dt>Total Dinheiro</dt>
-          <dd className="font-semibold tabular-nums">{formatarMoeda(totalDinheiro)}</dd>
+          <dd className="font-semibold tabular-nums">
+            <Sensivel>{formatarMoeda(totalDinheiro)}</Sensivel>
+          </dd>
         </div>
         <div className="flex justify-between gap-3">
           <dt>Soma dos % Target</dt>
@@ -322,7 +333,9 @@ export default function AlocacaoAtivosMobile({
         </div>
         <div className="flex justify-between gap-3">
           <dt>Total Dinheiro + Bens</dt>
-          <dd className="font-semibold tabular-nums">{formatarMoeda(totalDinheiroMaisBens)}</dd>
+          <dd className="font-semibold tabular-nums">
+            <Sensivel>{formatarMoeda(totalDinheiroMaisBens)}</Sensivel>
+          </dd>
         </div>
       </dl>
 
@@ -346,7 +359,7 @@ export default function AlocacaoAtivosMobile({
             )}
             <span className="text-right">
               <span className="block text-[15px] font-semibold tabular-nums text-gray-800 dark:text-white/90">
-                {formatarMoeda(imoveis.total)}
+                <Sensivel>{formatarMoeda(imoveis.total)}</Sensivel>
               </span>
               <span className="block text-xs tabular-nums text-gray-500 dark:text-gray-400">
                 {formatarPercentual(imoveis.percentualAtual)} do dinheiro + bens
@@ -362,7 +375,7 @@ export default function AlocacaoAtivosMobile({
           onClick={distribuir.onOpen}
           className="h-12 w-full rounded-xl border border-mf-patrimonio px-4 text-base font-semibold text-mf-patrimonio dark:border-mf-tranquilidade dark:text-mf-tranquilidade"
         >
-          {distribuir.label}
+          <TextoSensivel texto={distribuir.label} />
         </button>
       )}
 
@@ -441,7 +454,7 @@ export default function AlocacaoAtivosMobile({
           }
           hint={
             isReserva(editingRow.categoria)
-              ? `Hoje: ${formatarMoeda(editingRow.total)} na reserva.`
+              ? mascarar(`Hoje: ${formatarMoeda(editingRow.total)} na reserva.`)
               : `Hoje: ${formatarPercentual(editingRow.percentualAtual)} da carteira.`
           }
           onApply={(changes) => {

@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from '../ui/table'
 import type { UseAlocacaoConfigReturn } from '@/hooks/useAlocacaoConfig';
 import EditableCell from './EditableCell';
 import EditableTextCell from './EditableTextCell';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import Alert from '../ui/alert/Alert';
 import ComponentCard from '../common/ComponentCard';
 import { Modal } from '../ui/modal';
@@ -322,8 +323,9 @@ export default function AlocacaoAtivosTable({
           Distribuir caixa livre
         </h3>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Os {formatarMoeda(caixaParaInvestir)} livres viram reserva das classes abaixo do target,
-          na proporção do que falta para cada uma. O total do caixa não muda.
+          Os <Sensivel>{formatarMoeda(caixaParaInvestir)}</Sensivel> livres viram reserva das
+          classes abaixo do target, na proporção do que falta para cada uma. O total do caixa não
+          muda.
         </p>
 
         <div className={`${TABLE_STYLES.wrapper} mt-4`}>
@@ -350,12 +352,12 @@ export default function AlocacaoAtivosTable({
                   <TableCell
                     className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-right font-mono`}
                   >
-                    {formatarMoeda(necessidadesPorAba[aba] ?? 0)}
+                    <Sensivel>{formatarMoeda(necessidadesPorAba[aba] ?? 0)}</Sensivel>
                   </TableCell>
                   <TableCell
                     className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-right font-mono font-medium`}
                   >
-                    {formatarMoeda(planoDistribuicao.porAba[aba] ?? 0)}
+                    <Sensivel>{formatarMoeda(planoDistribuicao.porAba[aba] ?? 0)}</Sensivel>
                   </TableCell>
                 </TableRow>
               ))}
@@ -367,7 +369,7 @@ export default function AlocacaoAtivosTable({
                 <TableCell
                   className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-right font-mono`}
                 >
-                  {formatarMoeda(planoDistribuicao.sobra)}
+                  <Sensivel>{formatarMoeda(planoDistribuicao.sobra)}</Sensivel>
                 </TableCell>
               </TableRow>
             </TableBody>
@@ -552,7 +554,7 @@ export default function AlocacaoAtivosTable({
                   <TableCell
                     className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-center font-mono`}
                   >
-                    {formatarMoeda(ativo.total)}
+                    <Sensivel>{formatarMoeda(ativo.total)}</Sensivel>
                   </TableCell>
                   <TableCell
                     className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-center font-medium`}
@@ -652,14 +654,14 @@ export default function AlocacaoAtivosTable({
                   >
                     {ativo.necessidadeAporte > 0 ? (
                       <span className="text-green-600 dark:text-green-400">
-                        {formatarMoeda(ativo.necessidadeAporte)}
+                        <Sensivel>{formatarMoeda(ativo.necessidadeAporte)}</Sensivel>
                       </span>
                     ) : ativo.excessoAporte > 0 ? (
                       <span
                         className="text-red-600 dark:text-red-400"
                         title="Valor acima do target desta classe"
                       >
-                        -{formatarMoeda(ativo.excessoAporte)}
+                        <Sensivel>-{formatarMoeda(ativo.excessoAporte)}</Sensivel>
                       </span>
                     ) : (
                       '-'
@@ -687,7 +689,7 @@ export default function AlocacaoAtivosTable({
               <TableCell
                 className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-center font-mono`}
               >
-                {formatarMoeda(totalDinheiro)}
+                <Sensivel>{formatarMoeda(totalDinheiro)}</Sensivel>
               </TableCell>
               <TableCell className={TABLE_STYLES.compact.td} />
               <TableCell className={TABLE_STYLES.compact.td} />
@@ -708,7 +710,7 @@ export default function AlocacaoAtivosTable({
               <TableCell
                 className={`${TABLE_STYLES.compact.td} whitespace-nowrap text-center font-mono`}
               >
-                {formatarMoeda(totalDinheiroMaisBens)}
+                <Sensivel>{formatarMoeda(totalDinheiroMaisBens)}</Sensivel>
               </TableCell>
               <TableCell className={TABLE_STYLES.compact.td} />
               <TableCell className={TABLE_STYLES.compact.td} />
@@ -733,7 +735,7 @@ export default function AlocacaoAtivosTable({
             className="px-3 py-2 border border-brand-500 text-brand-500 text-xs rounded-lg hover:bg-brand-50 dark:text-brand-400 dark:border-brand-400 dark:hover:bg-brand-500/10 transition-colors"
             title="Reserva o caixa livre para as classes que estão abaixo do target"
           >
-            Distribuir caixa livre ({formatarMoeda(caixaParaInvestir)})
+            Distribuir caixa livre (<Sensivel>{formatarMoeda(caixaParaInvestir)}</Sensivel>)
           </button>
         )}
         <button
