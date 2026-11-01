@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   planTraj,
   revisedTraj,
@@ -19,6 +19,7 @@ import { aaToAm } from '@/utils/rateConversion';
 import { TABLE_STYLES, TABLE_HEADER_STYLE } from '@/components/ui/table/tableStyles';
 import { MobileStatusPill } from '@/components/ui/mobile/MobileStatusPill';
 import { Sensivel, TextoSensivel } from '@/components/common/valores/Sensivel';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import AcompanhamentoCards, { type AcompanhamentoRow } from '../mobile/AcompanhamentoCards';
 import RegistrarMesSheet from '../mobile/RegistrarMesSheet';
@@ -38,10 +39,26 @@ function DeltaBadge({
   mobile = false,
 }: {
   value: number | null;
-  label: string;
+  /** Texto do selo; valores em R$ vêm já em <Sensivel curto> (o selo não quebra linha). */
+  label: ReactNode;
   /** Celular: ponto + palavra, sem verde (PWA fase 3). */
   mobile?: boolean;
 }) {
+  const { ativo } = useValoresOcultos();
+  const sinal = value != null && value >= 0 ? '+' : '';
+  // Olho fechado: o conteúdo vai num span (linha de texto). Num selo flex, a pílula sozinha virava
+  // item flex sem linha e o selo encolhia. Olho aberto: o DOM de hoje.
+  const conteudo = ativo ? (
+    <span>
+      {sinal}
+      {label}
+    </span>
+  ) : (
+    <>
+      {sinal}
+      {label}
+    </>
+  );
   if (mobile) {
     if (value == null) {
       return (
@@ -53,8 +70,7 @@ function DeltaBadge({
     const tone = value > 0.01 ? 'ok' : value < -0.01 ? 'problema' : 'neutro';
     return (
       <MobileStatusPill tone={tone} className="mt-1 max-w-full flex-wrap">
-        {value >= 0 ? '+' : ''}
-        <TextoSensivel texto={label} />
+        {conteudo}
       </MobileStatusPill>
     );
   }
@@ -73,8 +89,7 @@ function DeltaBadge({
         : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400';
   return (
     <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${cls}`}>
-      {value >= 0 ? '+' : ''}
-      <TextoSensivel texto={label} />
+      {conteudo}
     </span>
   );
 }
@@ -200,7 +215,7 @@ export default function AcompanhamentoTab({
   const sugestaoMes = derivedByOff.get(curOffset);
 
   return (
-    <div className="space-y-4">
+    <div data-mf-apos-aba="track" className="space-y-4">
       {/* Tags */}
       <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
         <span className="rounded-full border border-gray-200 px-2.5 py-0.5 dark:border-gray-700">
@@ -213,7 +228,7 @@ export default function AcompanhamentoTab({
           Rent. nominal: {fPct(params.rentNom)}
         </span>
         <span className="rounded-full border border-gray-200 px-2.5 py-0.5 dark:border-gray-700">
-          Aporte: <Sensivel>{formatBRLCompact(params.aporteM)}</Sensivel>/mês
+          Aporte: <Sensivel curto>{formatBRLCompact(params.aporteM)}</Sensivel>/mês
         </span>
       </div>
 
@@ -232,7 +247,12 @@ export default function AcompanhamentoTab({
           <DeltaBadge
             mobile={isBelowLg}
             value={latE ? dPat : null}
-            label={`${formatBRLCompact(Math.abs(dPat))} (${Math.abs(dPatPct).toFixed(1).replace('.', ',')}%)`}
+            label={
+              <>
+                <Sensivel curto>{formatBRLCompact(Math.abs(dPat))}</Sensivel>
+                {` (${Math.abs(dPatPct).toFixed(1).replace('.', ',')}%)`}
+              </>
+            }
           />
         </div>
         <div className="rounded-lg border border-gray-200 p-3 max-lg:min-w-0 dark:border-gray-800">
@@ -248,7 +268,7 @@ export default function AcompanhamentoTab({
           <DeltaBadge
             mobile={isBelowLg}
             value={dAporte}
-            label={formatBRLCompact(Math.abs(dAporte ?? 0))}
+            label={<Sensivel curto>{formatBRLCompact(Math.abs(dAporte ?? 0))}</Sensivel>}
           />
         </div>
         <div className="rounded-lg border border-gray-200 p-3 max-lg:min-w-0 dark:border-gray-800">

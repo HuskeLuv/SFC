@@ -44,7 +44,7 @@ export default function ProjecaoTab({ params, projection }: ProjecaoTabProps) {
       : '';
 
   return (
-    <div className="space-y-4">
+    <div data-mf-apos-aba="proj" className="space-y-4">
       {/* Resumo */}
       <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
         <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-500 max-lg:text-mf-patrimonio dark:max-lg:text-mf-tranquilidade">
@@ -70,16 +70,20 @@ export default function ProjecaoTab({ params, projection }: ProjecaoTabProps) {
             },
             {
               label: 'Saque preservando',
-              value: <TextoSensivel texto={`${formatBRLCompact(sacPres)}/mês`} />,
-              hint: (
-                <TextoSensivel
-                  texto={diff > 0 ? `+${formatBRLCompact(diff)}/mês consumindo` : 'herança intacta'}
-                />
-              ),
+              value: <Sensivel>{`${formatBRLCompact(sacPres)}/mês`}</Sensivel>,
+              hint:
+                // Pílula curta com o "/mês": a de 5,5em quebrava a linha e o cartão crescia.
+                diff > 0 ? (
+                  <>
+                    +<Sensivel curto>{`${formatBRLCompact(diff)}/mês`}</Sensivel> consumindo
+                  </>
+                ) : (
+                  'herança intacta'
+                ),
             },
             {
               label: `Saque consumindo até ${params.vida}`,
-              value: <TextoSensivel texto={`${formatBRLCompact(sacCons)}/mês`} />,
+              value: <Sensivel>{`${formatBRLCompact(sacCons)}/mês`}</Sensivel>,
               hint: `${params.vida - params.apos} anos de aposentadoria`,
             },
             {
@@ -105,12 +109,16 @@ export default function ProjecaoTab({ params, projection }: ProjecaoTabProps) {
           <MetricCard
             title="Saque preservando patrimônio"
             value={`${formatBRLCompact(sacPres)}/mês`}
+            // Pílula única para "R$ X/mês": com 'auto' o "/mês" quebrava a linha e o card crescia.
+            valor="sensivel"
             color="success"
             change={diff > 0 ? `+${formatBRLCompact(diff)}/mês consumindo` : 'herança intacta'}
           />
           <MetricCard
             title={`Saque consumindo até ${params.vida} anos`}
             value={`${formatBRLCompact(sacCons)}/mês`}
+            // Pílula única para "R$ X/mês": com 'auto' o "/mês" quebrava a linha e o card crescia.
+            valor="sensivel"
             color="primary"
             change={`${params.vida - params.apos} anos de aposentadoria`}
           />

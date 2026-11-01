@@ -108,7 +108,7 @@ export default function EvolucaoTab({ params, entries }: EvolucaoTabProps) {
   const hasRent = rentabilidade.rent.length > 0;
 
   return (
-    <div className="space-y-4 max-lg:space-y-3">
+    <div data-mf-apos-aba="evol" className="space-y-4 max-lg:space-y-3">
       <ChartCard eyebrow="Evolução patrimonial" title="Planejado vs Realizado">
         <EvolucaoPatrimonioChart {...patrimonio} />
       </ChartCard>
