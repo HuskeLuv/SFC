@@ -11,6 +11,7 @@ import {
   READONLY_REASON_TEXT,
 } from '@/lib/cashflow/itemCapabilities';
 import { formatBRL } from '@/utils/format';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { MONTH_NAMES } from '@/components/cashflow/mobile/MonthStepper';
 import { ActionRow, ICONS, InfoNote } from './sheetUi';
 
@@ -37,6 +38,8 @@ export function GroupSheet({ month, group, groups, onAddItem, onStartReorder }: 
   const canonical = canonicalName(group);
   const isDespesasRoot = canonical === CANONICAL_GROUPS.DESPESAS && !group.parentId;
   const percent = aggregation.groupPercentages[group.id] ?? 0;
+  // % da receita: fica visível com o olho fechado.
+  const percentText = `${percent.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
   const isPlanejamento = canonical === 'Planejamento Financeiro';
   const isInvestimento = group.type === 'investimento';
   const caps = getGroupCapabilities(group);
@@ -47,9 +50,9 @@ export function GroupSheet({ month, group, groups, onAddItem, onStartReorder }: 
     <div className="flex flex-col gap-2 pb-3">
       <p className="text-sm text-gray-600 tabular-nums dark:text-gray-300">
         <span className="font-semibold text-gray-800 dark:text-white/90">
-          {formatBRL(monthTotal)}
+          <Sensivel>{formatBRL(monthTotal)}</Sensivel>
         </span>{' '}
-        em {MONTH_NAMES[month]} · {formatBRL(annualTotal)} no ano
+        em {MONTH_NAMES[month]} · <Sensivel>{formatBRL(annualTotal)}</Sensivel> no ano
       </p>
       {isDespesasRoot && percent > 0 && (
         <p className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
@@ -57,7 +60,7 @@ export function GroupSheet({ month, group, groups, onAddItem, onStartReorder }: 
             className="rounded-md px-2 py-0.5 text-[13px] font-semibold tabular-nums"
             style={DESPESAS_PERCENT_STYLE(percent)}
           >
-            {percent.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%
+            {percentText}
           </span>
           da receita no ano
         </p>

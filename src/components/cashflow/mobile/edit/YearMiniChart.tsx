@@ -3,6 +3,8 @@
 import React from 'react';
 import { twMerge } from 'tailwind-merge';
 import { formatBRL } from '@/utils/format';
+import { Sensivel } from '@/components/common/valores/Sensivel';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import { MONTH_NAMES } from '@/components/cashflow/mobile/MonthStepper';
 
 /**
@@ -24,6 +26,7 @@ export interface YearMiniChartProps {
 const INITIALS = MONTH_NAMES.map((m) => m[0]);
 
 export function YearMiniChart({ name, year, values, month }: YearMiniChartProps) {
+  const { mascarar } = useValoresOcultos();
   const series = Array.from({ length: 12 }, (_, i) => values[i] ?? 0);
   const total = series.reduce((a, b) => a + b, 0);
   const max = Math.max(1, ...series.map((v) => Math.abs(v)));
@@ -35,7 +38,7 @@ export function YearMiniChart({ name, year, values, month }: YearMiniChartProps)
       <p className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
         {name} em {year}
       </p>
-      <div role="img" aria-label={summary}>
+      <div role="img" aria-label={mascarar(summary)}>
         <div className="grid h-10 grid-cols-12 items-end gap-[3px]" aria-hidden="true">
           {series.map((v, i) => (
             <span
@@ -67,7 +70,8 @@ export function YearMiniChart({ name, year, values, month }: YearMiniChartProps)
         </div>
       </div>
       <p className="mt-1.5 text-xs text-gray-500 tabular-nums dark:text-gray-400">
-        No ano {formatBRL(total)} · média {formatBRL(total / 12)} por mês
+        No ano <Sensivel>{formatBRL(total)}</Sensivel> · média{' '}
+        <Sensivel>{formatBRL(total / 12)}</Sensivel> por mês
       </p>
     </div>
   );

@@ -8,6 +8,7 @@ import type { CashflowValueChange } from '@/hooks/useCashflowMutations';
 import { evaluateFormula, isFormula } from '@/utils/formulaParser';
 import { formatDecimalInput, parseDecimalInput } from '@/lib/ui/numberInput';
 import { formatBRL } from '@/utils/format';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { cashflowColorCss, type CashflowColorValue } from '@/utils/cashflowColorLegend';
 import { cellColorLabel, normalizeCellColor } from '@/lib/cashflow/cellColor';
 import { READONLY_REASON_TEXT } from '@/lib/cashflow/itemCapabilities';
@@ -236,7 +237,7 @@ export function CellValuePanel({
               data-mf-cell-readonly-value=""
               className="block text-[22px] font-semibold text-gray-800 tabular-nums dark:text-white/90"
             >
-              {formatBRL(original?.value ?? values[month] ?? 0)}
+              <Sensivel>{formatBRL(original?.value ?? values[month] ?? 0)}</Sensivel>
             </span>
           </span>
           <span className="ml-auto inline-flex items-center gap-1.5 text-right text-[12.5px] text-gray-500 dark:text-gray-400">
@@ -290,7 +291,9 @@ export function CellValuePanel({
     preview = parsed.ok ? (
       <>
         <span>Resultado</span>
-        <b className="text-gray-800 dark:text-white/90">= {formatBRL(parsed.value)}</b>
+        <b className="text-gray-800 dark:text-white/90">
+          = <Sensivel>{formatBRL(parsed.value)}</Sensivel>
+        </b>
       </>
     ) : (
       <span className="text-[#D92D20] dark:text-[#F97066]">{parsed.error}</span>
@@ -301,7 +304,9 @@ export function CellValuePanel({
     preview = (
       <>
         <span>Antes</span>
-        <b className="text-gray-800 dark:text-white/90">{formatBRL(before)}</b>
+        <b className="text-gray-800 dark:text-white/90">
+          <Sensivel>{formatBRL(before)}</Sensivel>
+        </b>
       </>
     );
   }
