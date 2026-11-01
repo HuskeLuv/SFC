@@ -4,6 +4,7 @@ import React, { useMemo } from 'react';
 import { ApexOptions } from 'apexcharts';
 import dynamic from 'next/dynamic';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
+import { useOpcoesGraficoSensiveis } from '@/components/charts/useOpcoesGraficoSensiveis';
 
 const ReactApexChart = dynamic(() => import('react-apexcharts'), {
   ssr: false,
@@ -166,6 +167,8 @@ const PatrimonioEvolucaoChart: React.FC<PatrimonioEvolucaoChartProps> = ({
     }),
     [chartData.categories, currencyFormatter, yAxisMin],
   );
+  // Esconder valores: eixo Y "R$ 2K" sem rótulo e tooltip com pílula (olho aberto = mesma ref).
+  const opcoesFinais = useOpcoesGraficoSensiveis(options, { eixosSemSimbolo: true });
 
   const series = useMemo(
     () => [
@@ -197,7 +200,7 @@ const PatrimonioEvolucaoChart: React.FC<PatrimonioEvolucaoChartProps> = ({
             </div>
           }
         >
-          <ReactApexChart options={options} series={series} type="area" height={350} />
+          <ReactApexChart options={opcoesFinais} series={series} type="area" height={350} />
         </ErrorBoundary>
       </div>
     </div>

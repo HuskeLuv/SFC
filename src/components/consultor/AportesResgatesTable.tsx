@@ -3,6 +3,7 @@ import { Card, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import Badge from '@/components/ui/badge/Badge';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 
 interface AportesResgates {
   clientId: string;
@@ -68,10 +69,10 @@ const AportesResgatesTable: React.FC<AportesResgatesTableProps> = ({
                   </div>
                 </TableCell>
                 <TableCell className={`${TABLE_STYLES.td} text-right`}>
-                  {currencyFormatter(item.totalAportes)}
+                  <Sensivel>{currencyFormatter(item.totalAportes)}</Sensivel>
                 </TableCell>
                 <TableCell className={`${TABLE_STYLES.td} text-right`}>
-                  {currencyFormatter(item.totalResgates)}
+                  <Sensivel>{currencyFormatter(item.totalResgates)}</Sensivel>
                 </TableCell>
                 <TableCell className={`${TABLE_STYLES.td} text-center`}>
                   <Badge

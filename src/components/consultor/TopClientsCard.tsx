@@ -3,6 +3,8 @@
 import React from 'react';
 import Image from 'next/image';
 import { Card, CardTitle } from '@/components/ui/card';
+import { ConteudoSensivel } from '@/components/common/valores/Sensivel';
+import type { SensibilidadeValor } from '@/utils/valoresOcultos';
 
 interface TopClient {
   clientId: string;
@@ -12,6 +14,11 @@ interface TopClient {
   metric: number;
   metricLabel: string;
   metricFormatter: (value: number) => string;
+  /**
+   * Esconder valores: 'auto' (padrão) esconde a métrica só quando sai com R$/US$ (patrimônio);
+   * % ficam. Nomes e e-mails ficam sempre.
+   */
+  metricValor?: SensibilidadeValor;
 }
 
 interface TopClientsCardProps {
@@ -74,7 +81,9 @@ const TopClientsCard: React.FC<TopClientsCardProps> = ({
             </div>
             <div className="text-right">
               <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                {client.metricFormatter(client.metric)}
+                <ConteudoSensivel modo={client.metricValor}>
+                  {client.metricFormatter(client.metric)}
+                </ConteudoSensivel>
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">{client.metricLabel}</p>
             </div>

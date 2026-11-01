@@ -1,9 +1,10 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import React from 'react';
+import React, { useMemo } from 'react';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import type { ApexOptions } from 'apexcharts';
+import { useOpcoesGraficoSensiveis } from '@/components/charts/useOpcoesGraficoSensiveis';
 
 const ReactApexChart = dynamic(() => import('react-apexcharts'), {
   ssr: false,
@@ -91,6 +92,19 @@ const ConsultantPerformanceChart: React.FC<ConsultantPerformanceChartProps> = ({
   data,
   isLoading = false,
 }) => {
+  const options = useMemo<ApexOptions>(
+    () => ({
+      ...chartBaseOptions,
+      xaxis: {
+        ...chartBaseOptions.xaxis,
+        categories: data.map((point) => point.label),
+      },
+    }),
+    [data],
+  );
+  // Esconder valores: sobre as opções finais (olho aberto = mesma referência).
+  const opcoesFinais = useOpcoesGraficoSensiveis(options, { eixosSemSimbolo: true });
+
   if (isLoading) {
     return (
       <div className="flex h-64 w-full items-center justify-center rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
@@ -114,7 +128,6 @@ const ConsultantPerformanceChart: React.FC<ConsultantPerformanceChartProps> = ({
     );
   }
 
-  const categories = data.map((point) => point.label);
   const series = [
     {
       name: 'Média mensal',
@@ -138,18 +151,7 @@ const ConsultantPerformanceChart: React.FC<ConsultantPerformanceChartProps> = ({
             </div>
           }
         >
-          <ReactApexChart
-            options={{
-              ...chartBaseOptions,
-              xaxis: {
-                ...chartBaseOptions.xaxis,
-                categories,
-              },
-            }}
-            series={series}
-            type="area"
-            height={320}
-          />
+          <ReactApexChart options={opcoesFinais} series={series} type="area" height={320} />
         </ErrorBoundary>
       </div>
     </div>
