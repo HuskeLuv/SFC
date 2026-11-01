@@ -11,6 +11,9 @@ import { expect, type BrowserContext, type Page } from '@playwright/test';
  * - coletarNumerosDaPosicao(page, escopo) + expectNumerosAusentes(page, numeros, escopo): lê com o
  *   olho ABERTO os números que a tela mostra (o "sentinela" do e2e — o usuário demo tem dados fixos)
  *   e confere que nenhum deles aparece depois de fechar o olho.
+ *   `{ ignorarPercentuais: true }`: telas com dinheiro SEM "R$" (Fluxo de caixa, Orçamento) — o
+ *   número seguido de % (consumo, índices, inflação) fica de fora, porque continua visível.
+ * - alternarOlho(page, ocultos): clica no olho e espera o POST da preferência e o atributo.
  */
 
 /** Mesmos valores de src/utils/valoresOcultos.ts (o e2e não importa o src). */
@@ -21,6 +24,23 @@ const REGEX_VALOR_MONETARIO =
 
 /** Número pt-BR com decimais ou milhar (1.234 · 12,50 · 9.876.543,21) — não pega ano nem dia. */
 const REGEX_NUMERO_POSICAO = /\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+,\d{2}/g;
+
+/** O mesmo, mas só o número inteiro e que NÃO termina em % ("12,50%" e "1.234,5%" ficam fora). */
+export const REGEX_NUMERO_SEM_PERCENTUAL =
+  /(?<![\d.,])(?:\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+,\d{2,})(?![\d,]|\s?%)/g;
+
+export interface OpcoesNumerosDaPosicao {
+  /** Ignora números seguidos de % (telas cujo dinheiro não tem "R$"). */
+  ignorarPercentuais?: boolean;
+}
+
+const numerosDoTexto = (texto: string, { ignorarPercentuais }: OpcoesNumerosDaPosicao = {}) => [
+  ...new Set(
+    texto.match(
+      new RegExp(ignorarPercentuais ? REGEX_NUMERO_SEM_PERCENTUAL : REGEX_NUMERO_POSICAO),
+    ) ?? [],
+  ),
+];
 
 /** Rótulos do Apex que podem levar valores (eixo Y, data labels, rosca e tooltip). */
 const SELETORES_APEX =
@@ -35,6 +55,18 @@ export async function ligarValoresOcultos(context: BrowserContext, baseURL: stri
 /** Botão do olho visível na largura atual (rodapé da sidebar ou MobileHeader). */
 export function olhoValores(page: Page) {
   return page.getByRole('button', { name: 'Esconder valores' }).filter({ visible: true });
+}
+
+/** Clica no olho e espera o POST da preferência (200) e o atributo do <html>. */
+export async function alternarOlho(page: Page, ocultos: boolean) {
+  const resposta = page.waitForResponse(
+    (r) => r.url().includes(ROTA_PREFERENCIA_VALORES_OCULTOS) && r.request().method() === 'POST',
+  );
+  await olhoValores(page).click();
+  expect((await resposta).status()).toBe(200);
+  const html = page.locator('html');
+  if (ocultos) await expect(html).toHaveAttribute('data-valores-ocultos', '');
+  else await expect(html).not.toHaveAttribute('data-valores-ocultos');
 }
 
 /** Texto visível do escopo sem os trechos permitidos ([data-mf-valor-visivel]) + rótulos do Apex. */
@@ -72,19 +104,24 @@ export async function coletarValoresExpostos(
 export async function coletarNumerosDaPosicao(
   page: Page,
   escopo = '[data-mf-content]',
+  opcoes: OpcoesNumerosDaPosicao = {},
 ): Promise<string[]> {
-  const texto = await textoVisivel(page, escopo);
-  return [...new Set(texto.match(new RegExp(REGEX_NUMERO_POSICAO)) ?? [])];
+  return numerosDoTexto(await textoVisivel(page, escopo), opcoes);
 }
 
-/** Nenhum dos números lidos com o olho aberto pode aparecer com o olho fechado. */
+/**
+ * Nenhum dos números lidos com o olho aberto pode aparecer com o olho fechado. Com
+ * `ignorarPercentuais`, compara número a número (um % igual a um valor não conta como exposto).
+ */
 export async function expectNumerosAusentes(
   page: Page,
   numeros: readonly string[],
   escopo = '[data-mf-content]',
+  opcoes: OpcoesNumerosDaPosicao = {},
 ) {
   const texto = await textoVisivel(page, escopo);
-  const expostos = numeros.filter((n) => texto.includes(n));
+  const agora = opcoes.ignorarPercentuais ? new Set(numerosDoTexto(texto, opcoes)) : null;
+  const expostos = numeros.filter((n) => (agora ? agora.has(n) : texto.includes(n)));
   expect(expostos, 'números da posição ainda visíveis com o olho fechado').toEqual([]);
 }
 
