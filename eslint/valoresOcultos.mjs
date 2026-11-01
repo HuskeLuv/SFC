@@ -10,8 +10,13 @@
  * Strings devolvidas por render/getValue/cell (fora do JSX) não são acusadas: a autodetecção de
  * R$/US$ dos componentes compartilhados e os testes com sentinelas cobrem esses casos.
  *
- * Nível: 'error' nas pastas da Fase 1 (fechada com zero ocorrências). Cada fase acrescenta os
- * seus globs em GLOBS_VALORES_OCULTOS.
+ * Nível: 'error' nas pastas da Fase 1 (fechada com zero ocorrências). A fase em andamento entra
+ * em 'warn' (GLOBS_VALORES_OCULTOS_FASE2) e passa para GLOBS_VALORES_OCULTOS no fechamento.
+ *
+ * Fluxo de caixa: o formatCurrency DEPRECATED (src/utils/formatters.ts) é formatNumber, sem "R$".
+ * A regra pega formatCurrency/formatBRL no JSX e, na Fase 2, o num() do Orçamento v2 (opção
+ * `formattersExtras`), mas NÃO formatNumber (também formata %), formatDerived nem números montados
+ * à mão — marque à mão e confira pelo innerText (e2e).
  */
 
 const NOMES_FORMATTER = /^(format(BRL|USD|Currency|Moeda|BRLCompact|BRLCurto)|formatarMoeda)$/;
@@ -35,10 +40,15 @@ const nomeDoCallee = (callee) => {
   return null;
 };
 
-/** É uma chamada que formata dinheiro? Devolve o tipo da mensagem ou null. */
-function tipoDeChamada(node) {
+/**
+ * É uma chamada que formata dinheiro? Devolve o tipo da mensagem ou null. `extras`: nomes de
+ * funções locais que devolvem dinheiro sem símbolo (opção `formattersExtras`, ex.: `num` do
+ * Orçamento v2).
+ */
+function tipoDeChamada(node, extras) {
   const { callee } = node;
   if (callee.type === 'Identifier' && NOMES_FORMATTER.test(callee.name)) return 'valor';
+  if (callee.type === 'Identifier' && extras.has(callee.name)) return 'valor';
   if (callee.type !== 'MemberExpression' || callee.property.type !== 'Identifier') return null;
   const metodo = callee.property.name;
   if (METODOS_FORMATTER.test(metodo)) return 'valor';
@@ -77,7 +87,13 @@ const valorSemSensivel = {
       description:
         'Valor em dinheiro no JSX precisa de <Sensivel>/<ValorVisivel> (esconder valores)',
     },
-    schema: [],
+    schema: [
+      {
+        type: 'object',
+        properties: { formattersExtras: { type: 'array', items: { type: 'string' } } },
+        additionalProperties: false,
+      },
+    ],
     messages: {
       valor: 'Valor em dinheiro sem <Sensivel>/<ValorVisivel> — some quando o olho está ligado?',
       conferir:
@@ -86,9 +102,10 @@ const valorSemSensivel = {
   },
   create(context) {
     const sourceCode = context.sourceCode ?? context.getSourceCode();
+    const extras = new Set(context.options[0]?.formattersExtras ?? []);
     return {
       CallExpression(node) {
-        const tipo = tipoDeChamada(node);
+        const tipo = tipoDeChamada(node, extras);
         if (!tipo) return;
         const ancestrais = sourceCode.getAncestors
           ? sourceCode.getAncestors(node)
@@ -138,5 +155,39 @@ export const IGNORES_VALORES_OCULTOS = [
   'src/components/carteira/**/Add*.tsx',
   'src/components/carteira/**/AlocacaoMetaSheet.tsx',
   'src/components/carteira/**/MobileEditSheet.tsx',
+  '**/__tests__/**',
+];
+
+/**
+ * Fase 2 (em andamento, 'warn'): Fluxo de caixa e Orçamento v1/v2. O integrador move estes globs
+ * para GLOBS_VALORES_OCULTOS ('error') no fechamento da fase (mantendo OPCOES_VALORES_OCULTOS_FASE2
+ * nesses globs).
+ */
+export const OPCOES_VALORES_OCULTOS_FASE2 = { formattersExtras: ['num'] };
+
+export const GLOBS_VALORES_OCULTOS_FASE2 = [
+  'src/components/cashflow/**/*.{ts,tsx}',
+  'src/app/(admin)/(others-pages)/(tables)/fluxodecaixa/**/*.{ts,tsx}',
+  // A planilha anual (também a "grade do ano" no celular, via CashflowYearGridSheet).
+  'src/components/tables/DataTables/TableTwo/DataTableTwo*.tsx',
+];
+
+/**
+ * Formulários do fluxo ficam visíveis (decisão 3): os campos mostram o número digitado. O que for
+ * só leitura dentro das folhas (CellSheet, YearMiniChart, totais de apoio do CellValuePanel)
+ * continua no lint.
+ */
+export const IGNORES_VALORES_OCULTOS_FASE2 = [
+  'src/components/cashflow/AddRowForm.tsx',
+  'src/components/cashflow/CurrencyInput.tsx',
+  'src/components/cashflow/ImportPlanilhaModal.tsx',
+  'src/components/cashflow/CommentModal.tsx',
+  'src/components/cashflow/mobile/edit/AddItemSheet.tsx',
+  'src/components/cashflow/mobile/edit/CommentPanel.tsx',
+  'src/components/cashflow/mobile/edit/DeletePanel.tsx',
+  'src/components/cashflow/mobile/edit/FormulaKeyBar.tsx',
+  'src/components/cashflow/mobile/edit/ItemDetailsPanel.tsx',
+  'src/components/cashflow/mobile/edit/MovePanel.tsx',
+  'src/components/cashflow/mobile/edit/SituacaoPicker.tsx',
   '**/__tests__/**',
 ];
