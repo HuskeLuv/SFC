@@ -5,6 +5,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import IRSummaryCard from './IRSummaryCard';
 import IRStateMessage from './IRStateMessage';
 import { formatBRL, jcpIrrfRateLabel } from './irFormatters';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 
 function buildYearOptions(): number[] {
   const current = new Date().getFullYear();
@@ -122,13 +123,13 @@ export default function IRResumoAnual() {
                   Dividendos de ações BR (isentos)
                 </dt>
                 <dd className="font-medium text-gray-900 dark:text-white">
-                  {formatBRL(data.rendimentos.isentos.dividendosAcoesBr)}
+                  <Sensivel>{formatBRL(data.rendimentos.isentos.dividendosAcoesBr)}</Sensivel>
                 </dd>
               </div>
               <div className="flex justify-between gap-3 border-b border-gray-100 py-1.5 dark:border-gray-800">
                 <dt className="text-gray-500 dark:text-gray-400">Rendimentos de FII (isentos)</dt>
                 <dd className="font-medium text-gray-900 dark:text-white">
-                  {formatBRL(data.rendimentos.isentos.rendimentosFii)}
+                  <Sensivel>{formatBRL(data.rendimentos.isentos.rendimentosFii)}</Sensivel>
                 </dd>
               </div>
               <div className="flex justify-between gap-3 border-b border-gray-100 py-1.5 dark:border-gray-800">
@@ -136,7 +137,7 @@ export default function IRResumoAnual() {
                   JCP (tributação exclusiva {jcpIrrfRateLabel(year)})
                 </dt>
                 <dd className="font-medium text-gray-900 dark:text-white">
-                  {formatBRL(data.rendimentos.tributacaoExclusiva.jcp)}
+                  <Sensivel>{formatBRL(data.rendimentos.tributacaoExclusiva.jcp)}</Sensivel>
                 </dd>
               </div>
               {data.rendimentos.exterior &&
@@ -147,14 +148,14 @@ export default function IRResumoAnual() {
                       Exterior — Stocks/REITs EUA (tributável)
                     </dt>
                     <dd className="font-medium text-gray-900 dark:text-white">
-                      {formatBRL(data.rendimentos.exterior.total)}
+                      <Sensivel>{formatBRL(data.rendimentos.exterior.total)}</Sensivel>
                     </dd>
                   </div>
                 )}
               <div className="flex justify-between gap-3 py-1.5">
                 <dt className="font-medium text-gray-700 dark:text-gray-200">Total recebido</dt>
                 <dd className="font-semibold text-gray-900 dark:text-white">
-                  {formatBRL(data.rendimentos.totalRecebido)}
+                  <Sensivel>{formatBRL(data.rendimentos.totalRecebido)}</Sensivel>
                 </dd>
               </div>
             </dl>
