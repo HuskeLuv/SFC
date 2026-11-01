@@ -11,6 +11,7 @@ import SonhosObjetivoCard from './SonhosObjetivoCard';
 import SonhosObjetivosTable from './SonhosObjetivosTable';
 import SonhosObjetivoInlineForm from './SonhosObjetivoInlineForm';
 import ReservaEmergenciaWidget from './ReservaEmergenciaWidget';
+import { Sensivel, TextoSensivel } from '@/components/common/valores/Sensivel';
 import { formatBRLCompact, CATEGORY_LONG_LABELS } from './utils';
 import SonhoCardMobile from './mobile/SonhoCardMobile';
 import { MobileMetricGrid } from '@/components/ui/mobile/MobileMetricGrid';
@@ -122,12 +123,12 @@ export default function SonhosDashboard({ objetivos, onSelectObjetivo }: SonhosD
             },
             {
               label: 'Patrimônio Alocado',
-              value: formatBRLCompact(stats.totalAlocado),
-              hint: `de ${formatBRLCompact(stats.totalMeta)} total`,
+              value: <Sensivel>{formatBRLCompact(stats.totalAlocado)}</Sensivel>,
+              hint: <TextoSensivel texto={`de ${formatBRLCompact(stats.totalMeta)} total`} />,
             },
             {
               label: 'Aporte Mensal Ativo',
-              value: formatBRLCompact(stats.aporteAtivo),
+              value: <Sensivel>{formatBRLCompact(stats.aporteAtivo)}</Sensivel>,
               hint: `${stats.ativos} em andamento`,
             },
             {
@@ -182,16 +183,30 @@ export default function SonhosDashboard({ objetivos, onSelectObjetivo }: SonhosD
           {capacidade.excede ? (
             <>
               ⚠️ Seus aportes planejados (
-              <strong>{formatBRLCompact(capacidade.comprometido)}/mês</strong>) superam sua sobra
-              média de caixa (<strong>{formatBRLCompact(capacidade.sobra)}/mês</strong>). Revise os
-              prazos ou as metas para o plano caber no seu orçamento.
+              <strong>
+                <Sensivel>{formatBRLCompact(capacidade.comprometido)}</Sensivel>/mês
+              </strong>
+              ) superam sua sobra média de caixa (
+              <strong>
+                <Sensivel>{formatBRLCompact(capacidade.sobra)}</Sensivel>/mês
+              </strong>
+              ). Revise os prazos ou as metas para o plano caber no seu orçamento.
             </>
           ) : (
             <>
               Seus aportes planejados (
-              <strong>{formatBRLCompact(capacidade.comprometido)}/mês</strong>) cabem na sua sobra
-              de caixa (<strong>{formatBRLCompact(capacidade.sobra)}/mês</strong>). Folga de{' '}
-              <strong>{formatBRLCompact(capacidade.folga)}/mês</strong>.
+              <strong>
+                <Sensivel>{formatBRLCompact(capacidade.comprometido)}</Sensivel>/mês
+              </strong>
+              ) cabem na sua sobra de caixa (
+              <strong>
+                <Sensivel>{formatBRLCompact(capacidade.sobra)}</Sensivel>/mês
+              </strong>
+              ). Folga de{' '}
+              <strong>
+                <Sensivel>{formatBRLCompact(capacidade.folga)}</Sensivel>/mês
+              </strong>
+              .
             </>
           )}
         </div>

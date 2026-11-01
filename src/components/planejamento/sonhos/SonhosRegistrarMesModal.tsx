@@ -8,6 +8,7 @@ import Input from '@/components/form/input/InputField';
 import { logger } from '@/lib/logger';
 import { addMonths, planned, pmt } from '@/services/planejamento/planejamentoSonhos';
 import { useCreateEntry, type PlanejamentoObjetivoDTO } from '@/hooks/usePlanejamentoSonhos';
+import { Sensivel, TextoSensivel } from '@/components/common/valores/Sensivel';
 import { currentYearMonth, formatBRL } from './utils';
 import MobileNumberField from '@/components/ui/sheet/MobileNumberField';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
@@ -142,7 +143,7 @@ export default function SonhosRegistrarMesModal({
               prefix="R$"
               value={aporte}
               onChange={setAporte}
-              hint={`Planejado: ${formatBRL(aporteSugerido)}`}
+              hint={<TextoSensivel texto={`Planejado: ${formatBRL(aporteSugerido)}`} />}
             />
             <MobileNumberField
               id="entry-balance"
@@ -151,7 +152,7 @@ export default function SonhosRegistrarMesModal({
               prefix="R$"
               value={balance}
               onChange={setBalance}
-              hint={`Saldo planejado: ${formatBRL(saldoPlanejado)}`}
+              hint={<TextoSensivel texto={`Saldo planejado: ${formatBRL(saldoPlanejado)}`} />}
             />
           </>
         ) : (
@@ -167,7 +168,7 @@ export default function SonhosRegistrarMesModal({
                 step="10"
               />
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Planejado: {formatBRL(aporteSugerido)}
+                Planejado: <Sensivel>{formatBRL(aporteSugerido)}</Sensivel>
               </p>
             </div>
 
@@ -182,7 +183,7 @@ export default function SonhosRegistrarMesModal({
                 step="100"
               />
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Saldo planejado: {formatBRL(saldoPlanejado)}
+                Saldo planejado: <Sensivel>{formatBRL(saldoPlanejado)}</Sensivel>
               </p>
             </div>
           </>
@@ -212,8 +213,10 @@ export default function SonhosRegistrarMesModal({
                     : 'text-red-600 max-lg:text-[#D92D20] dark:max-lg:text-[#F97066]'
                 }
               >
-                {deltaSaldo >= 0 ? '+' : ''}
-                {formatBRL(deltaSaldo)}
+                <Sensivel>
+                  {deltaSaldo >= 0 ? '+' : ''}
+                  {formatBRL(deltaSaldo)}
+                </Sensivel>
               </strong>
             </span>
             <span>
@@ -225,8 +228,10 @@ export default function SonhosRegistrarMesModal({
                     : 'text-red-600 max-lg:text-[#D92D20] dark:max-lg:text-[#F97066]'
                 }
               >
-                {deltaAporte >= 0 ? '+' : ''}
-                {formatBRL(deltaAporte)}
+                <Sensivel>
+                  {deltaAporte >= 0 ? '+' : ''}
+                  {formatBRL(deltaAporte)}
+                </Sensivel>
               </strong>
             </span>
           </div>

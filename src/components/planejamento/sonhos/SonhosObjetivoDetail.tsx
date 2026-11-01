@@ -11,6 +11,7 @@ import { useDeleteEntry, type PlanejamentoObjetivoDTO } from '@/hooks/usePlaneja
 import { StatusBadge, PriorityBadge, CategoryBadge } from './SonhosBadges';
 import SonhosObjetivoEvolutionChart from './SonhosObjetivoEvolutionChart';
 import SonhosObjetivoInlineForm from './SonhosObjetivoInlineForm';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { CATEGORY_LONG_LABELS, formatBRL, formatBRLCompact, formatYearMonth } from './utils';
 import { sonhoSituacao } from './mobile/sonhoSituacao';
 import { MobileMetricGrid } from '@/components/ui/mobile/MobileMetricGrid';
@@ -174,7 +175,8 @@ export default function SonhosObjetivoDetail({
                       : 'Em progresso'}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                {formatBRL(balance)} de {formatBRL(objetivo.target)} · Taxa:{' '}
+                <Sensivel>{formatBRL(balance)}</Sensivel> de{' '}
+                <Sensivel>{formatBRL(objetivo.target)}</Sensivel> · Taxa:{' '}
                 {(objetivo.rate * 100).toFixed(2)}%/mês
                 {conclusaoPrevista ? ` · Conclusão: ${conclusaoPrevista}` : ''}
               </p>
@@ -253,33 +255,37 @@ export default function SonhosObjetivoDetail({
                         {formatYearMonth(entry.month)}
                       </TableCell>
                       <TableCell className={`${TABLE_STYLES.compact.td} text-right`}>
-                        {formatBRL(entry.aporte)}
+                        <Sensivel curto>{formatBRL(entry.aporte)}</Sensivel>
                       </TableCell>
                       <TableCell className={`${TABLE_STYLES.compact.td} text-right`}>
                         <span className="text-gray-500 dark:text-gray-400">
-                          {formatBRL(aporte)}
+                          <Sensivel curto>{formatBRL(aporte)}</Sensivel>
                         </span>
                       </TableCell>
                       <TableCell className={`${TABLE_STYLES.compact.td} text-right font-medium`}>
                         <span className={deltaAporte >= 0 ? 'text-emerald-600' : 'text-red-600'}>
-                          {deltaAporte >= 0 ? '+' : ''}
-                          {formatBRL(deltaAporte)}
+                          <Sensivel curto>
+                            {deltaAporte >= 0 ? '+' : ''}
+                            {formatBRL(deltaAporte)}
+                          </Sensivel>
                         </span>
                       </TableCell>
                       <TableCell
                         className={`${TABLE_STYLES.compact.td} text-right font-semibold text-gray-900 dark:text-white/90`}
                       >
-                        {formatBRL(entry.balance)}
+                        <Sensivel curto>{formatBRL(entry.balance)}</Sensivel>
                       </TableCell>
                       <TableCell className={`${TABLE_STYLES.compact.td} text-right`}>
                         <span className="text-gray-500 dark:text-gray-400">
-                          {formatBRL(planejado)}
+                          <Sensivel curto>{formatBRL(planejado)}</Sensivel>
                         </span>
                       </TableCell>
                       <TableCell className={`${TABLE_STYLES.compact.td} text-right font-medium`}>
                         <span className={deltaSaldo >= 0 ? 'text-emerald-600' : 'text-red-600'}>
-                          {deltaSaldo >= 0 ? '+' : ''}
-                          {formatBRL(deltaSaldo)}
+                          <Sensivel curto>
+                            {deltaSaldo >= 0 ? '+' : ''}
+                            {formatBRL(deltaSaldo)}
+                          </Sensivel>
                         </span>
                       </TableCell>
                       <TableCell className={`${TABLE_STYLES.compact.td} text-right`}>
@@ -395,14 +401,21 @@ function MobileDetail({
 
       <MobileMetricGrid
         items={[
-          { label: 'Meta Total', value: formatBRLCompact(objetivo.target) },
+          { label: 'Meta Total', value: <Sensivel>{formatBRLCompact(objetivo.target)}</Sensivel> },
           {
             label: 'Patrimônio Atual',
-            value: formatBRLCompact(balance),
+            value: <Sensivel>{formatBRLCompact(balance)}</Sensivel>,
             hint: `${pct.toFixed(1)}% concluído`,
           },
-          { label: 'Aporte Necessário', value: formatBRLCompact(aporte), hint: 'por mês' },
-          { label: 'Faltam', value: restante <= 0 ? '— Meta!' : formatBRLCompact(restante) },
+          {
+            label: 'Aporte Necessário',
+            value: <Sensivel>{formatBRLCompact(aporte)}</Sensivel>,
+            hint: 'por mês',
+          },
+          {
+            label: 'Faltam',
+            value: restante <= 0 ? '— Meta!' : <Sensivel>{formatBRLCompact(restante)}</Sensivel>,
+          },
           {
             label: 'Meses Restantes',
             value: String(mesesRestantes),
@@ -427,7 +440,8 @@ function MobileDetail({
                     : 'Em progresso'}
             </p>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              {formatBRL(balance)} de {formatBRL(objetivo.target)} · Taxa:{' '}
+              <Sensivel>{formatBRL(balance)}</Sensivel> de{' '}
+              <Sensivel>{formatBRL(objetivo.target)}</Sensivel> · Taxa:{' '}
               {(objetivo.rate * 100).toFixed(2)}%/mês
               {conclusaoPrevista ? ` · Conclusão: ${conclusaoPrevista}` : ''}
             </p>
@@ -480,14 +494,14 @@ function MobileDetail({
                       {formatYearMonth(entry.month)}
                     </span>
                     <span className="text-sm font-semibold tabular-nums text-gray-900 dark:text-white/90">
-                      {formatBRL(entry.balance)}
+                      <Sensivel curto>{formatBRL(entry.balance)}</Sensivel>
                     </span>
                   </div>
                   <dl className="mt-2 grid grid-cols-3 gap-2 text-xs">
                     <div className="min-w-0">
                       <dt className="text-gray-500 dark:text-gray-400">Aporte</dt>
                       <dd className="truncate tabular-nums text-gray-800 dark:text-white/90">
-                        {formatBRL(entry.aporte)}
+                        <Sensivel curto>{formatBRL(entry.aporte)}</Sensivel>
                       </dd>
                     </div>
                     <div className="min-w-0">
@@ -497,8 +511,10 @@ function MobileDetail({
                           deltaSaldo < 0 ? negClass : 'text-gray-800 dark:text-white/90'
                         }`}
                       >
-                        {deltaSaldo >= 0 ? '+' : ''}
-                        {formatBRL(deltaSaldo)}
+                        <Sensivel curto>
+                          {deltaSaldo >= 0 ? '+' : ''}
+                          {formatBRL(deltaSaldo)}
+                        </Sensivel>
                       </dd>
                     </div>
                     <div className="min-w-0">

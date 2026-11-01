@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { PlanejamentoContexto } from '@/hooks/usePlanejamentoContexto';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { formatBRLCompact } from './utils';
 
 interface ReservaEmergenciaWidgetProps {
@@ -71,7 +72,7 @@ export default function ReservaEmergenciaWidget({ contexto }: ReservaEmergenciaW
         <div>
           <p className="text-xs text-gray-500 dark:text-gray-400">Atual</p>
           <p className="text-lg font-semibold text-gray-900 dark:text-white/90">
-            {formatBRLCompact(atual)}
+            <Sensivel>{formatBRLCompact(atual)}</Sensivel>
           </p>
           <p className="text-[11px] text-gray-400">
             ≈ {mesesCobertos.toFixed(1)} {mesesCobertos === 1 ? 'mês' : 'meses'} de despesa fixa
@@ -80,7 +81,7 @@ export default function ReservaEmergenciaWidget({ contexto }: ReservaEmergenciaW
         <div className="text-right">
           <p className="text-xs text-gray-500 dark:text-gray-400">Ideal ({mesesAlvo}m)</p>
           <p className="text-lg font-semibold text-gray-900 dark:text-white/90">
-            {formatBRLCompact(ideal)}
+            <Sensivel>{formatBRLCompact(ideal)}</Sensivel>
           </p>
         </div>
       </div>
@@ -100,7 +101,9 @@ export default function ReservaEmergenciaWidget({ contexto }: ReservaEmergenciaW
         ) : (
           <span className="text-gray-500 dark:text-gray-400">
             Faltam{' '}
-            <strong className="text-gray-700 dark:text-gray-200">{formatBRLCompact(gap)}</strong>{' '}
+            <strong className="text-gray-700 dark:text-gray-200">
+              <Sensivel>{formatBRLCompact(gap)}</Sensivel>
+            </strong>{' '}
             para cobrir {mesesAlvo} meses de despesa fixa.
           </span>
         )}

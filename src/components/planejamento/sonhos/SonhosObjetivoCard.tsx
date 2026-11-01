@@ -2,6 +2,7 @@
 
 import { progress, pmt } from '@/services/planejamento/planejamentoSonhos';
 import type { PlanejamentoObjetivoDTO } from '@/hooks/usePlanejamentoSonhos';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { formatBRLCompact, categoryAccent } from './utils';
 import { StatusBadge, PriorityBadge, CategoryBadge } from './SonhosBadges';
 
@@ -51,7 +52,7 @@ export default function SonhosObjetivoCard({ objetivo, onClick }: SonhosObjetivo
             Meta
           </div>
           <div className="text-base font-semibold text-gray-900 dark:text-white">
-            {formatBRLCompact(objetivo.target)}
+            <Sensivel>{formatBRLCompact(objetivo.target)}</Sensivel>
           </div>
         </div>
         <div className="text-lg font-semibold" style={{ color: isDone ? '#10b981' : accent }}>
@@ -69,12 +70,14 @@ export default function SonhosObjetivoCard({ objetivo, onClick }: SonhosObjetivo
       <div className="mt-2 flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400">
         <span>
           Atual:{' '}
-          <strong className="text-gray-900 dark:text-white/90">{formatBRLCompact(balance)}</strong>
+          <strong className="text-gray-900 dark:text-white/90">
+            <Sensivel>{formatBRLCompact(balance)}</Sensivel>
+          </strong>
         </span>
         <span>
           Aporte:{' '}
           <strong className="text-gray-900 dark:text-white/90">
-            {formatBRLCompact(aporte)}/mês
+            <Sensivel>{formatBRLCompact(aporte)}</Sensivel>/mês
           </strong>
         </span>
       </div>
