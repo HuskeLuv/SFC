@@ -132,7 +132,10 @@ function AutoHint({
       {/* Valor automático (só leitura, fora do campo): o R$ vira pílula; o % fica. */}
       {autoValue != null ? (
         <button type="button" onClick={() => onResync(field)} className={SHORTCUT}>
-          ↺ usar <ConteudoSensivel>{format(autoValue)}</ConteudoSensivel> ({label})
+          {/* Um item flex só: senão a pílula vira item próprio e os espaços em volta somem. */}
+          <span>
+            ↺ usar <ConteudoSensivel>{format(autoValue)}</ConteudoSensivel> ({label})
+          </span>
         </button>
       ) : null}
     </div>
