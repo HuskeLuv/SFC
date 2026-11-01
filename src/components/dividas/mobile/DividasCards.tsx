@@ -5,6 +5,7 @@ import { twMerge } from 'tailwind-merge';
 import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
 import { MobileStatusPill } from '@/components/ui/mobile/MobileStatusPill';
 import type { DividaDTO } from '@/hooks/useDividas';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { TIPO_LABELS, formatBRL, formatTaxaPercent, formatYearMonth } from '../utils';
 import { dividaSituacao } from './dividaSituacao';
 
@@ -109,7 +110,7 @@ export default function DividasCards({
                   </span>
                   <span className="flex shrink-0 flex-col items-end gap-1">
                     <span className={TABLE_MOBILE_STYLES.valuePrimary}>
-                      {quitada ? '—' : formatBRL(saldo)}
+                      {quitada ? '—' : <Sensivel>{formatBRL(saldo)}</Sensivel>}
                     </span>
                     <MobileStatusPill tone={situacao.tone}>{situacao.label}</MobileStatusPill>
                   </span>
@@ -138,7 +139,9 @@ export default function DividasCards({
                     <span className="tabular-nums">
                       Próxima: {formatYearMonth(prox.mes)} ·{' '}
                       <span className="font-medium text-gray-700 dark:text-gray-200">
-                        {formatBRL(r?.proximaParcelaCorrigida ?? prox.parcela)}
+                        <Sensivel curto>
+                          {formatBRL(r?.proximaParcelaCorrigida ?? prox.parcela)}
+                        </Sensivel>
                       </span>
                     </span>
                   ) : null}
@@ -153,11 +156,11 @@ export default function DividasCards({
         <span className="text-sm">Total em aberto</span>
         <span className="text-right">
           <span className="block text-base font-semibold tabular-nums">
-            {formatBRL(totalDevido)}
+            <Sensivel>{formatBRL(totalDevido)}</Sensivel>
           </span>
           {totalParcelas > 0 ? (
             <span className="block text-xs text-gray-500 tabular-nums dark:text-gray-400">
-              parcelas: {formatBRL(totalParcelas)}
+              parcelas: <Sensivel curto>{formatBRL(totalParcelas)}</Sensivel>
             </span>
           ) : null}
         </span>

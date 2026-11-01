@@ -15,6 +15,7 @@ import {
   type DividaDTO,
   type DividaPagamentoTipo,
 } from '@/hooks/useDividas';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { currentYearMonth, formatBRL } from './utils';
 
 interface DividaRegistrarPagamentoModalProps {
@@ -206,7 +207,7 @@ export default function DividaRegistrarPagamentoModal({
           )}
           {proxima && vincularParcela && tipo === 'pagamento' ? (
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Parcela esperada: {formatBRL(parcelaEsperada ?? proxima.parcela)}
+              Parcela esperada: <Sensivel>{formatBRL(parcelaEsperada ?? proxima.parcela)}</Sensivel>
               {deltaParcela != null && Math.abs(deltaParcela) >= 0.01 ? (
                 <strong
                   className={
@@ -220,8 +221,12 @@ export default function DividaRegistrarPagamentoModal({
                   }
                 >
                   {' '}
-                  ({deltaParcela > 0 ? '+' : ''}
-                  {formatBRL(deltaParcela)})
+                  (
+                  <Sensivel curto>
+                    {deltaParcela > 0 ? '+' : ''}
+                    {formatBRL(deltaParcela)}
+                  </Sensivel>
+                  )
                 </strong>
               ) : null}
             </p>

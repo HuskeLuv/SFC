@@ -36,6 +36,8 @@ describe('<AvisoCoberturaValores>', () => {
     '/dashboard/consultor',
     '/fluxodecaixa',
     '/planejamento-financeiro',
+    '/dividas',
+    '/saude-financeira',
   ])('não aparece na rota coberta %s', (rota) => {
     renderAviso(rota, true);
     expect(screen.queryByRole('note')).toBeNull();

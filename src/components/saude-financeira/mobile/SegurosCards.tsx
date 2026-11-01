@@ -4,6 +4,7 @@ import React from 'react';
 import type { SeguroDTO } from '@/hooks/useSeguros';
 import { MobileStatusPill, type MobileStatusTone } from '@/components/ui/mobile/MobileStatusPill';
 import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import {
   SEGURO_COBERTURA_LABELS,
   SEGURO_RISCO_LABELS,
@@ -42,7 +43,9 @@ export default function SegurosCards({ seguros, onEdit, onDelete }: SegurosCards
               </p>
             </div>
             <div className="shrink-0 text-right">
-              <p className={TABLE_MOBILE_STYLES.valuePrimary}>{formatBRL(s.custoAnual)}</p>
+              <p className={TABLE_MOBILE_STYLES.valuePrimary}>
+                <Sensivel>{formatBRL(s.custoAnual)}</Sensivel>
+              </p>
               <p className={TABLE_MOBILE_STYLES.cardSubtitle}>por ano</p>
             </div>
           </div>
@@ -62,7 +65,11 @@ export default function SegurosCards({ seguros, onEdit, onDelete }: SegurosCards
             <div className="min-w-0">
               <dt className={TABLE_MOBILE_STYLES.dt}>Capital</dt>
               <dd className={`${TABLE_MOBILE_STYLES.dd} truncate`}>
-                {s.capitalSegurado != null ? formatBRL(s.capitalSegurado) : '—'}
+                {s.capitalSegurado != null ? (
+                  <Sensivel curto>{formatBRL(s.capitalSegurado)}</Sensivel>
+                ) : (
+                  '—'
+                )}
               </dd>
             </div>
           </dl>

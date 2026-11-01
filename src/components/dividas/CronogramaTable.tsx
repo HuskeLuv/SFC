@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components
 import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import type { ParcelaCronograma } from '@/hooks/useDividas';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import CronogramaLista from './mobile/CronogramaLista';
 import { formatBRL, formatYearMonth } from './utils';
 
@@ -65,7 +66,8 @@ export default function CronogramaTable({
           Cronograma de amortização
         </h3>
         <span className="text-xs text-gray-500 dark:text-gray-400">
-          Total de juros: {formatBRL(totais.juros)} · Amortização: {formatBRL(totais.amortizacao)}
+          Total de juros: <Sensivel>{formatBRL(totais.juros)}</Sensivel> · Amortização:{' '}
+          <Sensivel>{formatBRL(totais.amortizacao)}</Sensivel>
         </span>
       </div>
       <div className={`mx-4 my-3 ${TABLE_STYLES.wrapper}`}>
@@ -126,16 +128,18 @@ export default function CronogramaTable({
                   <TableCell
                     className={`${TABLE_STYLES.td} text-right font-medium text-gray-900 dark:text-white/90`}
                   >
-                    {formatBRL(r.parcelaCorrigida ?? r.parcela)}
+                    <Sensivel curto>{formatBRL(r.parcelaCorrigida ?? r.parcela)}</Sensivel>
                   </TableCell>
                   <TableCell className={`${TABLE_STYLES.td} text-right`}>
-                    {formatBRL(r.jurosCorrigido ?? r.juros)}
+                    <Sensivel curto>{formatBRL(r.jurosCorrigido ?? r.juros)}</Sensivel>
                   </TableCell>
                   <TableCell className={`${TABLE_STYLES.td} text-right`}>
-                    {formatBRL(r.amortizacaoCorrigida ?? r.amortizacao)}
+                    <Sensivel curto>{formatBRL(r.amortizacaoCorrigida ?? r.amortizacao)}</Sensivel>
                   </TableCell>
                   <TableCell className={`${TABLE_STYLES.td} text-right`}>
-                    {formatBRL(r.saldoDevedorCorrigido ?? r.saldoDevedor)}
+                    <Sensivel curto>
+                      {formatBRL(r.saldoDevedorCorrigido ?? r.saldoDevedor)}
+                    </Sensivel>
                   </TableCell>
                 </TableRow>
               );

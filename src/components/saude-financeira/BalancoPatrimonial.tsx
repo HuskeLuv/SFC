@@ -9,6 +9,7 @@ import type {
 import { TIPO_LABELS } from '@/components/dividas/utils';
 import type { DividaTipo } from '@/hooks/useDividas';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { formatBRL, formatPercent, tendenciaSeta } from './utils';
 import BalancoMobile from './mobile/BalancoMobile';
 import {
@@ -70,7 +71,7 @@ function ItemCells({ item }: { item: Item | undefined }) {
               : 'text-gray-900 dark:text-white/90'
           }
         >
-          {formatBRL(item.valor)}
+          <Sensivel>{formatBRL(item.valor)}</Sensivel>
         </span>
       </td>
     </>
@@ -83,7 +84,7 @@ function TotalCells({ label, valor }: { label: string; valor: number }) {
     <>
       <td className={`${TABLE_STYLES.td} font-semibold`}>{label}</td>
       <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-semibold`}>
-        {formatBRL(valor)}
+        <Sensivel>{formatBRL(valor)}</Sensivel>
       </td>
     </>
   );
@@ -297,7 +298,7 @@ export default function BalancoPatrimonial({
                       : 'text-gray-900 dark:text-white/90'
                   }`}
                 >
-                  {formatBRL(balanco.patrimonioLiquido)}
+                  <Sensivel>{formatBRL(balanco.patrimonioLiquido)}</Sensivel>
                   <Seta seta={tendenciaSeta(tendencias.patrimonioLiquido, true)} />
                 </span>
               </td>

@@ -3,6 +3,7 @@
 import MetricCard from '@/components/carteira/shared/MetricCard';
 import type { SaudeFinanceiraIndicadores, TendenciasSaude } from '@/hooks/useSaudeFinanceira';
 import { MobileMetricGrid } from '@/components/ui/mobile/MobileMetricGrid';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { formatBRLCompact, formatPercent, tendenciaChange } from './utils';
 
@@ -38,12 +39,12 @@ export default function FluxoCards({ indicadores, tendencias, cashflowYear }: Fl
             items={[
               {
                 label: 'Renda Mensal',
-                value: formatBRLCompact(fluxo.rendaMensal),
+                value: <Sensivel>{formatBRLCompact(fluxo.rendaMensal)}</Sensivel>,
                 hint: renda.change,
               },
               {
                 label: 'Gasto Mensal',
-                value: formatBRLCompact(fluxo.gastoMensal),
+                value: <Sensivel>{formatBRLCompact(fluxo.gastoMensal)}</Sensivel>,
                 hint: gasto.change,
               },
               {
@@ -54,7 +55,7 @@ export default function FluxoCards({ indicadores, tendencias, cashflowYear }: Fl
                       fluxo.poupancaMensal < 0 ? 'text-[#D92D20] dark:text-[#F97066]' : undefined
                     }
                   >
-                    {formatBRLCompact(fluxo.poupancaMensal)}
+                    <Sensivel>{formatBRLCompact(fluxo.poupancaMensal)}</Sensivel>
                   </span>
                 ),
                 hint: poupanca.change,

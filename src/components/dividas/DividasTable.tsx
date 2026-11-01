@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components
 import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import type { DividaDTO } from '@/hooks/useDividas';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import DividasCards from './mobile/DividasCards';
 import {
   CATEGORIA_LABELS,
@@ -165,12 +166,16 @@ export default function DividasTable({ dividas, onSelectDivida }: DividasTablePr
                 <TableCell
                   className={`${TABLE_STYLES.td} text-right font-medium text-gray-900 dark:text-white/90`}
                 >
-                  {formatBRL(r?.saldoCorrigido ?? r?.saldoDevedor)}
+                  <Sensivel>{formatBRL(r?.saldoCorrigido ?? r?.saldoDevedor)}</Sensivel>
                 </TableCell>
                 <TableCell className={`${TABLE_STYLES.td} text-right`}>
-                  {r?.proximaParcela
-                    ? formatBRL(r.proximaParcelaCorrigida ?? r.proximaParcela.parcela)
-                    : '—'}
+                  {r?.proximaParcela ? (
+                    <Sensivel>
+                      {formatBRL(r.proximaParcelaCorrigida ?? r.proximaParcela.parcela)}
+                    </Sensivel>
+                  ) : (
+                    '—'
+                  )}
                 </TableCell>
                 <TableCell className={`${TABLE_STYLES.td} text-center`}>{progresso}</TableCell>
                 <TableCell
@@ -195,10 +200,10 @@ export default function DividasTable({ dividas, onSelectDivida }: DividasTablePr
             <TableCell className={TABLE_STYLES.td}>{''}</TableCell>
             <TableCell className={TABLE_STYLES.td}>{''}</TableCell>
             <TableCell className={`${TABLE_STYLES.td} text-right text-gray-900 dark:text-white/90`}>
-              {formatBRL(totalDevido)}
+              <Sensivel>{formatBRL(totalDevido)}</Sensivel>
             </TableCell>
             <TableCell className={`${TABLE_STYLES.td} text-right text-gray-900 dark:text-white/90`}>
-              {totalParcelas > 0 ? formatBRL(totalParcelas) : ''}
+              {totalParcelas > 0 ? <Sensivel>{formatBRL(totalParcelas)}</Sensivel> : ''}
             </TableCell>
             <TableCell className={TABLE_STYLES.td}>{''}</TableCell>
             <TableCell className={TABLE_STYLES.td}>{''}</TableCell>

@@ -10,6 +10,7 @@ import { useSaudeFinanceira, useSaudeFinanceiraEvolucao } from '@/hooks/useSaude
 import { useSeguros } from '@/hooks/useSeguros';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { MobileCollapsible } from '@/components/ui/mobile/MobileCollapsible';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { MobileActionSheet, MobileMoreButton } from '@/components/ui/sheet/MobileActionSheet';
 import { MONTH_NAMES_PT, STATUS_META, formatBRL, formatPercent } from './utils';
 import SaudeSkeleton from './mobile/SaudeSkeleton';
@@ -230,7 +231,9 @@ export default function SaudeFinanceiraRoot() {
       {bloco(
         'saude-bloco-balanco',
         'Balanço Patrimonial',
-        `PL ${formatBRL(indicadores.balanco.patrimonioLiquido)}`,
+        <>
+          PL <Sensivel curto>{formatBRL(indicadores.balanco.patrimonioLiquido)}</Sensivel>
+        </>,
         <BalancoPatrimonial
           indicadores={indicadores}
           composicao={composicao}

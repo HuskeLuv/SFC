@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import CardSectionBand from '@/components/ui/table/CardSectionBand';
 import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
 import type { QuadranteBalanco, QuadrantesBalanco } from '../BalancoPatrimonial';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { formatBRL } from '../utils';
 
 /**
@@ -39,7 +40,7 @@ function Quadrante({ id, quadrante }: { id: string; quadrante: QuadranteBalanco 
                     : 'text-gray-900 dark:text-white/90'
                 }`}
               >
-                {formatBRL(item.valor)}
+                <Sensivel curto>{formatBRL(item.valor)}</Sensivel>
               </span>
             </li>
           ))}
@@ -49,7 +50,9 @@ function Quadrante({ id, quadrante }: { id: string; quadrante: QuadranteBalanco 
         className={`${TABLE_MOBILE_STYLES.totalCard} flex items-center justify-between gap-3 text-sm`}
       >
         <span className="font-semibold">{quadrante.totalLabel}</span>
-        <span className="shrink-0 font-semibold tabular-nums">{formatBRL(quadrante.total)}</span>
+        <span className="shrink-0 font-semibold tabular-nums">
+          <Sensivel>{formatBRL(quadrante.total)}</Sensivel>
+        </span>
       </div>
     </div>
   );
@@ -82,7 +85,7 @@ export default function BalancoMobile({ quadrantes }: BalancoMobileProps) {
             pl < 0 ? 'text-[#D92D20] dark:text-[#F97066]' : 'text-gray-900 dark:text-white/90'
           }`}
         >
-          {formatBRL(pl)}
+          <Sensivel>{formatBRL(pl)}</Sensivel>
         </span>
       </div>
     </div>

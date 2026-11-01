@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import type { ApexOptions } from 'apexcharts';
 import { useTheme } from '@/context/ThemeContext';
 import type { ParcelaCronograma } from '@/hooks/useDividas';
@@ -10,7 +10,16 @@ import {
   mobileYAxis,
   useMobileChart,
 } from '@/components/charts/mobileChartOptions';
+import {
+  useChaveGraficoSensivel,
+  useOpcoesGraficoSensiveis,
+} from '@/components/charts/useOpcoesGraficoSensiveis';
+import {
+  rotulosDoEixoY,
+  useLarguraEixoYOculto,
+} from '@/components/planejamento/aposentadoria/charts/useLarguraEixoYOculto';
 import { MYFINANCE_BRAND } from '@/constants/brandColors';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import { formatCurrency } from '@/utils/formatters';
 import { formatYearMonth } from './utils';
 
@@ -92,14 +101,22 @@ export default function CronogramaChart({ cronograma, parcelasPagas }: Cronogram
     [rows],
   );
 
+  const { maxParcela, maxSaldo } = useMemo(
+    () => ({
+      maxParcela: Math.max(
+        0,
+        ...rows.map(
+          (r) => (r.amortizacaoCorrigida ?? r.amortizacao) + (r.jurosCorrigido ?? r.juros),
+        ),
+      ),
+      maxSaldo: Math.max(0, ...rows.map((r) => r.saldoDevedorCorrigido ?? r.saldoDevedor)),
+    }),
+    [rows],
+  );
+
   const options: ApexOptions = useMemo(() => {
     const textColor = isDark ? '#9ca3af' : '#6b7280';
     const pagoAte = parcelasPagas > 0 ? cronograma[parcelasPagas - 1]?.mes : null;
-    const maxParcela = Math.max(
-      0,
-      ...rows.map((r) => (r.amortizacaoCorrigida ?? r.amortizacao) + (r.jurosCorrigido ?? r.juros)),
-    );
-    const maxSaldo = Math.max(0, ...rows.map((r) => r.saldoDevedorCorrigido ?? r.saldoDevedor));
     return {
       chart: {
         id: 'divida-cronograma',
@@ -177,7 +194,7 @@ export default function CronogramaChart({ cronograma, parcelasPagas }: Cronogram
         : undefined,
       grid: { borderColor: isDark ? '#1f2937' : '#e5e7eb' },
     };
-  }, [isDark, cronograma, parcelasPagas, rows]);
+  }, [isDark, cronograma, parcelasPagas, maxParcela, maxSaldo]);
 
   // PWA fase 3: no celular, 220px, eixo em R$ compacto (o secundário sem rótulo), legenda
   // embaixo e só a paleta My Finance (sem o verde da marcação "Pago até aqui").
@@ -214,8 +231,64 @@ export default function CronogramaChart({ cronograma, parcelasPagas }: Cronogram
   const chart = useMobileChart(options, { extra: mobileExtra, desktopHeight: 320 });
   const ultima = cronograma[cronograma.length - 1];
 
+  // Esconder valores (decisão 7): sobre as opções FINAIS (já com as do celular). Os dois eixos Y
+  // em R$ (parcela e saldo) saem sem rótulo com a largura de hoje reservada — CADA eixo com a
+  // sua, senão a área do gráfico pula; o tooltip (formatter próprio com R$) vira pílula. Séries,
+  // legenda, eixo X e a marcação "Pago até aqui" ficam. Olho aberto devolve a mesma referência;
+  // a chave remonta ao alternar.
+  const { ativo } = useValoresOcultos();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const semTela = useRef<HTMLElement>(null);
+  const eixosFinais = useMemo(
+    () =>
+      (Array.isArray(chart.options.yaxis) ? chart.options.yaxis : [chart.options.yaxis]).filter(
+        (e): e is ApexYAxis => !!e,
+      ),
+    [chart.options],
+  );
+  const rotulosParcela = useMemo(
+    () => rotulosDoEixoY({ yaxis: eixosFinais[0] }, niceMax(maxParcela)),
+    [eixosFinais, maxParcela],
+  );
+  const rotulosSaldo = useMemo(() => {
+    const saldo = eixosFinais.find((e) => e.seriesName === 'Saldo devedor');
+    return saldo ? rotulosDoEixoY({ yaxis: saldo }, niceMax(maxSaldo)) : [];
+  }, [eixosFinais, maxSaldo]);
+  // Página aberta já oculta: mede no canvas os rótulos que cada eixo teria.
+  const larguraParcela = useLarguraEixoYOculto(semTela, rotulosParcela);
+  const larguraSaldo = useLarguraEixoYOculto(semTela, rotulosSaldo);
+  const opcoesComLargura = useMemo(() => {
+    if (!ativo) return chart.options;
+    // Ao fechar o olho os rótulos ainda estão na tela: a largura real de cada eixo é a medida.
+    const medir = (i: number) => {
+      const rotulos =
+        containerRef.current?.querySelectorAll(
+          `.apexcharts-yaxis[rel="${i}"] .apexcharts-yaxis-label`,
+        ) ?? [];
+      return Math.max(
+        0,
+        ...Array.from(rotulos, (r) =>
+          r.textContent?.trim() ? r.getBoundingClientRect().width : 0,
+        ),
+      );
+    };
+    return {
+      ...chart.options,
+      yaxis: eixosFinais.map((eixo, i) => {
+        if (!eixo.labels?.formatter) return eixo;
+        const reserva = eixo.seriesName === 'Saldo devedor' ? larguraSaldo : larguraParcela;
+        return { ...eixo, labels: { ...eixo.labels, minWidth: medir(i) || reserva } };
+      }),
+    };
+  }, [ativo, chart.options, eixosFinais, larguraParcela, larguraSaldo]);
+  const opcoes = useOpcoesGraficoSensiveis(opcoesComLargura);
+  const chaveSensivel = useChaveGraficoSensivel();
+
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
+    <div
+      ref={containerRef}
+      className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]"
+    >
       <h3 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white/90">
         Composição das parcelas
       </h3>
@@ -230,14 +303,21 @@ export default function CronogramaChart({ cronograma, parcelasPagas }: Cronogram
           )}
         >
           <ReactApexChart
-            options={chart.options}
+            key={chaveSensivel}
+            options={opcoes}
             series={series}
             type="line"
             height={chart.height}
           />
         </div>
       ) : (
-        <ReactApexChart options={chart.options} series={series} type="line" height={chart.height} />
+        <ReactApexChart
+          key={chaveSensivel}
+          options={opcoes}
+          series={series}
+          type="line"
+          height={chart.height}
+        />
       )}
     </div>
   );

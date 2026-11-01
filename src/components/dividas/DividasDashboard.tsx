@@ -9,6 +9,7 @@ import { MobileMetricGrid } from '@/components/ui/mobile/MobileMetricGrid';
 import { MobilePageState } from '@/components/ui/mobile/MobilePageState';
 import type { DividaDTO } from '@/hooks/useDividas';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import DividasTable from './DividasTable';
 import DividaForm from './DividaForm';
 import { currentYearMonth, formatBRLCompact } from './utils';
@@ -125,17 +126,17 @@ export default function DividasDashboard({ dividas, onSelectDivida }: DividasDas
             items={[
               {
                 label: 'Total Devido',
-                value: formatBRLCompact(stats.totalDevido),
+                value: <Sensivel>{formatBRLCompact(stats.totalDevido)}</Sensivel>,
                 hint: `${emAberto.length} em aberto`,
               },
               {
                 label: 'Parcelas do Mês',
-                value: formatBRLCompact(stats.parcelasMes),
+                value: <Sensivel>{formatBRLCompact(stats.parcelasMes)}</Sensivel>,
                 hint: 'financiamentos iniciados',
               },
               {
                 label: 'Curto Prazo',
-                value: formatBRLCompact(stats.curtoPrazo),
+                value: <Sensivel>{formatBRLCompact(stats.curtoPrazo)}</Sensivel>,
                 hint: 'vence em até 12 meses',
               },
               { label: 'Concluídas', value: String(stats.quitadas), hint: `de ${dividas.length}` },
