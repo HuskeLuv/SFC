@@ -7,6 +7,7 @@ import { yearKeyUtc } from '@/utils/utcDay';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { useTheme } from '@/context/ThemeContext';
 import { deepMergeOptions } from '../ApexChartWrapper';
+import { useOpcoesGraficoSensiveis } from '../useOpcoesGraficoSensiveis';
 
 const hasFunctionValue = (value: unknown): boolean => {
   if (typeof value === 'function') {
@@ -101,6 +102,9 @@ interface LineChartCarteiraHistoricoProps {
   /** Moeda da série (posição em US$ na página do ativo); padrão R$. */
   moeda?: 'BRL' | 'USD';
 }
+
+/** Eixo "R$ 2000K": esconde mesmo sem depender do símbolo; 56px reservados no eixo Y. */
+const OPCOES_VALORES_OCULTOS = { eixosSemSimbolo: true, larguraEixoY: 56 } as const;
 
 type PeriodoId = '1M' | '3M' | '6M' | 'YTD' | '1A' | 'MAX';
 
@@ -358,6 +362,11 @@ export default function LineChartCarteiraHistorico({
     });
   }, [isBelowLg, isDark, options]);
 
+  // Esconder valores (decisão 7): sobre as opções FINAIS (já com as do celular). Eixo Y sem
+  // rótulo com a largura reservada, tooltip com o mês e pílulas; linhas, área, legenda e yAxisMin
+  // ficam. Olho aberto devolve a mesma referência.
+  const opcoesSeguras = useOpcoesGraficoSensiveis(chartOptions, OPCOES_VALORES_OCULTOS);
+
   const series = useMemo(
     () => [
       {
@@ -418,7 +427,7 @@ export default function LineChartCarteiraHistorico({
         }
       >
         <ApexChartWrapper
-          options={chartOptions}
+          options={opcoesSeguras}
           series={series}
           type="area"
           height={isBelowLg ? 180 : 335}
