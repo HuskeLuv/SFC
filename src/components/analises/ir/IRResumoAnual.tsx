@@ -117,19 +117,20 @@ export default function IRResumoAnual() {
             <h4 className="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">
               Rendimentos do ano
             </h4>
+            {/* Pílula curta: nunca mais larga que "R$ 0,00", o rótulo não quebra (decisão 6). */}
             <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
               <div className="flex justify-between gap-3 border-b border-gray-100 py-1.5 dark:border-gray-800">
                 <dt className="text-gray-500 dark:text-gray-400">
                   Dividendos de ações BR (isentos)
                 </dt>
                 <dd className="font-medium text-gray-900 dark:text-white">
-                  <Sensivel>{formatBRL(data.rendimentos.isentos.dividendosAcoesBr)}</Sensivel>
+                  <Sensivel curto>{formatBRL(data.rendimentos.isentos.dividendosAcoesBr)}</Sensivel>
                 </dd>
               </div>
               <div className="flex justify-between gap-3 border-b border-gray-100 py-1.5 dark:border-gray-800">
                 <dt className="text-gray-500 dark:text-gray-400">Rendimentos de FII (isentos)</dt>
                 <dd className="font-medium text-gray-900 dark:text-white">
-                  <Sensivel>{formatBRL(data.rendimentos.isentos.rendimentosFii)}</Sensivel>
+                  <Sensivel curto>{formatBRL(data.rendimentos.isentos.rendimentosFii)}</Sensivel>
                 </dd>
               </div>
               <div className="flex justify-between gap-3 border-b border-gray-100 py-1.5 dark:border-gray-800">
@@ -137,7 +138,7 @@ export default function IRResumoAnual() {
                   JCP (tributação exclusiva {jcpIrrfRateLabel(year)})
                 </dt>
                 <dd className="font-medium text-gray-900 dark:text-white">
-                  <Sensivel>{formatBRL(data.rendimentos.tributacaoExclusiva.jcp)}</Sensivel>
+                  <Sensivel curto>{formatBRL(data.rendimentos.tributacaoExclusiva.jcp)}</Sensivel>
                 </dd>
               </div>
               {data.rendimentos.exterior &&
@@ -148,14 +149,14 @@ export default function IRResumoAnual() {
                       Exterior — Stocks/REITs EUA (tributável)
                     </dt>
                     <dd className="font-medium text-gray-900 dark:text-white">
-                      <Sensivel>{formatBRL(data.rendimentos.exterior.total)}</Sensivel>
+                      <Sensivel curto>{formatBRL(data.rendimentos.exterior.total)}</Sensivel>
                     </dd>
                   </div>
                 )}
               <div className="flex justify-between gap-3 py-1.5">
                 <dt className="font-medium text-gray-700 dark:text-gray-200">Total recebido</dt>
                 <dd className="font-semibold text-gray-900 dark:text-white">
-                  <Sensivel>{formatBRL(data.rendimentos.totalRecebido)}</Sensivel>
+                  <Sensivel curto>{formatBRL(data.rendimentos.totalRecebido)}</Sensivel>
                 </dd>
               </div>
             </dl>

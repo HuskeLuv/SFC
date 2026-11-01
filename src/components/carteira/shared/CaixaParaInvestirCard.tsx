@@ -426,11 +426,12 @@ const CaixaParaInvestirCard: React.FC<CaixaParaInvestirCardProps> = ({
               : 'Este valor é a reserva desta aba dentro do Caixa para Investir total.'
           }
         >
+          {/* Pílula curta: nunca mais larga que "R$ 0,00", o rótulo não quebra (decisão 6). */}
           {detalhes.map(({ rotulo, valor }) => (
             <div key={rotulo} className="flex items-baseline gap-1">
               <dt>{rotulo}</dt>
               <dd className="whitespace-nowrap font-medium">
-                <Sensivel>{formatBRL(valor)}</Sensivel>
+                <Sensivel curto>{formatBRL(valor)}</Sensivel>
               </dd>
             </div>
           ))}
