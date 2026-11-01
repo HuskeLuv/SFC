@@ -19,6 +19,7 @@ import {
   useLarguraEixoYOculto,
 } from '@/components/planejamento/aposentadoria/charts/useLarguraEixoYOculto';
 import { MYFINANCE_BRAND } from '@/constants/brandColors';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import { formatCurrency } from '@/utils/formatters';
 import { formatYearMonth } from './utils';
 
@@ -231,20 +232,56 @@ export default function CronogramaChart({ cronograma, parcelasPagas }: Cronogram
   const ultima = cronograma[cronograma.length - 1];
 
   // Esconder valores (decisão 7): sobre as opções FINAIS (já com as do celular). Os dois eixos Y
-  // em R$ (parcela e saldo) saem sem rótulo com a largura de hoje reservada; o tooltip (formatter
-  // próprio com R$) vira pílula. Séries, legenda, eixo X e a marcação "Pago até aqui" ficam.
-  // Olho aberto devolve a mesma referência; a chave remonta ao alternar.
+  // em R$ (parcela e saldo) saem sem rótulo com a largura de hoje reservada — CADA eixo com a
+  // sua, senão a área do gráfico pula; o tooltip (formatter próprio com R$) vira pílula. Séries,
+  // legenda, eixo X e a marcação "Pago até aqui" ficam. Olho aberto devolve a mesma referência;
+  // a chave remonta ao alternar.
+  const { ativo } = useValoresOcultos();
   const containerRef = useRef<HTMLDivElement>(null);
-  const rotulosEixo = useMemo(() => {
-    const eixos = Array.isArray(chart.options.yaxis) ? chart.options.yaxis : [chart.options.yaxis];
-    const saldo = eixos.find((e) => e?.seriesName === 'Saldo devedor');
-    return [
-      ...rotulosDoEixoY(chart.options, niceMax(maxParcela)),
-      ...(saldo ? rotulosDoEixoY({ yaxis: saldo }, niceMax(maxSaldo)) : []),
-    ];
-  }, [chart.options, maxParcela, maxSaldo]);
-  const larguraEixoY = useLarguraEixoYOculto(containerRef, rotulosEixo);
-  const opcoes = useOpcoesGraficoSensiveis(chart.options, { larguraEixoY });
+  const semTela = useRef<HTMLElement>(null);
+  const eixosFinais = useMemo(
+    () =>
+      (Array.isArray(chart.options.yaxis) ? chart.options.yaxis : [chart.options.yaxis]).filter(
+        (e): e is ApexYAxis => !!e,
+      ),
+    [chart.options],
+  );
+  const rotulosParcela = useMemo(
+    () => rotulosDoEixoY({ yaxis: eixosFinais[0] }, niceMax(maxParcela)),
+    [eixosFinais, maxParcela],
+  );
+  const rotulosSaldo = useMemo(() => {
+    const saldo = eixosFinais.find((e) => e.seriesName === 'Saldo devedor');
+    return saldo ? rotulosDoEixoY({ yaxis: saldo }, niceMax(maxSaldo)) : [];
+  }, [eixosFinais, maxSaldo]);
+  // Página aberta já oculta: mede no canvas os rótulos que cada eixo teria.
+  const larguraParcela = useLarguraEixoYOculto(semTela, rotulosParcela);
+  const larguraSaldo = useLarguraEixoYOculto(semTela, rotulosSaldo);
+  const opcoesComLargura = useMemo(() => {
+    if (!ativo) return chart.options;
+    // Ao fechar o olho os rótulos ainda estão na tela: a largura real de cada eixo é a medida.
+    const medir = (i: number) => {
+      const rotulos =
+        containerRef.current?.querySelectorAll(
+          `.apexcharts-yaxis[rel="${i}"] .apexcharts-yaxis-label`,
+        ) ?? [];
+      return Math.max(
+        0,
+        ...Array.from(rotulos, (r) =>
+          r.textContent?.trim() ? r.getBoundingClientRect().width : 0,
+        ),
+      );
+    };
+    return {
+      ...chart.options,
+      yaxis: eixosFinais.map((eixo, i) => {
+        if (!eixo.labels?.formatter) return eixo;
+        const reserva = eixo.seriesName === 'Saldo devedor' ? larguraSaldo : larguraParcela;
+        return { ...eixo, labels: { ...eixo.labels, minWidth: medir(i) || reserva } };
+      }),
+    };
+  }, [ativo, chart.options, eixosFinais, larguraParcela, larguraSaldo]);
+  const opcoes = useOpcoesGraficoSensiveis(opcoesComLargura);
   const chaveSensivel = useChaveGraficoSensivel();
 
   return (
