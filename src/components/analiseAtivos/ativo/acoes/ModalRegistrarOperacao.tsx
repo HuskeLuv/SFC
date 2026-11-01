@@ -22,6 +22,10 @@
  * leva o Asset manual da posição (overlay) — a recompra não cria um 2º Asset. Sem posição:
  * STOCK-MANUAL / REIT-MANUAL. Total em R$; posição e preço médio na unidade da aba, como a Carteira
  * mostra. Sem o link do formulário completo (o wizard não tem preset EUA).
+ *
+ * Esconder valores (Fase 5): formulário — os campos ficam visíveis (decisão 3). O que é calculado
+ * fora do campo vira pílula: total, nova posição, preço médio, a posição atual do rodapé e do erro
+ * "acima da posição", e o aviso de sucesso sai com o preço e a posição mascarados.
  */
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import ModalAnalise, {
@@ -53,6 +57,10 @@ import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
 import { ehClasseEua } from '@/types/analiseAtivosApi';
 import { secaoOperacao } from '@/services/analiseAtivos/regras/carteira/secaoOperacao';
 import { formatarTexto } from '@/services/analiseAtivos/textos';
+import { Sensivel } from '@/components/common/valores/Sensivel';
+import TextoComSensiveis from '@/components/analiseAtivos/comum/TextoComSensiveis';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
+import { MASCARA_VALOR } from '@/utils/valoresOcultos';
 import {
   CLASSE_CARTEIRA,
   ROTULOS_SECAO,
@@ -139,6 +147,7 @@ export default function ModalRegistrarOperacao({
   const ids = { q: useId(), p: useId(), c: useId(), d: useId(), oper: useId(), dica: useId() };
   // EUA: a aba Stocks/REIT's traz a cotação do dólar da Carteira (pré-preenche o câmbio)
   const dados = useNaCarteiraAtivo(t, classe, { base: aberto && eua });
+  const { ativo: ocultos, mascarar } = useValoresOcultos();
   /** valores da aba (posição, PM): US$ em Stocks/REIT's, como a Carteira mostra */
   const dinheiroAba = dados.moeda === 'USD' ? formatUSD : formatBRL;
   const comPosicao = dados.status === 'posicao' && !!dados.portfolioId;
@@ -278,13 +287,15 @@ export default function ModalRegistrarOperacao({
       }
       mostrarToastMover({
         tipo: 'ok',
-        mensagem: formatarTexto(T.registrada, {
-          qtd: quantidade.toLocaleString('pt-BR'),
-          un: unDe(quantidade),
-          ticker: t,
-          preco: eua ? formatUSD(cotacao) : formatBRL(cotacao),
-          pos: novaQtd.toLocaleString('pt-BR'),
-        }),
+        mensagem: mascarar(
+          formatarTexto(T.registrada, {
+            qtd: quantidade.toLocaleString('pt-BR'),
+            un: unDe(quantidade),
+            ticker: t,
+            preco: eua ? formatUSD(cotacao) : formatBRL(cotacao),
+            pos: ocultos ? MASCARA_VALOR : novaQtd.toLocaleString('pt-BR'),
+          }),
+        ),
       });
       onFechar();
     } catch (e: unknown) {
@@ -298,6 +309,17 @@ export default function ModalRegistrarOperacao({
     e === 'cambio_invalido'
       ? TEXTOS_EUA.carteira.cambioInvalido
       : formatarTexto(T.erros[e], { qtd: posQtd.toLocaleString('pt-BR'), un: unDe(posQtd) });
+  /** Texto do erro com a posição atual (quantidade do usuário) em pílula curta. */
+  const textoErroNo = (e: ErroOperacao) =>
+    e === 'cambio_invalido' ? (
+      textoErro(e)
+    ) : (
+      <TextoComSensiveis
+        template={T.erros[e]}
+        vars={{ qtd: posQtd.toLocaleString('pt-BR'), un: unDe(posQtd) }}
+        modos={{ qtd: 'curto' }}
+      />
+    );
   const erroDe = (...tipos: ErroOperacao[]) => erros.find((e) => tipos.includes(e)) ?? null;
 
   // EUA não tem catálogo na Carteira: a compra cria (ou reaproveita) o Asset manual
@@ -306,13 +328,19 @@ export default function ModalRegistrarOperacao({
   const rodape = (
     <>
       <span className={DICA_RODAPE}>
-        {comPosicao
-          ? formatarTexto(T.hintPosicao, {
+        {comPosicao ? (
+          <TextoComSensiveis
+            template={T.hintPosicao}
+            vars={{
               qtd: posQtd.toLocaleString('pt-BR'),
               un: unDe(posQtd),
               pm: pm !== null ? dinheiroAba(pm) : '—',
-            })
-          : T.hintSemPosicao}
+            }}
+            modos={{ qtd: 'curto', pm: pm !== null ? 'sensivel' : undefined }}
+          />
+        ) : (
+          T.hintSemPosicao
+        )}
       </span>
       <button type="button" className={BOTAO_MODAL_SECUNDARIO} onClick={onFechar}>
         {TEXTOS_ACOES_CARTEIRA.modal.cancelar}
@@ -397,7 +425,7 @@ export default function ModalRegistrarOperacao({
         </div>
         {erroDe('quantidade_invalida', 'acima_da_posicao') ? (
           <p role="alert" className={ERRO}>
-            {textoErro(erroDe('quantidade_invalida', 'acima_da_posicao') as ErroOperacao)}
+            {textoErroNo(erroDe('quantidade_invalida', 'acima_da_posicao') as ErroOperacao)}
           </p>
         ) : null}
 
@@ -515,19 +543,19 @@ export default function ModalRegistrarOperacao({
           <span>
             {T.total}
             <b className="block text-[14.5px] text-gray-900 tabular-nums dark:text-white">
-              {formatBRL(total)}
+              <Sensivel>{formatBRL(total)}</Sensivel>
             </b>
           </span>
           <span>
             {T.novaPosicao}
             <b className="block text-[14.5px] text-gray-900 tabular-nums dark:text-white">
-              {novaQtd.toLocaleString('pt-BR')} {unDe(novaQtd)}
+              <Sensivel curto>{novaQtd.toLocaleString('pt-BR')}</Sensivel> {unDe(novaQtd)}
             </b>
           </span>
           <span>
             {venda ? T.pmMantido : T.novoPm}
             <b className="block text-[14.5px] text-gray-900 tabular-nums dark:text-white">
-              {novoPm !== null && novoPm > 0 ? dinheiroAba(novoPm) : '—'}
+              {novoPm !== null && novoPm > 0 ? <Sensivel>{dinheiroAba(novoPm)}</Sensivel> : '—'}
             </b>
             {venda ? (
               <small className="text-xs text-gray-500 dark:text-gray-400">{T.pmMantidoNota}</small>

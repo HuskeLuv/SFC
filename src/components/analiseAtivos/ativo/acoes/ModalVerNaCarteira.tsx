@@ -15,6 +15,10 @@
  * (a Carteira soma o REIT em US$ ao total em R$). Stock (`valoresMistos`: preço médio e operações em
  * R$, cotação em US$) mostra só a quantidade, a nota de que os números ficam na aba e o link para
  * a Carteira.
+ *
+ * Esconder valores (Fase 5): posição (quantidade), valor atual, preço médio, custo, resultado em
+ * R$, proventos e as operações (quantidade, preço, total) viram pílula; os % e a cotação de mercado
+ * ("a R$ X") ficam.
  */
 import Link from 'next/link';
 import ModalAnalise, {
@@ -35,6 +39,7 @@ import {
 } from '@/services/analiseAtivos/textosAcoesCarteira';
 import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import { formatBRL, formatNumber, formatUSD } from '@/utils/format';
+import { Sensivel, TextoSensivel, ValorVisivel } from '@/components/common/valores/Sensivel';
 import type { ModalVerNaCarteiraProps } from '@/types/analiseAtivosCriterios';
 
 export type { ModalVerNaCarteiraProps };
@@ -150,7 +155,11 @@ export default function ModalVerNaCarteira({
         <dl className="my-1.5 grid grid-cols-2 gap-2.5 lg:grid-cols-3" data-ver-posicao="aba">
           <Celula
             rotulo={T.posicao}
-            valor={`${inteiro(posicaoQ.data!.posicao.quantidade)} ${cl.un}`}
+            valor={
+              <>
+                <Sensivel curto>{inteiro(posicaoQ.data!.posicao.quantidade)}</Sensivel> {cl.un}
+              </>
+            }
           />
         </dl>
         <p className="text-sm text-gray-600 dark:text-gray-300">
@@ -167,7 +176,11 @@ export default function ModalVerNaCarteira({
         <dl className="my-1.5 grid grid-cols-2 gap-2.5 lg:grid-cols-3" data-ver-posicao="">
           <Celula
             rotulo={T.posicao}
-            valor={`${inteiro(p.quantidade)} ${cl.un}`}
+            valor={
+              <>
+                <Sensivel curto>{inteiro(p.quantidade)}</Sensivel> {cl.un}
+              </>
+            }
             nota={
               dados.pctCarteira !== null
                 ? formatarTexto(T.pctCarteira, { pct: pct1(dados.pctCarteira) })
@@ -176,23 +189,34 @@ export default function ModalVerNaCarteira({
           />
           <Celula
             rotulo={T.valorAtual}
-            valor={dinheiroInteiro(p.saldoBruto)}
-            nota={formatarTexto(T.aCotacao, { preco: dinheiro(p.cotacaoAtual) })}
+            valor={<Sensivel>{dinheiroInteiro(p.saldoBruto)}</Sensivel>}
+            nota={
+              // cotação = dado de mercado: fica visível com o olho fechado
+              <ValorVisivel>
+                {formatarTexto(T.aCotacao, { preco: dinheiro(p.cotacaoAtual) })}
+              </ValorVisivel>
+            }
           />
           <Celula
             rotulo={T.precoMedio}
-            valor={dinheiro(p.precoMedio)}
-            nota={formatarTexto(T.custo, { valor: dinheiroInteiro(custo) })}
+            valor={<Sensivel>{dinheiro(p.precoMedio)}</Sensivel>}
+            nota={
+              <TextoSensivel texto={formatarTexto(T.custo, { valor: dinheiroInteiro(custo) })} />
+            }
           />
           <Celula
             rotulo={T.resultado}
             valor={`${p.rentabilidade < 0 ? '−' : '+'}${formatNumber(Math.abs(p.rentabilidade), 1)}%`}
-            nota={`${p.resultado < 0 ? '−' : ''}${dinheiroInteiro(p.resultado)} · ${T.resultadoNota}`}
+            nota={
+              <TextoSensivel
+                texto={`${p.resultado < 0 ? '−' : ''}${dinheiroInteiro(p.resultado)} · ${T.resultadoNota}`}
+              />
+            }
             negativo={p.rentabilidade < 0}
           />
           <Celula
             rotulo={T.proventos}
-            valor={dinheiroInteiro(p.proventosRecebidos)}
+            valor={<Sensivel>{dinheiroInteiro(p.proventosRecebidos)}</Sensivel>}
             nota={T.proventosNota}
           />
           <Celula
@@ -232,13 +256,13 @@ export default function ModalVerNaCarteira({
                       <td className={TABLE_STYLES.compact.td}>{dataBr(o.date)}</td>
                       <td className={TABLE_STYLES.compact.td}>{o.tipoOperacao}</td>
                       <td className={`${TABLE_STYLES.compact.td} tabular-nums`}>
-                        {inteiro(o.quantity)}
+                        <Sensivel curto>{inteiro(o.quantity)}</Sensivel>
                       </td>
                       <td className={`${TABLE_STYLES.compact.td} tabular-nums`}>
-                        {dinheiro(o.price)}
+                        <Sensivel>{dinheiro(o.price)}</Sensivel>
                       </td>
                       <td className={`${TABLE_STYLES.compact.td} tabular-nums`}>
-                        {dinheiroInteiro(o.total)}
+                        <Sensivel>{dinheiroInteiro(o.total)}</Sensivel>
                       </td>
                     </tr>
                   ))}
