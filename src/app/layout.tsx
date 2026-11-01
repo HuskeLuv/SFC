@@ -1,5 +1,6 @@
 import localFont from 'next/font/local';
 import type { Metadata, Viewport } from 'next';
+import { cookies } from 'next/headers';
 import './globals.css';
 import 'swiper/css';
 import 'swiper/css/navigation';
@@ -8,6 +9,8 @@ import 'simplebar-react/dist/simplebar.min.css';
 import Providers from './providers';
 import CookieConsentBanner from '@/components/legal/CookieConsentBanner';
 import ServiceWorkerRegistrar from '@/components/pwa/ServiceWorkerRegistrar';
+import { valoresOcultosHabilitado } from '@/lib/valoresOcultosConfig';
+import { COOKIE_VALORES_OCULTOS, lerCookieValoresOcultos } from '@/utils/valoresOcultos';
 
 // Self-hosted (src/fonts) para o build não depender do Google Fonts — o
 // fetch do next/font/google derrubou o build no CI 2× em 28/09 (flake de rede).
@@ -69,15 +72,26 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Esconder valores: o cookie do aparelho já decide o <html data-valores-ocultos> no SSR (sem
+  // flash, sem script inline). Com a flag desligada nada é lido nem emitido.
+  const habilitado = valoresOcultosHabilitado();
+  const ocultos =
+    habilitado && lerCookieValoresOcultos((await cookies()).get(COOKIE_VALORES_OCULTOS)?.value);
+
   return (
-    <html lang="pt-BR" className={albertSans.variable}>
+    <html
+      lang="pt-BR"
+      className={albertSans.variable}
+      data-valores-ocultos={ocultos ? '' : undefined}
+      suppressHydrationWarning={habilitado || undefined}
+    >
       <body className={`${albertSans.className} dark:bg-gray-900`}>
-        <Providers>{children}</Providers>
+        <Providers valoresOcultos={{ habilitado, inicial: ocultos }}>{children}</Providers>
         <ServiceWorkerRegistrar />
         <CookieConsentBanner />
       </body>
