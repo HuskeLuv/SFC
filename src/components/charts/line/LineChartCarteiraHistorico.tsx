@@ -1,7 +1,7 @@
 'use client';
 
 import { logger } from '@/lib/logger';
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { ApexOptions } from 'apexcharts';
 import { yearKeyUtc } from '@/utils/utcDay';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
@@ -411,16 +411,23 @@ export default function LineChartCarteiraHistorico({
       ),
     [filteredData],
   );
-  const larguraEixoY = useMemo(
-    () =>
-      valoresOcultos
-        ? medirLarguraEixoY(
-            [rotuloEixoY(simbolo, maiorValor), rotuloEixoY(simbolo, topoRedondo(maiorValor))],
-            isBelowLg ? 11 : 12,
-          )
-        : LARGURA_EIXO_Y_PADRAO,
-    [valoresOcultos, simbolo, maiorValor, isBelowLg],
-  );
+  // Ao fechar o olho, o gráfico com os rótulos ainda está na tela: a largura real deles é a que o
+  // eixo vazio tem de reservar (a medida no canvas erra alguns px quando a fonte do SVG difere da
+  // do body). Abrindo a página já com o olho fechado não há "antes" para pular: vale o canvas.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const larguraEixoY = useMemo(() => {
+    if (!valoresOcultos) return LARGURA_EIXO_Y_PADRAO;
+    const rotulos = containerRef.current?.querySelectorAll('.apexcharts-yaxis-label') ?? [];
+    const medida = Math.max(
+      0,
+      ...Array.from(rotulos, (r) => (r.textContent?.trim() ? r.getBoundingClientRect().width : 0)),
+    );
+    if (medida > 0) return Math.ceil(medida);
+    return medirLarguraEixoY(
+      [rotuloEixoY(simbolo, maiorValor), rotuloEixoY(simbolo, topoRedondo(maiorValor))],
+      isBelowLg ? 11 : 12,
+    );
+  }, [valoresOcultos, simbolo, maiorValor, isBelowLg]);
   const opcoesSeguras = useOpcoesGraficoSensiveis(chartOptions, {
     // Eixo "R$ 2000K": esconde mesmo sem depender do símbolo.
     eixosSemSimbolo: true,
@@ -442,7 +449,10 @@ export default function LineChartCarteiraHistorico({
   );
 
   return (
-    <div className={isBelowLg ? 'max-w-full' : 'max-w-full overflow-x-auto custom-scrollbar'}>
+    <div
+      ref={containerRef}
+      className={isBelowLg ? 'max-w-full' : 'max-w-full overflow-x-auto custom-scrollbar'}
+    >
       <div
         className={
           isBelowLg ? 'mb-2 flex items-center gap-1' : 'mb-3 flex flex-wrap items-center gap-1'
