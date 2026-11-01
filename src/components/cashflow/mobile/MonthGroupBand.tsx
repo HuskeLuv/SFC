@@ -119,7 +119,7 @@ export default function MonthGroupBand({
           aria-expanded={expanded}
           aria-controls={contentId}
           onClick={onToggle}
-          className="grid min-h-12 min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-[14px] bg-mf-patrimonio py-1.5 pr-3 pl-2.5 text-left text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0079F2] dark:bg-mf-seguranca dark:text-mf-escolha"
+          className="mf-sup-inverso grid min-h-12 min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-[14px] bg-mf-patrimonio py-1.5 pr-3 pl-2.5 text-left text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0079F2] dark:bg-mf-seguranca dark:text-mf-escolha"
         >
           <Caret expanded={expanded} />
           <span className="min-w-0">

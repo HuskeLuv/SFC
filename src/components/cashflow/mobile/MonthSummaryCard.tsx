@@ -100,7 +100,8 @@ export default function MonthSummaryCard({
       <div className="mt-2.5 flex items-baseline justify-between gap-2 border-t border-gray-100 pt-2.5 text-[13px] text-gray-600 tabular-nums max-[359px]:mt-2 max-[359px]:pt-2 dark:border-gray-800 dark:text-gray-300">
         <span className="min-w-0">Saldo Conta Corrente do mês anterior</span>
         <b className={`font-semibold whitespace-nowrap ${signClass(saldoCcAnterior)}`}>
-          {saldoCcAnterior === null ? '–' : <Sensivel>{formatBRL(saldoCcAnterior)}</Sensivel>}
+          {/* Pílula curta: a de 5,5em quebrava o rótulo em duas linhas a 390px. */}
+          {saldoCcAnterior === null ? '–' : <Sensivel curto>{formatBRL(saldoCcAnterior)}</Sensivel>}
         </b>
       </div>
     </section>

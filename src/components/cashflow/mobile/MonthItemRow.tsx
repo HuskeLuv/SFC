@@ -106,7 +106,10 @@ function MonthItemRowComponent({ item, showAnnual, onOpen }: MonthItemRowProps) 
             />
           ) : null}
           {hasValue ? (
-            <Sensivel>{formatBRL(item.monthValue)}</Sensivel>
+            // A pílula é item do inline-flex: a margem devolve a altura da linha (1lh).
+            <Sensivel className="my-[calc((1lh_-_0.72em)/2)]">
+              {formatBRL(item.monthValue)}
+            </Sensivel>
           ) : (
             <>
               <span aria-hidden="true">—</span>
