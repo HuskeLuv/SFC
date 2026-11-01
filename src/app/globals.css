@@ -195,7 +195,10 @@ html.dark {
 html:not(.dark) .mf-sup-inverso {
   --mf-pilula: rgb(255 255 255 / 0.38);
 }
+/* position: relative ancora o sr-only (absolute) na pílula: sem isso ele escapa dos contêineres
+   com rolagem das tabelas e alarga/alonga a página. */
 html[data-valores-ocultos] .mf-sensivel {
+  position: relative;
   display: inline-block;
   inline-size: 5.5em;
   max-inline-size: 100%;
