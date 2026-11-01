@@ -18,6 +18,7 @@ import { ResponsiveCardList } from '@/components/ui/table/ResponsiveTable';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import type { SemCoberturaFgc } from '@/services/analises/semCoberturaFgc';
 import { rotuloCnpj } from '@/lib/instituicoes/cnpj';
+import { Sensivel, TextoSensivel, ValorVisivel } from '@/components/common/valores/Sensivel';
 
 function formatBRL(value: number): string {
   return new Intl.NumberFormat('pt-BR', {
@@ -313,8 +314,16 @@ function AvisosConglomerado({
             </svg>
             <span>
               <strong className="font-semibold">{nomes} são do mesmo grupo financeiro:</strong> para
-              o FGC, o limite de R$ 250 mil pode ser um só. Juntos somam {formatBRL(total)}
-              {acima > 0 ? `, ${formatBRL(acima)} acima do limite` : ''}.
+              o FGC, o limite de <ValorVisivel>R$ 250 mil</ValorVisivel> pode ser um só. Juntos
+              somam <Sensivel>{formatBRL(total)}</Sensivel>
+              {acima > 0 ? (
+                <>
+                  , <Sensivel>{formatBRL(acima)}</Sensivel> acima do limite
+                </>
+              ) : (
+                ''
+              )}
+              .
             </span>
           </div>
         );
@@ -414,12 +423,18 @@ export default function CoberturaFgc() {
           <div className="text-sm text-blue-800 dark:text-blue-200">
             <p className="font-medium">O que o FGC cobre?</p>
             <p className="mt-1 text-blue-700 dark:text-blue-300">
-              O FGC garante até <strong>R$ 250 mil</strong> por CPF em cada banco emissor, não na
-              corretora. O limite vale por banco emissor (mesmo CNPJ), com teto global de{' '}
-              <strong>{formatBRL(resumo.limiteGlobal)}</strong> a cada 4 anos. Bancos do mesmo grupo
-              financeiro podem dividir o mesmo limite. Produtos cobertos: CDB, LC, LCI, LCA, RDB,
-              DPGE, LIG e Poupança. <strong>Não</strong> são cobertos: CRI, CRA, debêntures, LF,
-              Tesouro Direto e fundos de investimento.
+              O FGC garante até{' '}
+              <strong>
+                <ValorVisivel>R$ 250 mil</ValorVisivel>
+              </strong>{' '}
+              por CPF em cada banco emissor, não na corretora. O limite vale por banco emissor
+              (mesmo CNPJ), com teto global de{' '}
+              <strong>
+                <ValorVisivel>{formatBRL(resumo.limiteGlobal)}</ValorVisivel>
+              </strong>{' '}
+              a cada 4 anos. Bancos do mesmo grupo financeiro podem dividir o mesmo limite. Produtos
+              cobertos: CDB, LC, LCI, LCA, RDB, DPGE, LIG e Poupança. <strong>Não</strong> são
+              cobertos: CRI, CRA, debêntures, LF, Tesouro Direto e fundos de investimento.
             </p>
           </div>
         </div>
@@ -431,21 +446,29 @@ export default function CoberturaFgc() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <SummaryCard
               label="Total coberto pelo FGC"
-              value={formatBRL(resumo.totalEfetivamenteCoberto)}
-              subtext={`de ${formatBRL(resumo.limiteGlobal)} (teto global)`}
+              value={<Sensivel>{formatBRL(resumo.totalEfetivamenteCoberto)}</Sensivel>}
+              subtext={
+                <>
+                  de <ValorVisivel>{formatBRL(resumo.limiteGlobal)}</ValorVisivel> (teto global)
+                </>
+              }
               color="text-emerald-600 dark:text-emerald-400"
             />
             <SummaryCard
               label="Não coberto pelo FGC"
-              value={formatBRL(resumo.totalNaoCoberto)}
+              value={<Sensivel>{formatBRL(resumo.totalNaoCoberto)}</Sensivel>}
               subtext="Produtos sem cobertura (CRI, CRA, etc.)"
               color="text-gray-700 dark:text-gray-300"
               tooltip={FGC_NAO_COBERTO_TOOLTIP}
             />
             <SummaryCard
               label="Excedente (acima do limite)"
-              value={formatBRL(resumo.totalExcedente)}
-              subtext="Valor acima de R$ 250 mil por emissor"
+              value={<Sensivel>{formatBRL(resumo.totalExcedente)}</Sensivel>}
+              subtext={
+                <>
+                  Valor acima de <ValorVisivel>R$ 250 mil</ValorVisivel> por emissor
+                </>
+              }
               color={
                 resumo.totalExcedente > 0
                   ? 'text-red-600 dark:text-red-400'
@@ -467,7 +490,8 @@ export default function CoberturaFgc() {
                 Utilização do teto global FGC
               </h3>
               <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                {formatBRL(resumo.totalEfetivamenteCoberto)} / {formatBRL(resumo.limiteGlobal)}
+                <Sensivel>{formatBRL(resumo.totalEfetivamenteCoberto)}</Sensivel> /{' '}
+                <ValorVisivel>{formatBRL(resumo.limiteGlobal)}</ValorVisivel>
               </span>
             </div>
             <ProgressBar
@@ -476,7 +500,8 @@ export default function CoberturaFgc() {
             />
             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
               {formatPercent((resumo.totalEfetivamenteCoberto / resumo.limiteGlobal) * 100)}{' '}
-              utilizado do teto global de {formatBRL(resumo.limiteGlobal)} (renovado a cada 4 anos)
+              utilizado do teto global de{' '}
+              <ValorVisivel>{formatBRL(resumo.limiteGlobal)}</ValorVisivel> (renovado a cada 4 anos)
             </p>
           </div>
 
@@ -625,10 +650,11 @@ function GrupoEmissor({
           <div className="mt-3">
             <div className="mb-1 flex items-center justify-between text-xs max-lg:flex-wrap max-lg:gap-x-2">
               <span className="text-gray-500 dark:text-gray-400">
-                {formatBRL(inst.totalCoberto)} coberto
+                <Sensivel>{formatBRL(inst.totalCoberto)}</Sensivel> coberto
               </span>
               <span className="text-gray-500 dark:text-gray-400">
-                {formatPercent(inst.percentualUtilizado)} de {formatBRL(inst.limiteFgc)}
+                {formatPercent(inst.percentualUtilizado)} de{' '}
+                <ValorVisivel>{formatBRL(inst.limiteFgc)}</ValorVisivel>
               </span>
             </div>
             <ProgressBar percent={inst.percentualUtilizado} color={barColor} />
@@ -636,13 +662,13 @@ function GrupoEmissor({
 
           {inst.excedente > 0 && (
             <p className="mt-1.5 text-xs font-medium text-red-600 dark:text-red-400 max-lg:text-[#D92D20] max-lg:dark:text-[#F97066]">
-              {textoExcedente(inst)}
+              <TextoSensivel texto={textoExcedente(inst)} />
             </p>
           )}
 
           {inst.totalNaoCoberto > 0 && (
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              + {formatBRL(inst.totalNaoCoberto)} em produtos não cobertos
+              + <Sensivel>{formatBRL(inst.totalNaoCoberto)}</Sensivel> em produtos não cobertos
             </p>
           )}
         </div>
@@ -697,6 +723,7 @@ function GrupoEmissor({
                   id: 'atual',
                   header: 'Valor atual',
                   mobile: 'value',
+                  valor: 'sensivel',
                   cell: (a) => formatBRL(a.valorAtual),
                 },
               ]}
@@ -720,7 +747,7 @@ function GrupoEmissor({
                       <TextoOpenFinance ativo={a} />
                     </div>
                     <div className={TABLE_MOBILE_STYLES.valuePrimary}>
-                      {formatBRL(a.valorAtual)}
+                      <Sensivel>{formatBRL(a.valorAtual)}</Sensivel>
                     </div>
                   </div>
                   {/* Via ocupa a linha toda: a 320 px, três colunas encavalavam o valor. */}
@@ -733,7 +760,9 @@ function GrupoEmissor({
                     </div>
                     <div className="min-w-0">
                       <dt className={TABLE_MOBILE_STYLES.dt}>Investido</dt>
-                      <dd className={TABLE_MOBILE_STYLES.dd}>{formatBRL(a.valorInvestido)}</dd>
+                      <dd className={TABLE_MOBILE_STYLES.dd}>
+                        <Sensivel>{formatBRL(a.valorInvestido)}</Sensivel>
+                      </dd>
                     </div>
                     <div className="min-w-0">
                       <dt className={TABLE_MOBILE_STYLES.dt}>FGC</dt>
@@ -798,12 +827,12 @@ function GrupoEmissor({
                         {ativo.corretoraNome ?? '—'}
                       </td>
                       <td className={`${TABLE_STYLES.td} whitespace-nowrap text-right`}>
-                        {formatBRL(ativo.valorInvestido)}
+                        <Sensivel>{formatBRL(ativo.valorInvestido)}</Sensivel>
                       </td>
                       <td
                         className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-medium text-gray-900 dark:text-white`}
                       >
-                        {formatBRL(ativo.valorAtual)}
+                        <Sensivel>{formatBRL(ativo.valorAtual)}</Sensivel>
                       </td>
                       <td className={`${TABLE_STYLES.td} whitespace-nowrap`}>
                         {formatData(ativo.vencimento)}
@@ -910,9 +939,9 @@ function ForaDoFgc({
           <strong className="text-gray-800 dark:text-gray-100">
             {formatPercent(semCobertura.percentualSemProtecao)}
           </strong>{' '}
-          dos seus investimentos ({formatBRL(semCobertura.totalSemProtecao)} de{' '}
-          {formatBRL(semCobertura.totalInvestimentos)}) não têm a proteção do FGC, somando a renda
-          fixa não coberta ou acima do limite e as classes abaixo.
+          dos seus investimentos (<Sensivel>{formatBRL(semCobertura.totalSemProtecao)}</Sensivel> de{' '}
+          <Sensivel>{formatBRL(semCobertura.totalInvestimentos)}</Sensivel>) não têm a proteção do
+          FGC, somando a renda fixa não coberta ou acima do limite e as classes abaixo.
         </p>
       </div>
       {/* Celular: cartões (a tabela de 3 colunas passava da largura a 390/320 px). */}
@@ -927,6 +956,7 @@ function ForaDoFgc({
               id: 'valor',
               header: 'Valor atual',
               mobile: 'value',
+              valor: 'sensivel',
               cell: (c) => formatBRL(c.valor),
             },
             {
@@ -969,7 +999,7 @@ function ForaDoFgc({
                     )}
                   </td>
                   <td className={`${TABLE_STYLES.td} text-right whitespace-nowrap`}>
-                    {formatBRL(c.valor)}
+                    <Sensivel>{formatBRL(c.valor)}</Sensivel>
                   </td>
                   <td className={`${TABLE_STYLES.td} text-right whitespace-nowrap`}>
                     {formatPercent(pctDaCarteira(c.valor))}
@@ -979,7 +1009,7 @@ function ForaDoFgc({
               <tr className={TABLE_STYLES.totalRow}>
                 <td className={TABLE_STYLES.td}>Total fora do FGC</td>
                 <td className={`${TABLE_STYLES.td} text-right whitespace-nowrap`}>
-                  {formatBRL(semCobertura.total)}
+                  <Sensivel>{formatBRL(semCobertura.total)}</Sensivel>
                 </td>
                 <td className={`${TABLE_STYLES.td} text-right whitespace-nowrap`}>
                   {formatPercent(pctDaCarteira(semCobertura.total))}
@@ -1001,8 +1031,8 @@ function SummaryCard({
   tooltip,
 }: {
   label: string;
-  value: string;
-  subtext: string;
+  value: React.ReactNode;
+  subtext: React.ReactNode;
   color: string;
   tooltip?: string;
 }) {
