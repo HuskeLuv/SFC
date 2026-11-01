@@ -4,6 +4,12 @@ import { jwtVerify } from 'jose';
 import { generateCsrfToken, validateCsrfToken, CSRF_COOKIE_NAME } from '@/utils/csrf';
 import { chaveBaldeRateLimit, checkRateLimit, getClientIp, getTierForPath } from '@/lib/rateLimit';
 import { PLUGGY_API_HOSTS, PLUGGY_CONNECT_HOSTS, pluggyHabilitado } from '@/lib/pluggyConfig';
+import { valoresOcultosHabilitado } from '@/lib/valoresOcultosConfig';
+import {
+  COOKIE_VALORES_OCULTOS,
+  lerCookieValoresOcultos,
+  opcoesCookieValoresOcultos,
+} from '@/utils/valoresOcultos';
 
 // ---------------------------------------------------------------------------
 // Rate-limit store — lives in isolate memory, resets on cold start.
@@ -309,6 +315,20 @@ export async function middleware(request: NextRequest) {
       sameSite: 'lax',
       path: '/',
     });
+  }
+  // Esconder valores: renova o cookie do olho (1 ano) a cada navegação de página, contra o
+  // limite do Safari/ITP — cobre quem nunca mais clica no olho.
+  if (
+    request.method === 'GET' &&
+    (request.headers.get('accept') ?? '').includes('text/html') &&
+    lerCookieValoresOcultos(request.cookies.get(COOKIE_VALORES_OCULTOS)?.value) &&
+    valoresOcultosHabilitado()
+  ) {
+    response.cookies.set(
+      COOKIE_VALORES_OCULTOS,
+      '1',
+      opcoesCookieValoresOcultos(true, process.env.NODE_ENV === 'production'),
+    );
   }
 
   return response;
