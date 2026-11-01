@@ -12,9 +12,9 @@ import { waitCarteiraReady, waitForIdle } from './helpers/mobileFit';
  * carregamento: o SSR já sai oculto) nenhum R$/US$ nem nenhum daqueles números pode aparecer no
  * texto visível nem em title/aria-label, e há pílulas onde havia números.
  *
- * Os gráficos das abas (roscas de FII/ETF/Stocks/REIT) são da fatia 2: o texto dentro de
- * `.apexcharts-canvas` fica fora desta conferência. A cotação atual é dado de mercado e fica
- * visível ([data-mf-valor-visivel], decisão 1).
+ * Os gráficos das abas (roscas de FII/ETF/Stocks/REIT) entram na conferência: o centro e o tooltip
+ * escondem pelo usePizzaSensivel. A cotação atual é dado de mercado e fica visível
+ * ([data-mf-valor-visivel], decisão 1).
  */
 
 const ABAS = [
@@ -73,13 +73,13 @@ async function abrirAba(page: Page, aba: string) {
   await waitForIdle(page);
 }
 
-/** Texto visível + title/aria do conteúdo, sem os trechos escondidos/permitidos e sem gráficos. */
+/** Texto visível + title/aria do conteúdo, sem os trechos escondidos/permitidos. */
 async function textoExposto(page: Page): Promise<string> {
   return page.evaluate(() => {
     const raiz = document.querySelector<HTMLElement>('[data-mf-content]') ?? document.body;
     const clone = raiz.cloneNode(true) as HTMLElement;
     clone
-      .querySelectorAll('[data-mf-valor-visivel], .mf-sensivel__valor, .apexcharts-canvas')
+      .querySelectorAll('[data-mf-valor-visivel], .mf-sensivel__valor')
       .forEach((el) => el.remove());
     const atributos: string[] = [];
     clone.querySelectorAll('[title], [aria-label], [aria-description]').forEach((el) => {

@@ -47,20 +47,6 @@ const VARIANTES = [
 
 const grafico = (page: Page) => page.locator('#chartPatrimonio');
 
-/**
- * O Caixa para Investir é da fatia 1 (CaixaParaInvestirCard): até ela integrar, o cartão fica fora
- * da conta aqui (marcado como trecho permitido). O integrador tira esta exceção.
- */
-async function ignorarCaixaDaFatia1(page: Page) {
-  await page.evaluate(() => {
-    document.querySelectorAll('p[title="Caixa para Investir"]').forEach((titulo) => {
-      let el: HTMLElement | null = titulo as HTMLElement;
-      while (el && !el.textContent?.includes('Livre')) el = el.parentElement;
-      el?.setAttribute('data-mf-valor-visivel', '');
-    });
-  });
-}
-
 async function alternarOlho(page: Page, ocultos: boolean) {
   const resposta = page.waitForResponse(
     (r) => r.url().includes(ROTA_PREFERENCIA_VALORES_OCULTOS) && r.request().method() === 'POST',
@@ -109,7 +95,6 @@ for (const variante of VARIANTES) {
       await expect(page.getByText(/R\$\s?\d/).first()).toBeVisible();
 
       // Olho aberto: lê os valores da tela (o "sentinela" do e2e — dados fixos do seed).
-      await ignorarCaixaDaFatia1(page);
       const valores = await coletarValoresExpostos(page);
       expect(valores.length).toBeGreaterThan(3);
       const numeros = valores
@@ -132,7 +117,6 @@ for (const variante of VARIANTES) {
       });
 
       await alternarOlho(page, true);
-      await ignorarCaixaDaFatia1(page);
 
       // Nenhum R$ nem os números lidos antes (inclusive rótulos do eixo e rosca).
       await expect.poll(() => coletarValoresExpostos(page)).toEqual([]);
