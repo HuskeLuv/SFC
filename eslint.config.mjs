@@ -5,9 +5,11 @@ import {
   GLOBS_VALORES_OCULTOS,
   GLOBS_VALORES_OCULTOS_FASE2,
   GLOBS_VALORES_OCULTOS_FASE3,
+  GLOBS_VALORES_OCULTOS_FASE4,
   IGNORES_VALORES_OCULTOS,
   IGNORES_VALORES_OCULTOS_FASE2,
   IGNORES_VALORES_OCULTOS_FASE3,
+  IGNORES_VALORES_OCULTOS_FASE4,
   OPCOES_VALORES_OCULTOS_FASE2,
   pluginValoresOcultos,
 } from "./eslint/valoresOcultos.mjs";
@@ -61,6 +63,16 @@ const eslintConfig = [
     plugins: { mf: pluginValoresOcultos },
     rules: {
       "mf/valor-sem-sensivel": "error",
+    },
+  },
+  // Fase 4 (Dívidas e Saúde Financeira): 'warn' enquanto a fase está aberta; o integrador passa
+  // para 'error' no fechamento.
+  {
+    files: GLOBS_VALORES_OCULTOS_FASE4,
+    ignores: IGNORES_VALORES_OCULTOS_FASE4,
+    plugins: { mf: pluginValoresOcultos },
+    rules: {
+      "mf/valor-sem-sensivel": "warn",
     },
   },
 ];
