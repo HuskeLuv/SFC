@@ -20,7 +20,7 @@ import type {
   PendenteDTO,
 } from '@/hooks/useConexoesBancarias';
 import type { DestinoImportadoItem } from '@/lib/pluggyDestinos';
-import { listaPadrao } from '../destinos/__tests__/fixtures';
+import { ASSETS, itemDe, listaPadrao } from '../destinos/__tests__/fixtures';
 
 /**
  * Esconder valores (Fase 5, fatia 3): Conexões bancárias com o olho fechado. Fixtures com
@@ -83,6 +83,7 @@ import ExtratoConta from '../ExtratoConta';
 import CaixaEntrada from '../CaixaEntrada';
 import CarteiraImportada from '../CarteiraImportada';
 import RevisarDestinos from '../destinos/RevisarDestinos';
+import DestinoPainelLinha from '../destinos/DestinoPainelLinha';
 
 /** Sentinelas desta tela (pt-BR: 18.765,43 · 4.321,87 …). */
 const S = {
@@ -96,6 +97,7 @@ const S = {
   emprestimoSaldo: 17654.29,
   destinoPetr4: 11235.67,
   destinoCdb: 15024.38,
+  reservaAtual: 6543.21,
 } as const;
 const SENTINELAS = Object.values(S);
 
@@ -426,5 +428,43 @@ describe('Revisão de destinos', () => {
     await waitFor(() => expect(document.body.textContent).toContain('PETR4'));
     expectPilulas(document.body, 0);
     expect(document.body.textContent).toContain('11.235,67');
+  });
+});
+
+describe('Revisão de destinos — "O que muda" com a Reserva de Emergência', () => {
+  function montarPainel(ocultos: boolean) {
+    const item = itemDe(ASSETS.CDB, { grupo: 'rendaFixa', saldo: S.destinoCdb });
+    // Como o servidor manda: valor do item e a prévia da Saúde Financeira (reserva e necessário).
+    item.opcoes.item.valorAtualBRL = S.destinoCdb;
+    item.opcoes.saudePrevia = { reservaAtual: S.reservaAtual, necessario: 30000 };
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <ComValoresOcultos ocultos={ocultos}>
+          <DestinoPainelLinha
+            id="painel-cdb"
+            item={item}
+            escolha={{ categoria: 'reservaEmergencia', subgrupo: null }}
+            mudou
+            onEscolher={vi.fn()}
+            onVoltarASugestao={vi.fn()}
+            onPronto={vi.fn()}
+          />
+        </ComValoresOcultos>
+      </QueryClientProvider>,
+    );
+  }
+
+  it('olho fechado: reserva antes → depois e o necessário viram pílula', () => {
+    montarPainel(true);
+    expect(document.body.textContent).toContain('reserva de emergência');
+    expectSemValoresExpostos(document.body, { sentinelas: [...SENTINELAS, 30000] });
+    expectPilulas(document.body);
+  });
+
+  it('olho aberto: os valores aparecem como hoje', () => {
+    montarPainel(false);
+    expectPilulas(document.body, 0);
+    expect(document.body.textContent).toMatch(/R\$\s6\.543,21 → R\$\s21\.567,59/);
   });
 });
