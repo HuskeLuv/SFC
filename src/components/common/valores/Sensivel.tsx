@@ -22,11 +22,11 @@ import {
  *
  * NUNCA embrulhe elemento interativo (botão, link, input): ele some junto. Embrulhe só o texto.
  *
- * Modo visível (olho aberto, flag desligada ou tela não coberta): renderiza `children` cru — o
- * DOM, o textContent e o nome acessível ficam IDÊNTICOS aos de hoje. Olho fechado numa tela
- * coberta: `span.mf-sensivel` (a pílula, desenhada pelo CSS de globals.css) com o valor fora da
- * árvore de acessibilidade e "valor oculto" só para leitor de tela. O SSR já sai assim (o
- * RootLayout lê o cookie), então não há flash.
+ * Modo visível (olho aberto ou flag desligada): renderiza `children` cru — o DOM, o textContent
+ * e o nome acessível ficam IDÊNTICOS aos de hoje. Olho fechado: `span.mf-sensivel` (a pílula,
+ * desenhada pelo CSS de globals.css) com o valor fora da árvore de acessibilidade e "valor
+ * oculto" só para leitor de tela. O SSR já sai assim (o RootLayout lê o cookie), então não há
+ * flash.
  */
 
 export interface SensivelProps {

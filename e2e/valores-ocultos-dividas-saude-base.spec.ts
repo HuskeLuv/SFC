@@ -12,7 +12,7 @@ import { gotoSaude, mockarSaude } from './helpers/saude';
  */
 
 const FAIXA = 'Nesta tela os valores ainda aparecem.';
-const COBERTO = '[data-mf-content][data-mf-cobre-ocultos]';
+const COBERTO = '[data-mf-content]';
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {

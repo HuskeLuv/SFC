@@ -180,7 +180,7 @@
 
 /*
   Esconder valores (docs/esconder-valores — decisões 4, 5 e 7). Fora das layers de propósito.
-  A pílula só existe com o olho fechado numa tela coberta: <Sensivel> (src/components/common/
+  A pílula só existe com o olho fechado (em qualquer tela): <Sensivel> (src/components/common/
   valores/Sensivel.tsx) só renderiza o span.mf-sensivel nesse caso, e o RootLayout já entrega
   html[data-valores-ocultos] no SSR. Largura FIXA (5,5em; curta 3,5em), nunca pelo número.
   Cor translúcida, escurece qualquer fundo: claro Segurança #314666 a 30%; escuro branco a 18%;

@@ -12,7 +12,7 @@ import AssistentePanel from '../AssistentePanel';
  * Esconder valores — Assistente de IA (Fase 6, decisão 14): com o olho fechado só aparece um aviso
  * fixo no painel; o texto da IA, as mensagens e os cartões de proposta NÃO viram pílula (as
  * sentinelas continuam no texto). Com o olho aberto ou a flag desligada, o painel é o de hoje.
- * A rota é uma tela fora das rotas cobertas: o aviso não depende de rotasCobertas.
+ * O aviso depende só do olho (`ocultos`), não da rota.
  */
 
 vi.mock('next/navigation', () => ({ usePathname: () => '/educacao' }));

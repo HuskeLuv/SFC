@@ -1,16 +1,12 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
+import { act, renderHook, screen, waitFor } from '@testing-library/react';
 
 const navegacao = vi.hoisted(() => ({ pathname: '/carteira' }));
 vi.mock('next/navigation', () => ({ usePathname: () => navegacao.pathname }));
 
-import {
-  ValoresOcultosCobertura,
-  ValoresOcultosProvider,
-  useValoresOcultos,
-} from '../ValoresOcultosContext';
+import { ValoresOcultosProvider, useValoresOcultos } from '../ValoresOcultosContext';
 
 /** BroadcastChannel em memória (o jsdom não tem). */
 class CanalFalso {
@@ -66,7 +62,6 @@ describe('ValoresOcultosContext', () => {
       habilitado: false,
       ocultos: false,
       ativo: false,
-      rotaCoberta: false,
     });
     expect(result.current.mascarar('R$ 10,00')).toBe('R$ 10,00');
     act(() => result.current.alternar());
@@ -142,37 +137,28 @@ describe('ValoresOcultosContext', () => {
     expect(CanalFalso.instancias).toHaveLength(0);
   });
 
-  it('ativo só nas rotas cobertas; a cobertura local vale em qualquer rota', () => {
-    navegacao.pathname = '/educacao';
-    const { result } = renderHook(() => useValoresOcultos(), { wrapper: wrapper(true, true) });
-    expect(result.current).toMatchObject({ ocultos: true, rotaCoberta: false, ativo: false });
-    expect(result.current.mascarar('R$ 1,00')).toBe('R$ 1,00');
-
-    const Sonda = () => <span>{String(useValoresOcultos().ativo)}</span>;
-    render(
-      <ValoresOcultosProvider habilitado inicial>
-        <ValoresOcultosCobertura>
-          <Sonda />
-        </ValoresOcultosCobertura>
-      </ValoresOcultosProvider>,
-    );
-    expect(screen.getByText('true')).toBeInTheDocument();
-  });
-
-  it('sub-rotas de /ativos, /carteira, do consultor, o fluxo de caixa e as da Fase 5 são cobertas', () => {
-    const rotas = ['/ativos/abc', '/carteira', '/consultor/c1', '/dashboard/consultor'];
-    const fase5 = [
+  it('ativo em qualquer rota do app (o fechamento da Fase 6 tirou as rotas não cobertas)', () => {
+    const rotas = [
+      '/carteira',
+      '/ativos/abc',
+      '/consultor/c1',
+      '/dashboard/consultor',
+      '/fluxodecaixa',
       '/analise-ativos/WEGE3',
-      '/analise-ativos/salvos',
       '/relatorios',
       '/conexoes-bancarias',
+      '/historico-alteracoes',
+      '/calendario',
+      '/profile',
+      '/educacao',
     ];
-    for (const rota of [...rotas, '/fluxodecaixa', ...fase5]) {
+    for (const rota of rotas) {
       navegacao.pathname = rota;
       const { result, unmount } = renderHook(() => useValoresOcultos(), {
         wrapper: wrapper(true, true),
       });
       expect(result.current.ativo).toBe(true);
+      expect(result.current.mascarar('R$ 1,00')).toBe('R$ •••••');
       unmount();
     }
   });

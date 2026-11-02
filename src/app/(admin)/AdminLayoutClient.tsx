@@ -11,8 +11,6 @@ import InstallAppCard from '@/components/pwa/InstallAppCard';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import VersionWatcher from '@/components/common/VersionWatcher';
 import AssistentePanel from '@/components/assistente/AssistentePanel';
-import AvisoCoberturaValores from '@/components/common/valores/AvisoCoberturaValores';
-import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import React from 'react';
 
 /**
@@ -25,7 +23,6 @@ import React from 'react';
 export default function AdminLayoutClient({ children }: { children: React.ReactNode }) {
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
   const pathname = usePathname();
-  const valoresOcultos = useValoresOcultos();
 
   // Margem do conteúdo ajustada à largura da sidebar.
   const mainContentMargin = isMobileOpen
@@ -60,16 +57,10 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
               estica a viewport de layout e a barra de abas (fixed) sai da tela. O teste
               mobile-overflow mede este contêiner (data-mf-content) para o corte não esconder
               regressão. */}
-          {/* Esconder valores: [data-mf-cobre-ocultos] marca as telas já cobertas (só com a flag);
-              nas outras, com o olho fechado, a faixa avisa que os valores ainda aparecem. */}
           <div
             data-mf-content
-            data-mf-cobre-ocultos={
-              valoresOcultos.habilitado && valoresOcultos.rotaCoberta ? '' : undefined
-            }
             className={`p-4 md:p-6 ${contentWidthClass} max-lg:overflow-x-clip print:max-w-none print:p-0`}
           >
-            <AvisoCoberturaValores />
             <ErrorBoundary>{children}</ErrorBoundary>
           </div>
         </div>
