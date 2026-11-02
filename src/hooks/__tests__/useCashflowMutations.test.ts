@@ -114,6 +114,42 @@ describe('saveItemChanges', () => {
     });
   });
 
+  it('excluir ou renomear linha recarrega as árvores dos outros anos; só valor, não', async () => {
+    const groups = tree();
+    fetchMock.mockResolvedValue(mockFetchResponse({ success: true, results: [], groups }));
+    const { result, queryClient } = setup();
+    const semear = () => {
+      for (const ano of [YEAR - 1, YEAR, YEAR + 1]) {
+        queryClient.setQueryDefaults(queryKeys.cashflow.year(ano), { gcTime: Infinity });
+        queryClient.setQueryData(queryKeys.cashflow.year(ano), tree());
+      }
+    };
+    const invalidado = (ano: number) =>
+      queryClient.getQueryState(queryKeys.cashflow.year(ano))?.isInvalidated ?? false;
+
+    semear();
+    await act(async () => {
+      await result.current.saveItemChanges({
+        groupId: 'g1',
+        updates: [{ itemId: 'a', values: [{ month: 1, value: 5 }] }],
+      });
+    });
+    expect([invalidado(YEAR - 1), invalidado(YEAR + 1)]).toEqual([false, false]);
+
+    for (const mudanca of [{ deletes: ['b'] }, { updates: [{ itemId: 'a', name: 'Novo' }] }]) {
+      semear();
+      await act(async () => {
+        await result.current.saveItemChanges({ groupId: 'g1', ...mudanca });
+      });
+      // o ano gravado veio na resposta; os outros recarregam
+      expect([invalidado(YEAR - 1), invalidado(YEAR), invalidado(YEAR + 1)]).toEqual([
+        true,
+        false,
+        true,
+      ]);
+    }
+  });
+
   it('sem árvore na resposta faz refetch (e não invalida investimentos)', async () => {
     fetchMock.mockResolvedValue(mockFetchResponse({ success: true, results: [] }));
     const { result, invalidate } = setup();

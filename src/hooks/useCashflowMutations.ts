@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { logger } from '@/lib/logger';
 import { queryKeys } from '@/lib/queryKeys';
+import { invalidarArvoresDoFluxo } from '@/lib/cashflow/invalidarArvores';
 import { useCsrf } from '@/hooks/useCsrf';
 import { useCashflowData } from '@/hooks/useCashflow';
 import { createCashflowItem } from '@/utils/cashflowUpdate';
@@ -137,6 +138,14 @@ export function useCashflowMutations(year: number) {
       } else {
         await refetch();
       }
+      // Excluir ou renomear linha muda a árvore de TODOS os anos (e, no Orçamento v2, a fusão na
+      // Geral move células de todos os anos): os outros anos em cache recarregam.
+      const mudouEstrutura =
+        deletes.length > 0 ||
+        updates.some(
+          (u) => u.name !== undefined || u.significado !== undefined || u.rank !== undefined,
+        );
+      if (mudouEstrutura) void invalidarArvoresDoFluxo(queryClient, year);
       // Valores/cores editados mudam o "Real" da seção Orçamento vs Real.
       void queryClient.invalidateQueries({
         queryKey: queryKeys.cashflow.orcamento(year),
@@ -174,10 +183,12 @@ export function useCashflowMutations(year: number) {
     ): Promise<CashflowItem> => {
       const newItem = (await createCashflowItem(groupId, name, significado)) as unknown;
       invalidarOrcamentoV2();
+      // a linha nova existe em todos os anos
+      void invalidarArvoresDoFluxo(queryClient, year);
       if (opts?.refetch) await refetch();
       return newItem as CashflowItem;
     },
-    [refetch, invalidarOrcamentoV2],
+    [refetch, invalidarOrcamentoV2, queryClient, year],
   );
 
   // Ao soltar `activeId` sobre `overId` no mesmo grupo, reordena o cache na hora (a planilha não

@@ -27,12 +27,21 @@ describe('useOrcamentoV2Estrutura', () => {
   it('criar: POST /api/cashflow/items (rota da Planilha) e recarrega o v2', async () => {
     fetchMock.mockResolvedValueOnce(mockFetchResponse({ id: 'it-1' }));
     const { result, queryClient } = renderHookWithClient(() => useOrcamentoV2Estrutura(2026));
+    // a linha do Fluxo vale para todos os anos: as árvores de 2025 e 2026 em cache recarregam
+    for (const ano of [2025, 2026]) {
+      queryClient.setQueryDefaults(queryKeys.cashflow.year(ano), { gcTime: Infinity });
+      queryClient.setQueryData(queryKeys.cashflow.year(ano), []);
+    }
     const inval = vi.spyOn(queryClient, 'invalidateQueries');
     await act(() => result.current.criar.mutateAsync({ categoriaId: 'cat-1', nome: 'Feira' }));
     expect(fetchMock.mock.calls[0][0]).toBe('/api/cashflow/items');
     expect(corpo(0)).toMatchObject({ groupId: 'cat-1', name: 'Feira' });
     expect(inval).toHaveBeenCalledWith({ queryKey: queryKeys.cashflow.orcamentoV2Todos() });
-    expect(inval).toHaveBeenCalledWith({ queryKey: queryKeys.cashflow.year(2026) });
+    for (const ano of [2025, 2026]) {
+      expect(queryClient.getQueryState(queryKeys.cashflow.year(ano))?.isInvalidated, `${ano}`).toBe(
+        true,
+      );
+    }
   });
 
   it('criar recusado (422 das guardas) lança a mensagem do servidor', async () => {

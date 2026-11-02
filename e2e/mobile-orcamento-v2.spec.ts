@@ -16,8 +16,8 @@ import {
  * PR 13; T31/M01). Usuário próprio do seed (orcamento.v2@finapp.local); pula sem a flag
  * ORCAMENTO_V2_HABILITADO. Abaixo de lg só cartões (a tabela de 860 px nunca aparece), sem
  * rolagem horizontal, e a subcategoria em DUAS linhas (nome/valores em cima, orçado embaixo).
- * Sem snapshots visuais. A edição grava em Uber (Transporte), que o seed deixa sem orçado e que o
- * "copiar" do desktop não toca.
+ * Sem snapshots visuais. A edição grava em Uber / Táxi (Transporte), que o seed deixa sem orçado
+ * e que o "copiar" do desktop não toca.
  */
 
 test.use({
@@ -54,11 +54,11 @@ test('390 px: cartões sem tabela, sem rolagem horizontal, sub em duas linhas', 
   await expectNoHorizontalOverflow(page, 'orçamento v2 (cartões)');
 
   // Duas linhas: o campo do orçado fica inteiro abaixo do nome.
-  const linha = subMobile(page, 'Uber');
+  const linha = subMobile(page, 'Uber / Táxi');
   await linha.scrollIntoViewIfNeeded();
-  const nome = await linha.getByText('Uber', { exact: true }).boundingBox();
+  const nome = await linha.getByText('Uber / Táxi', { exact: true }).boundingBox();
   const campo = await linha
-    .getByRole('textbox', { name: 'Orçado de Uber em Transporte' })
+    .getByRole('textbox', { name: 'Orçado de Uber / Táxi em Transporte' })
     .boundingBox();
   expect(nome, 'nome da subcategoria').not.toBeNull();
   expect(campo, 'campo do orçado').not.toBeNull();
@@ -72,8 +72,8 @@ test('editar o orçado no cartão persiste depois do reload', async ({ page }) =
   await gotoOrcamentoV2(page);
   await esperarCartoes(page);
 
-  const campo = subMobile(page, 'Uber').getByRole('textbox', {
-    name: 'Orçado de Uber em Transporte',
+  const campo = subMobile(page, 'Uber / Táxi').getByRole('textbox', {
+    name: 'Orçado de Uber / Táxi em Transporte',
   });
   await campo.fill(String(valor));
   const salvo = page.waitForResponse(isPutOrcado);
@@ -84,7 +84,9 @@ test('editar o orçado no cartão persiste depois do reload', async ({ page }) =
   await page.reload({ waitUntil: 'domcontentloaded' });
   await esperarCartoes(page);
   await expect(
-    subMobile(page, 'Uber').getByRole('textbox', { name: 'Orçado de Uber em Transporte' }),
+    subMobile(page, 'Uber / Táxi').getByRole('textbox', {
+      name: 'Orçado de Uber / Táxi em Transporte',
+    }),
   ).toHaveValue(brl(valor));
 
   await expectNoHorizontalOverflow(page, 'orçamento v2 (cartões) depois da edição');

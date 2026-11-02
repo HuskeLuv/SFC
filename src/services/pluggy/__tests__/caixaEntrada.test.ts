@@ -103,6 +103,45 @@ describe('sugestão sobre a árvore do usuário', () => {
     });
   });
 
+  it('prefere a linha padrão nova e cai no nome antigo de quem já tinha dados', () => {
+    const arvore = (nomeSalario: string) => [
+      {
+        id: 'g-ent',
+        name: 'Entradas',
+        type: 'entrada',
+        items: [],
+        children: [
+          {
+            id: 'g-ef',
+            name: 'Entradas Fixas',
+            type: 'entrada',
+            items: [{ id: 'it-sal', name: nomeSalario }],
+          },
+        ],
+      },
+    ];
+    expect(resolverSugestao('Salary', indexarEstrutura(arvore('Pró-labore / Salário 1')))).toEqual({
+      tipo: 'linha',
+      itemId: 'it-sal',
+      rotulo: 'Entradas Fixas › Pró-labore / Salário 1',
+    });
+    expect(resolverSugestao('Salary', indexarEstrutura(arvore('Salário')))).toEqual({
+      tipo: 'linha',
+      itemId: 'it-sal',
+      rotulo: 'Entradas Fixas › Salário',
+    });
+    // nem nova nem antiga: rótulo da nova, sem linha
+    expect(resolverSugestao('Salary', indexarEstrutura(arvore('Bolsa')))).toEqual({
+      tipo: 'linha',
+      itemId: null,
+      rotulo: 'Entradas Fixas › Pró-labore / Salário 1',
+    });
+    // acento, caixa e espaço da barra não atrapalham
+    expect(
+      resolverSugestao('Salary', indexarEstrutura(arvore('pro-labore/salario 1'))),
+    ).toMatchObject({ itemId: 'it-sal' });
+  });
+
   it('listarPendentes pagina e anexa a sugestão', async () => {
     mockPrisma.bankTransaction.count.mockResolvedValue(1);
     mockPrisma.bankTransaction.findMany.mockResolvedValue([

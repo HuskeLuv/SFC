@@ -150,9 +150,9 @@ async function seedDemoUsers() {
     );
 
   const incomes: Record<string, number[]> = {
-    Salário: Array(12).fill(9000),
-    "Receita Proventos FII's": [420, 430, 440, 450, 460, 470, 480, 490, 500, 510, 520, 530],
-    Aluguéis: Array(12).fill(1200),
+    'Pró-labore / Salário 1': Array(12).fill(9000),
+    "Proventos FII's": [420, 430, 440, 450, 460, 470, 480, 490, 500, 510, 520, 530],
+    'Aluguel 1': Array(12).fill(1200),
   };
 
   const expenses: Record<string, number[]> = {
@@ -162,10 +162,10 @@ async function seedDemoUsers() {
     Internet: Array(12).fill(120),
     'Plano de Saúde': Array(12).fill(680),
     Restaurantes: [400, 420, 380, 450, 470, 430, 460, 480, 420, 410, 430, 440],
-    Uber: [100, 120, 110, 130, 125, 140, 135, 145, 120, 110, 115, 130],
-    'Escola/Faculdade': Array(12).fill(1500),
-    Cinema: [80, 60, 70, 90, 85, 75, 95, 80, 70, 65, 60, 75],
-    Roupas: [250, 0, 180, 0, 220, 0, 210, 0, 230, 0, 190, 0],
+    'Uber / Táxi': [100, 120, 110, 130, 125, 140, 135, 145, 120, 110, 115, 130],
+    MBA: Array(12).fill(1500),
+    Passeios: [80, 60, 70, 90, 85, 75, 95, 80, 70, 65, 60, 75],
+    Cosméticos: [250, 0, 180, 0, 220, 0, 210, 0, 230, 0, 190, 0],
   };
 
   await seedCashflowValues(demoUser.id, incomes, previousYear);

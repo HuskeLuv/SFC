@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { LINHAS_PADRAO } from '@/lib/cashflow/linhasPadrao';
 import { MAPA_CATEGORIAS, sugerirPorCategoria } from '../categorias';
 
 describe('sugerirPorCategoria', () => {
@@ -6,14 +7,24 @@ describe('sugerirPorCategoria', () => {
     expect(sugerirPorCategoria('Salary')).toEqual({
       tipo: 'linha',
       caminho: ['Entradas', 'Entradas Fixas'],
-      item: 'Salário',
+      item: 'Pró-labore / Salário 1',
+      alternativas: [{ caminho: ['Entradas', 'Entradas Fixas'], item: 'Salário' }],
     });
-    expect(sugerirPorCategoria('Electricity')).toMatchObject({ item: 'Conta de energia' });
+    expect(sugerirPorCategoria('Electricity')).toEqual({
+      tipo: 'linha',
+      caminho: ['Despesas', 'Despesas Fixas', 'Habitação'],
+      item: 'Conta de energia',
+    });
     expect(sugerirPorCategoria('Telecommunications')).toMatchObject({
-      item: 'Telefones celulares',
+      caminho: ['Despesas', 'Despesas Fixas', 'Despesas Pessoais'],
+      item: 'Celular',
+      alternativas: [
+        { caminho: ['Despesas', 'Despesas Fixas', 'Habitação'], item: 'Telefones celulares' },
+      ],
     });
     expect(sugerirPorCategoria('Gyms and fitness centers')).toMatchObject({
-      caminho: ['Despesas', 'Despesas Fixas', 'Saúde'],
+      caminho: ['Despesas', 'Despesas Fixas', 'Despesas Pessoais'],
+      item: 'Academia',
     });
     expect(sugerirPorCategoria('Groceries')).toMatchObject({ item: 'Supermercado' });
   });
@@ -36,6 +47,16 @@ describe('sugerirPorCategoria', () => {
       if (s.tipo !== 'linha') continue;
       expect(['Entradas', 'Despesas'], cat).toContain(s.caminho[0]);
       expect(s.item.length, cat).toBeGreaterThan(0);
+    }
+  });
+
+  it('a sugestão principal é uma linha padrão do grupo (menos Despesas Financeiras › Outros, legado)', () => {
+    for (const [cat, s] of Object.entries(MAPA_CATEGORIAS)) {
+      if (s.tipo !== 'linha') continue;
+      const grupo = s.caminho.at(-1)!;
+      if (grupo === 'Despesas Financeiras' && s.item === 'Outros') continue;
+      const nomes = (LINHAS_PADRAO[grupo] ?? []).map((l) => l.name);
+      expect(nomes, `${cat} → ${grupo} › ${s.item}`).toContain(s.item);
     }
   });
 });
