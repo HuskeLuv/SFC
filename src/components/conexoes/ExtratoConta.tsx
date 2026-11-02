@@ -114,7 +114,7 @@ export default function ExtratoConta({ conta, onFechar, variant = 'card' }: Extr
                 : 'text-mf-patrimonio dark:text-mf-tranquilidade'
             }
           >
-            <Sensivel>
+            <Sensivel className="mf-sensivel--reserva">
               {saida ? '−' : '+'}
               {formatBRL(Math.abs(t.amount))}
             </Sensivel>

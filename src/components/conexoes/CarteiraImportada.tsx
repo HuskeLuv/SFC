@@ -168,7 +168,13 @@ export default function CarteiraImportada({
       cell: (i) => <span className="[overflow-wrap:anywhere]">{i.name}</span>,
     },
     { id: 'detalhe', header: '', mobile: 'subtitle', cell: detalheInvestimento },
-    { id: 'saldo', header: 'Saldo no banco', mobile: 'value', cell: (i) => formatBRL(i.balance) },
+    {
+      id: 'saldo',
+      header: 'Saldo no banco',
+      mobile: 'value',
+      // Pílula que guarda a largura do valor: o subtítulo ao lado não reflui (decisão 6).
+      cell: (i) => <Sensivel className="mf-sensivel--reserva">{formatBRL(i.balance)}</Sensivel>,
+    },
     ...(comDestinos
       ? [
           {
@@ -238,7 +244,11 @@ export default function CarteiraImportada({
       mobile: 'value',
       cell: (l) => (
         <span className="text-[#D92D20] dark:text-[#F97066]">
-          {l.outstanding != null ? <Sensivel>{formatBRL(l.outstanding)}</Sensivel> : '—'}
+          {l.outstanding != null ? (
+            <Sensivel className="mf-sensivel--reserva">{formatBRL(l.outstanding)}</Sensivel>
+          ) : (
+            '—'
+          )}
         </span>
       ),
     },
