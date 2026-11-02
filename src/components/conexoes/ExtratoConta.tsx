@@ -246,7 +246,7 @@ export default function ExtratoConta({ conta, onFechar, variant = 'card' }: Extr
                               : 'text-emerald-600 dark:text-emerald-400'
                           }`}
                         >
-                          <Sensivel>
+                          <Sensivel className="mf-sensivel--reserva">
                             {saida ? '−' : '+'}
                             {formatBRL(Math.abs(t.amount))}
                           </Sensivel>
