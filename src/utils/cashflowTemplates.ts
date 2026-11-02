@@ -1,27 +1,15 @@
 import { logger } from '@/lib/logger';
 import prisma from '@/lib/prisma';
+import { DESPESAS_FINANCEIRAS_ITEMS, LINHAS_PADRAO } from '@/lib/cashflow/linhasPadrao';
+
+export { DESPESAS_FINANCEIRAS_ITEMS };
+export type { LinhaTemplate } from '@/lib/cashflow/linhasPadrao';
 
 // ===== CASHFLOW TEMPLATES STRUCTURE =====
 
-// Linhas do grupo "Despesas Financeiras", espelhando a seção homônima da
-// planilha FLC (ticket 20/08/2026 — sem elas o import não tinha destino e a
-// linha de totais divergia da planilha). Compartilhadas entre o seed (bancos
-// novos) e o ensure (upgrade de bancos existentes).
-export const DESPESAS_FINANCEIRAS_ITEMS = [
-  'Taxas Bancárias',
-  'Cheque Especial',
-  'Doações / Dízimos',
-  'Gorjetas / caixinhas',
-  'Taxa de TED',
-  'Extras diários',
-  'Cota do Clube',
-  'PIC / Título de capitalização',
-  'Contribuição Previdência',
-  'Anuidade cartão de crédito',
-  'Outros',
-];
-
-const CASHFLOW_TEMPLATE_STRUCTURE = {
+// Grupos aqui; as linhas de cada grupo ficam em `lib/cashflow/linhasPadrao.ts` (puro, também
+// usado pelo catálogo do Orçamento v2).
+export const CASHFLOW_TEMPLATE_STRUCTURE = {
   grupos: [
     { name: 'Entradas', orderIndex: 1, parentId: null, type: 'entrada' as const },
     { name: 'Entradas Fixas', orderIndex: 1, parentId: 'Entradas', type: 'entrada' as const },
@@ -93,180 +81,7 @@ const CASHFLOW_TEMPLATE_STRUCTURE = {
     // "Saldo Conta Corrente Mês Anterior" e o Fluxo de Caixa livre.
     { name: 'Conta Corrente', orderIndex: 4, parentId: null, type: 'saldo' as const },
   ],
-  itensPorGrupo: {
-    'Entradas Fixas': [
-      { name: 'Salário', significado: 'Remuneração mensal', rank: 'essencial' },
-      {
-        name: "Receita Proventos FII's",
-        significado: 'Proventos de fundos imobiliários',
-        rank: 'normal',
-      },
-      {
-        name: 'Receita Renda Fixa (Préfixado)',
-        significado: 'Renda fixa prefixada',
-        rank: 'essencial',
-      },
-      {
-        name: 'Receita Renda Fixa (Pósfixado)',
-        significado: 'Renda fixa pós-fixada',
-        rank: 'normal',
-      },
-      {
-        name: 'Receita Renda Fixa (Híbridos)',
-        significado: 'Renda fixa híbrida',
-        rank: 'essencial',
-      },
-      { name: 'Aluguéis', significado: 'Recebimento de aluguéis', rank: 'normal' },
-      { name: 'Outros', significado: 'Outras receitas fixas', rank: 'essencial' },
-    ],
-    'Sem Tributação': [
-      { name: 'Empréstimos' },
-      { name: 'Recebimento de Terceiros' },
-      { name: 'Venda de Opções' },
-      { name: 'DayTrade' },
-      { name: 'Cash Back' },
-      { name: '13º Salário' },
-      { name: 'Pacote Benefícios' },
-      { name: 'Ganho de Capital Aplicações com Isenção' },
-      { name: 'Férias' },
-      { name: 'Outros' },
-    ],
-    'Com Tributação': [
-      { name: 'Empresa' },
-      { name: 'Doações' },
-      { name: 'Ganho de Capital Aplicações SEM Isenção' },
-      { name: 'Outros' },
-    ],
-    Habitação: [
-      { name: 'Aluguel / Prestação' },
-      { name: 'Condomínio' },
-      { name: 'IPTU + Taxas Municipais' },
-      { name: 'Conta de energia' },
-      { name: 'Internet' },
-      { name: 'Conta de água' },
-      { name: 'Gás' },
-      { name: 'Alarme' },
-      { name: 'Telefone fixo' },
-      { name: 'Telefones celulares' },
-      { name: 'Supermercado' },
-      { name: 'Padaria' },
-      { name: 'Empregados/ Diaristas' },
-      { name: 'Lavanderia' },
-      { name: 'Seguro Residência' },
-      { name: 'Outros' },
-    ],
-    Transporte: [
-      { name: 'Prestação Moto/ Carro' },
-      { name: 'IPVA + Seguro Obrigatório Carro' },
-      { name: 'Licenciamento Carro' },
-      { name: 'Seguro Carro' },
-      { name: 'Combustível' },
-      { name: 'Alinhamento e Balanceamento' },
-      { name: 'Pneu' },
-      { name: 'Estacionamentos' },
-      { name: 'Lavagens' },
-      { name: 'Manutenção / Revisões' },
-      { name: 'Multas' },
-      { name: 'Ônibus (Buser)' },
-      { name: 'Uber' },
-      { name: 'Metro' },
-      { name: 'Pedágio' },
-      { name: 'Pedágio (Sem parar mensalidade)' },
-      { name: 'Aluguel garagem' },
-      { name: 'Acessórios' },
-      { name: 'Outros' },
-    ],
-    Saúde: [
-      { name: 'Plano de Saúde' },
-      { name: 'Seguro Vida' },
-      { name: 'Médicos e terapeutas' },
-      { name: 'Dentista' },
-      { name: 'Medicamentos' },
-      { name: 'Nutricionista' },
-      { name: 'Exames' },
-      { name: 'Fisioterapia' },
-      { name: 'Outros' },
-    ],
-    Educação: [
-      { name: 'Escola/Faculdade' },
-      { name: 'Cursos' },
-      { name: 'Material escolar' },
-      { name: 'Transporte escolar' },
-      { name: 'Outros' },
-    ],
-    'Animais de Estimação': [
-      { name: 'Ração' },
-      { name: 'Veterinário' },
-      { name: 'Banho e tosa' },
-      { name: 'Vacinas' },
-      { name: 'Outros' },
-    ],
-    'Despesas Pessoais': [
-      { name: 'Roupas' },
-      { name: 'Calçados' },
-      { name: 'Acessórios' },
-      { name: 'Cuidados pessoais' },
-      { name: 'Outros' },
-    ],
-    Lazer: [
-      { name: 'Cinema' },
-      { name: 'Teatro' },
-      { name: 'Restaurantes' },
-      { name: 'Viagens' },
-      { name: 'Hobbies' },
-      { name: 'Outros' },
-    ],
-    Impostos: [{ name: 'IRPF' }, { name: 'ISS' }, { name: 'Outros impostos' }],
-    // Itens espelham a seção "Despesas com dependentes" da planilha FLC
-    'Despesas com Dependentes': [
-      { name: 'Escola / Faculdade' },
-      { name: 'Cursos' },
-      { name: 'Pensão' },
-      { name: 'Material escolar' },
-      { name: 'Vestuário' },
-      { name: 'Outros' },
-    ],
-    'Despesas Empresa': [
-      { name: 'Administrativas/Operacionais' },
-      { name: 'Fornecedores' },
-      { name: 'Taxas, Alvarás, Etc.' },
-      { name: 'Impostos, Contribuições Diretas' },
-      { name: 'Salários, Encargos e Benefícios' },
-      { name: 'Maquinários & Equipamentos' },
-      { name: 'Despesas com Vendas' },
-      { name: 'Despesas Financeiras' },
-      { name: 'Outros' },
-    ],
-    // Os itens deste grupo são provisionados por usuário a partir do
-    // Planejamento de Sonhos (linhas espelho, vínculo via objetivoId) — ver
-    // src/services/planejamento/sonhoCashflowSync.ts. Sem placeholders no template.
-    'Planejamento Financeiro': [],
-    // Linhas da seção homônima da planilha FLC (ticket 20/08/2026) — além
-    // delas, o grupo recebe as linhas-espelho das parcelas de dívidas
-    // (dividaCashflowSync), criadas por dívida.
-    'Despesas Financeiras': DESPESAS_FINANCEIRAS_ITEMS.map((name) => ({ name })),
-    'Despesas Variáveis': [
-      { name: 'Lazer' },
-      { name: 'Compras' },
-      { name: 'Viagem' },
-      { name: 'Outros' },
-    ],
-    'Conta Corrente': [{ name: 'Banco 1' }, { name: 'Banco 2' }, { name: 'Banco 3' }],
-    Investimentos: [
-      { name: 'Reserva Emergência' },
-      { name: 'Reserva Oportunidade' },
-      { name: 'Renda Fixa & Fundos Renda Fixa' },
-      { name: 'Fundos (FIM / FIA)' },
-      { name: "FII's" },
-      { name: 'Ações' },
-      { name: 'STOCKS' },
-      { name: "REIT's" },
-      { name: "ETF's" },
-      { name: 'Moedas, Criptomoedas & Outros' },
-      { name: 'Previdência e Seguros' },
-      { name: 'Imóveis Físicos' },
-    ],
-  },
+  itensPorGrupo: LINHAS_PADRAO,
 };
 
 // ===== ENSURE: CONTA CORRENTE (upgrade de template para bancos existentes) =====
@@ -465,7 +280,12 @@ export async function ensureDividasTemplate(): Promise<void> {
   const faltantes = DESPESAS_FINANCEIRAS_ITEMS.filter((name) => !nomesExistentes.has(name));
   if (faltantes.length > 0) {
     await prisma.cashflowItem.createMany({
-      data: faltantes.map((name) => ({ userId: null, groupId: existing!.id, name })),
+      data: faltantes.map((name) => ({
+        userId: null,
+        groupId: existing!.id,
+        name,
+        orderIndex: DESPESAS_FINANCEIRAS_ITEMS.indexOf(name) + 1,
+      })),
     });
     logger.info(
       `✅ ${faltantes.length} itens-template criados em "Despesas Financeiras" (upgrade de template)`,
@@ -523,8 +343,7 @@ export async function seedTemplates() {
         userId: null,
         groupId: group.id,
         name: item.name,
-        significado: 'significado' in item ? (item.significado ?? null) : null,
-        rank: 'rank' in item ? (item.rank ?? null) : null,
+        orderIndex: item.orderIndex,
       })),
     });
     itemsCount += items.length;

@@ -12,7 +12,7 @@
  *  3. Ativa pela função de produção (`ativarOrcamentoV2`, a mesma do script ativar.ts) e inclui no
  *     beta pela mesma `gravarBeta` do script beta.ts (só depois de ativado e verificado).
  *  4. Orçados por subcategoria em todos os meses dos dois anos: Supermercado muda mês a mês (a
- *     spec de copiar confere que o mês aberto recebe o valor do anterior); Restaurantes e Uber
+ *     spec de copiar confere que o mês aberto recebe o valor do anterior); Restaurantes e Uber / Táxi
  *     ficam SEM orçado (as specs de edição gravam neles; "copiar" não toca sub sem orçado na
  *     origem, então desktop e celular podem rodar juntos).
  */
@@ -26,7 +26,7 @@ const SENHA = '123456';
 /** Orçado de Supermercado no mês (0–11): muda todo mês, para o "copiar" ter efeito visível. */
 export const orcadoSupermercado = (mes0: number) => 1000 + 10 * mes0;
 
-const RECEITAS: Record<string, number> = { Salário: 12000 };
+const RECEITAS: Record<string, number> = { 'Pró-labore / Salário 1': 12000 };
 
 /** Valores mensais por subcategoria (nomes únicos nos templates de Despesas). */
 const DESPESAS: Record<string, number[]> = {
@@ -35,7 +35,7 @@ const DESPESAS: Record<string, number[]> = {
   'Conta de energia': [190, 185, 200, 195, 210, 205, 220, 215, 200, 195, 190, 185],
   Internet: Array(12).fill(120),
   Combustível: [380, 420, 400, 410, 390, 430, 450, 440, 420, 410, 400, 460],
-  Uber: [90, 110, 100, 120, 115, 130, 125, 135, 110, 100, 105, 120],
+  'Uber / Táxi': [90, 110, 100, 120, 115, 130, 125, 135, 110, 100, 105, 120],
   'Plano de Saúde': Array(12).fill(720),
   Restaurantes: [350, 420, 380, 450, 470, 430, 460, 480, 420, 410, 430, 440],
 };
