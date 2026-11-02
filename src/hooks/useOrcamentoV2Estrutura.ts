@@ -18,6 +18,7 @@ import { useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCsrf } from '@/hooks/useCsrf';
 import { queryKeys } from '@/lib/queryKeys';
+import { invalidarArvoresDoFluxo } from '@/lib/cashflow/invalidarArvores';
 import { createCashflowItem } from '@/utils/cashflowUpdate';
 import { ErroOrcamentoV2 } from '@/hooks/useOrcamentoV2';
 import type { AnoMes } from '@/types/orcamentoV2';
@@ -85,7 +86,8 @@ export function useOrcamentoV2Estrutura(ano: number) {
   const { csrfFetch } = useCsrf();
 
   const recarregar = useCallback(async () => {
-    void queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.year(ano) });
+    // Criar/renomear subcategoria = criar/renomear a linha do Fluxo, que vale para todos os anos.
+    void invalidarArvoresDoFluxo(queryClient);
     void queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.orcamento(ano) });
     await queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.orcamentoV2Todos() });
   }, [queryClient, ano]);
