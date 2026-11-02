@@ -163,7 +163,7 @@ async function seedDemoUsers() {
     'Plano de Saúde': Array(12).fill(680),
     Restaurantes: [400, 420, 380, 450, 470, 430, 460, 480, 420, 410, 430, 440],
     'Uber / Táxi': [100, 120, 110, 130, 125, 140, 135, 145, 120, 110, 115, 130],
-    'Escola / Faculdade': Array(12).fill(1500),
+    MBA: Array(12).fill(1500),
     Passeios: [80, 60, 70, 90, 85, 75, 95, 80, 70, 65, 60, 75],
     Cosméticos: [250, 0, 180, 0, 220, 0, 210, 0, 230, 0, 190, 0],
   };
