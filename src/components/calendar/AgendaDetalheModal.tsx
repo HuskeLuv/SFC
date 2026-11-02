@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { Modal } from '@/components/ui/modal';
 import { formatBRL } from '@/utils/format';
+import { Sensivel, TextoSensivel } from '@/components/common/valores/Sensivel';
 import { MODAL_STICKY_FOOTER } from '@/lib/ui/mobile';
 import type { EventoAgenda } from '@/services/calendario/types';
 import { corDoTipo, formatarDataCivil, metaDoTipo } from './agendaTipos';
@@ -121,7 +122,7 @@ export default function AgendaDetalheModal({
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{quando}</p>
         {evento.valor != null && (
           <p className="mt-3 text-2xl font-semibold text-gray-900 tabular-nums dark:text-white">
-            {formatBRL(evento.valor)}
+            <Sensivel>{formatBRL(evento.valor)}</Sensivel>
           </p>
         )}
         {evento.descricao && (
@@ -139,7 +140,10 @@ export default function AgendaDetalheModal({
           {linhasDoDetalhe(evento).map(([k, v]) => (
             <React.Fragment key={k}>
               <dt className="text-gray-500 max-lg:mt-2 max-lg:text-xs dark:text-gray-400">{k}</dt>
-              <dd className="text-gray-800 tabular-nums dark:text-gray-200">{v}</dd>
+              <dd className="text-gray-800 tabular-nums dark:text-gray-200">
+                {/* Juros, amortização, saldo, valor bruto/líquido e aplicado vêm com R$: pílula. */}
+                <TextoSensivel texto={v} />
+              </dd>
             </React.Fragment>
           ))}
         </dl>
