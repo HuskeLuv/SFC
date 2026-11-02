@@ -15,50 +15,47 @@ import {
   normalizarNome,
   sugestoesFaltantes,
 } from '../catalogo';
+import { LINHAS_PADRAO } from '@/lib/cashflow/linhasPadrao';
 
-/** Fonte dos grupos/itens-template do Fluxo (lida como texto: o módulo importa o Prisma). */
+/** Fonte dos grupos-template do Fluxo (lida como texto: o módulo importa o Prisma). */
 const TEMPLATES = readFileSync(join(process.cwd(), 'src/utils/cashflowTemplates.ts'), 'utf8');
-const temItemTemplate = (nome: string) =>
-  TEMPLATES.includes(`{ name: '${nome}' }`) || TEMPLATES.includes(`  '${nome}',`);
 
-describe('catálogo do Orçamento v2 (Anexo A)', () => {
-  it('tem 13 categorias e 82 subcategorias, cada categoria com uma Geral no fim', () => {
+describe('catálogo do Orçamento v2 (linhas padrão do Fluxo)', () => {
+  it('tem 13 categorias, cada uma com uma Geral no fim', () => {
     expect(CATEGORIAS_ORCAMENTO).toHaveLength(13);
-    expect(CATEGORIAS_ORCAMENTO.flatMap((c) => c.subcategorias)).toHaveLength(82);
     for (const c of CATEGORIAS_ORCAMENTO) {
       expect(c.subcategorias.filter((s) => s.nome === NOME_GERAL)).toHaveLength(1);
       expect(c.subcategorias.at(-1)?.nome).toBe(NOME_GERAL);
     }
   });
 
-  it('usa os nomes exatos do Anexo A', () => {
-    const habitacao = categoriaDoCatalogo('Habitação');
-    expect(habitacao?.subcategorias.map((s) => s.nome)).toEqual([
-      'Aluguel / Financiamento',
-      'Condomínio',
-      'Energia',
-      'Água',
-      'Gás',
-      'Internet / TV',
-      'Mercado',
-      'Diarista',
-      'Geral',
-    ]);
+  it('as subcategorias são as linhas padrão do grupo, na ordem da planilha', () => {
+    for (const c of CATEGORIAS_ORCAMENTO.filter((x) => !x.poupanca)) {
+      expect(c.subcategorias.map((s) => s.nome)).toEqual([
+        ...(LINHAS_PADRAO[c.nomeCanonico] ?? []).map((l) => l.name),
+        NOME_GERAL,
+      ]);
+    }
     expect(categoriaDoCatalogo('Despesas Variáveis')?.subcategorias.map((s) => s.nome)).toContain(
-      'Anuidades (OAB, CRM, CRP…)',
-    );
-    expect(categoriaDoCatalogo('Impostos')?.subcategorias.map((s) => s.nome)).toContain(
-      'IR (provisão do ajuste anual)',
+      'Conselho Profissional',
     );
   });
 
-  it('marca as 33 fixas do protótipo fora de Planejamento', () => {
+  it('marca as fixas: contas e mensalidades sim, consumo não', () => {
     const fixas = CATEGORIAS_ORCAMENTO.filter((c) => !c.poupanca).flatMap((c) =>
       c.subcategorias.filter((s) => s.fixa).map((s) => s.nome),
     );
-    expect(fixas).toHaveLength(33);
-    expect(fixas).toEqual(expect.arrayContaining(['Seguro', 'Livros / Revistas', 'Mesada']));
-    expect(fixas).not.toContain('Mercado');
+    expect(fixas).toEqual(
+      expect.arrayContaining([
+        'Condomínio',
+        'Seguro Carro',
+        'Livros, jornais e revistas',
+        'Pensão',
+      ]),
+    );
+    expect(fixas).not.toContain('Supermercado');
+    expect(fixas).not.toContain('Outros');
+    expect(fixas).not.toContain(NOME_GERAL);
   });
 
   it('não repete nome de subcategoria com fixa diferente entre categorias', () => {
@@ -94,7 +91,7 @@ describe('normalização e casamento com o Fluxo', () => {
     expect(normalizarNome('Uber  /99')).toBe('uber / 99');
   });
 
-  it('casa o nome do Anexo A com o do template, e o nome antigo "Dívidas"', () => {
+  it('casa o nome da categoria sem acento/caixa, e o nome antigo "Dívidas"', () => {
     expect(categoriaDoCatalogo('Animais de estimação')?.nomeCanonico).toBe('Animais de Estimação');
     expect(categoriaDoCatalogo('despesas com dependentes')?.nomeCanonico).toBe(
       'Despesas com Dependentes',
@@ -116,26 +113,29 @@ describe('normalização e casamento com o Fluxo', () => {
     expect(CATEGORIAS_ORCAMENTO.filter((c) => c.poupanca)).toHaveLength(1);
   });
 
-  it('todo alias parte de um item-template real e chega numa subcategoria do Anexo A', () => {
-    const anexo = new Set(
+  it('todo alias chega numa subcategoria do catálogo e não parte de uma', () => {
+    const catalogo = new Set(
       CATEGORIAS_ORCAMENTO.flatMap((c) => c.subcategorias.map((s) => normalizarNome(s.nome))),
     );
     for (const [de, para] of Object.entries(ALIASES_SUBCATEGORIA)) {
-      expect(temItemTemplate(de), de).toBe(true);
-      expect(anexo.has(normalizarNome(para)), para).toBe(true);
+      expect(catalogo.has(normalizarNome(para)), para).toBe(true);
+      expect(catalogo.has(normalizarNome(de)), de).toBe(false);
     }
   });
 
-  it('aplica o alias no nome canônico da subcategoria', () => {
-    expect(nomeCanonicoSubcategoria('Supermercado')).toBe('mercado');
-    expect(nomeCanonicoSubcategoria('Escola / Faculdade')).toBe('escola');
+  it('aplica o alias no nome canônico da subcategoria (nomes antigos → linha padrão)', () => {
+    expect(nomeCanonicoSubcategoria('Mercado')).toBe('supermercado');
+    expect(nomeCanonicoSubcategoria('Uber')).toBe('uber / taxi');
+    expect(nomeCanonicoSubcategoria('Roupas')).toBe('vestuario');
+    expect(nomeCanonicoSubcategoria('Escola/Faculdade')).toBe('escola / faculdade');
+    expect(nomeCanonicoSubcategoria('Metro')).toBe('metro');
     expect(nomeCanonicoSubcategoria('Plano de Saúde')).toBe('plano de saude');
     expect(nomeCanonicoSubcategoria('Pneu')).toBe('pneu');
   });
 });
 
 describe('fixaPadrao', () => {
-  it('segue o Anexo A pelo nome cru, com aliases', () => {
+  it('segue o catálogo pelo nome cru, com aliases', () => {
     expect(fixaPadrao('Condomínio')).toBe(true);
     expect(fixaPadrao('condominio')).toBe(true);
     expect(fixaPadrao('Aluguel / Prestação')).toBe(true);
@@ -144,6 +144,15 @@ describe('fixaPadrao', () => {
     expect(fixaPadrao('Supermercado')).toBe(false);
     expect(fixaPadrao('Pneu')).toBe(false);
     expect(fixaPadrao('Geral', 'Habitação')).toBe(false);
+  });
+
+  it('mantém a fixa de linhas antigas sem equivalente (template e catálogo de antes de 11/2026)', () => {
+    expect(fixaPadrao('Energia')).toBe(true);
+    expect(fixaPadrao('Telefones celulares')).toBe(true);
+    expect(fixaPadrao('Plano pet')).toBe(true);
+    expect(fixaPadrao('Mesada')).toBe(true);
+    expect(fixaPadrao('IRPF')).toBe(true);
+    expect(fixaPadrao('Juros / IOF')).toBe(false);
   });
 
   it('Planejamento Financeiro é sempre fixa, inclusive a Geral e itens dos Sonhos', () => {
@@ -162,41 +171,55 @@ describe('sugestões (P4)', () => {
     for (const lista of Object.values(SUBCATEGORIAS_SUGERIDAS)) {
       expect(lista.map((s) => s.nome)).not.toContain(NOME_GERAL);
     }
-    // 82 − 13 Gerais − 3 objetivos ilustrativos de Planejamento
-    expect(Object.values(SUBCATEGORIAS_SUGERIDAS).flat()).toHaveLength(66);
+  });
+
+  it('quem tem as linhas padrão não recebe sugestão nenhuma (o Fluxo não ganha linha paralela)', () => {
+    for (const c of CATEGORIAS_ORCAMENTO.filter((x) => !x.poupanca)) {
+      const linhas = (LINHAS_PADRAO[c.nomeCanonico] ?? []).map((l) => l.name);
+      expect(sugestoesFaltantes(c.nomeCanonico, [...linhas, NOME_GERAL]), c.nomeCanonico).toEqual(
+        [],
+      );
+    }
   });
 
   it('não sugere o que a categoria já tem (pelo nome normalizado ou alias)', () => {
-    const faltantes = sugestoesFaltantes('Habitação', [
-      'Aluguel / Prestação',
-      'condominio',
-      'Conta de energia',
-      'Supermercado',
-      'Empregados/ Diaristas',
+    const faltantes = sugestoesFaltantes('Animais de Estimação', [
+      'veterinario',
+      'Ração',
       'Geral',
     ]).map((s) => s.nome);
-    expect(faltantes).toEqual(['Água', 'Gás', 'Internet / TV']);
+    expect(faltantes).toEqual(['Exames e Medicamentos', 'Hospedagem', 'Outros']);
+    expect(
+      sugestoesFaltantes('Habitação', ['Energia', 'Mercado', 'Empregados/ Diaristas']).map(
+        (s) => s.nome,
+      ),
+    ).not.toEqual(
+      expect.arrayContaining(['Conta de energia', 'Supermercado', 'Empregados / Diaristas']),
+    );
   });
 
-  it('não sugere o que outra categoria já tem por alias que cruza categoria', () => {
+  it('linha de outra categoria cobre a sugestão, menos os nomes que existem em várias', () => {
     const nomes = (cat: string, outras: string[]) =>
       sugestoesFaltantes(cat, [], outras).map((s) => s.nome);
-    expect(nomes('Impostos', ['IPTU + Taxas Municipais'])).not.toContain('IPTU');
     expect(nomes('Despesas Pessoais', ['Telefones celulares'])).not.toContain('Celular');
-    expect(nomes('Despesas Financeiras', ['Seguro Vida'])).not.toContain('Seguro de vida');
-    expect(nomes('Despesas com Dependentes', ['Escola/Faculdade'])).not.toContain('Escola');
+    expect(nomes('Despesas com Dependentes', ['Escola/Faculdade'])).not.toContain(
+      'Escola / Faculdade',
+    );
+    expect(nomes('Habitação', ['IPTU'])).not.toContain('IPTU + Taxas Municipais');
+    // "Outros", "Cursos" e "Vestuário" estão em várias categorias: faltam onde não estão
+    expect(nomes('Despesas com Dependentes', ['Outros', 'Cursos', 'Vestuário'])).toEqual(
+      expect.arrayContaining(['Outros', 'Cursos', 'Vestuário']),
+    );
     // sem os nomes de fora, a sugestão aparece (o chamador precisa passá-los)
-    expect(nomes('Impostos', [])).toContain('IPTU');
     expect(nomes('Despesas Pessoais', [])).toContain('Celular');
-    expect(nomes('Despesas Financeiras', [])).toContain('Seguro de vida');
-    expect(nomes('Despesas com Dependentes', [])).toContain('Escola');
   });
 
-  it('casa a categoria pelo nome do Anexo A e ignora categoria do usuário', () => {
-    expect(sugestoesFaltantes('Animais de estimação', ['Ração']).map((s) => s.nome)).toEqual([
+  it('casa a categoria sem acento/caixa e ignora categoria do usuário', () => {
+    expect(sugestoesFaltantes('animais de estimacao', ['Ração']).map((s) => s.nome)).toEqual([
       'Veterinário',
-      'Banho e tosa',
-      'Plano pet',
+      'Exames e Medicamentos',
+      'Hospedagem',
+      'Outros',
     ]);
     expect(sugestoesFaltantes('Minha categoria', [])).toEqual([]);
   });

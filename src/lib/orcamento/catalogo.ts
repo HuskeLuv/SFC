@@ -1,10 +1,11 @@
 /**
- * Catálogo padrão do Orçamento v2 (spec v.8, Anexo A; desenho técnico §4 "Catálogo").
+ * Catálogo padrão do Orçamento v2 (desenho técnico §4 "Catálogo"; spec v.8, Anexo A até 11/2026).
  *
  * Categoria = grupo de despesa do Fluxo, identificado pelo NOME CANÔNICO do template
  * (`canonicalName` de `groupMatchers.ts`). O catálogo dá, por categoria, a abreviação do gráfico,
- * o ícone padrão (quando `CashflowGroup.icone` é nulo), se é de poupança, e as subcategorias do
- * Anexo A com a fixa padrão (quando `CashflowItem.orcamentoFixa` é nulo).
+ * o ícone padrão (quando `CashflowGroup.icone` é nulo), se é de poupança, e as subcategorias com a
+ * fixa padrão (quando `CashflowItem.orcamentoFixa` é nulo). Desde 11/2026 as subcategorias são as
+ * linhas padrão do Fluxo (planilha-base do Pedro): Fluxo e Orçamento têm as mesmas linhas.
  *
  * NÃO tem nome de exibição (D11): a tela mostra sempre `CashflowGroup.name` mesclado, inclusive
  * quando o Anexo A escreve diferente ("Animais de estimação" × template "Animais de Estimação").
@@ -12,6 +13,8 @@
  *
  * Puro e isomórfico (sem Prisma): usado pela ativação, pelo GET v2 e pela UI.
  */
+
+import { LINHAS_PADRAO } from '@/lib/cashflow/linhasPadrao';
 
 /** Chaves dos ícones de categoria (paths SVG do protótipo v.8; `tag` = genérico). */
 export type IconeCategoria =
@@ -62,9 +65,90 @@ const variavel = (nome: string): SubcategoriaCatalogo => ({ nome, fixa: false })
 const GERAL = variavel(NOME_GERAL);
 
 /**
- * As 13 categorias, na ordem do Anexo A (= ordem do template). Investimentos não existe nesta área
- * (D12). Planejamento Financeiro: subcategorias fixas por natureza (aportes planejados), e as do
- * Anexo A são ilustrativas (os itens dali vêm dos Sonhos), por isso não viram sugestão.
+ * Linhas padrão do Fluxo que são FIXAS no orçamento (nunca ficam "à frente do ritmo", só
+ * "estouro", R-07). O resto é variável. Nenhum nome aparece em duas categorias com fixa diferente.
+ */
+const FIXAS_PADRAO: readonly string[] = [
+  // Habitação
+  'Aluguel / Prestação',
+  'Condomínio',
+  'IPTU + Taxas Municipais',
+  'Conta de energia',
+  'Internet',
+  'Conta de água',
+  'Gás',
+  'Alarme',
+  'Telefone fixo',
+  'Seguro Residência',
+  'Empregados / Diaristas',
+  // Transporte
+  'Prestação Moto / Carro',
+  'IPVA + Licenciamento',
+  'Seguro Carro',
+  // Saúde
+  'Plano de Saúde',
+  'Seguro de Vida',
+  'Nutricionista',
+  // Educação e dependentes
+  'Inglês',
+  'Cursos',
+  'MBA',
+  'Escola / Faculdade',
+  'Pensão',
+  // Despesas pessoais
+  'Cabeleireiro',
+  'Assinaturas / Streaming',
+  'Clube de milhas',
+  'Celular',
+  'Academia',
+  'Personal trainer',
+  // Lazer
+  'Livros, jornais e revistas',
+  // Impostos
+  'IRRF Salário',
+  // Despesas Empresa
+  'Administrativas / Operacionais',
+  'Salários, Encargos e Benefícios',
+  // Despesas Financeiras
+  'Taxas Bancárias',
+  'Contribuição Previdência',
+  'Anuidade cartão de crédito',
+];
+
+/**
+ * Fixas do catálogo antigo (Anexo A da spec v.8) e do template antigo sem equivalente nas linhas
+ * novas. Usuários que já têm essas linhas (criadas pelas sugestões da ativação ou pelo template de
+ * antes de 11/2026) continuam com a mesma fixa padrão.
+ */
+const FIXAS_LEGADAS: readonly string[] = [
+  'Terapeuta',
+  'Plano pet',
+  'Banho e tosa',
+  'Babá',
+  'Mesada',
+  'Contador',
+  'Softwares',
+  'IR (provisão do ajuste anual)',
+  'IRPF',
+];
+
+const sub = (nome: string): SubcategoriaCatalogo => ({
+  nome,
+  fixa: FIXAS_PADRAO.includes(nome),
+});
+
+/** Subcategorias de uma categoria = as linhas padrão do grupo homônimo do Fluxo, com a Geral. */
+const doTemplate = (grupo: string): readonly SubcategoriaCatalogo[] => [
+  ...(LINHAS_PADRAO[grupo] ?? []).filter((l) => l.name !== NOME_GERAL).map((l) => sub(l.name)),
+  GERAL,
+];
+
+/**
+ * As 13 categorias, na ordem do template. Investimentos não existe nesta área (D12). As
+ * subcategorias são as linhas padrão do Fluxo (`lib/cashflow/linhasPadrao.ts`, 11/2026): a
+ * ativação não cria linha paralela no Fluxo de quem tem o template. Planejamento Financeiro:
+ * subcategorias fixas por natureza (aportes planejados), e as listadas são ilustrativas (os itens
+ * dali vêm dos Sonhos), por isso não viram sugestão.
  */
 export const CATEGORIAS_ORCAMENTO: readonly CategoriaCatalogo[] = [
   {
@@ -72,151 +156,77 @@ export const CATEGORIAS_ORCAMENTO: readonly CategoriaCatalogo[] = [
     abreviacao: 'Habitação',
     icone: 'casa',
     poupanca: false,
-    subcategorias: [
-      fixa('Aluguel / Financiamento'),
-      fixa('Condomínio'),
-      fixa('Energia'),
-      fixa('Água'),
-      fixa('Gás'),
-      fixa('Internet / TV'),
-      variavel('Mercado'),
-      fixa('Diarista'),
-      GERAL,
-    ],
+    subcategorias: doTemplate('Habitação'),
   },
   {
     nomeCanonico: 'Transporte',
     abreviacao: 'Transporte',
     icone: 'carro',
     poupanca: false,
-    subcategorias: [
-      fixa('Parcela do carro'),
-      variavel('Combustível'),
-      fixa('Seguro'),
-      fixa('IPVA / Licenciamento'),
-      variavel('Manutenção'),
-      variavel('Estacionamento / Pedágio'),
-      variavel('Uber / 99'),
-      GERAL,
-    ],
+    subcategorias: doTemplate('Transporte'),
   },
   {
     nomeCanonico: 'Saúde',
     abreviacao: 'Saúde',
     icone: 'saude',
     poupanca: false,
-    subcategorias: [
-      fixa('Plano de saúde'),
-      variavel('Médicos'),
-      fixa('Terapeuta'),
-      fixa('Nutricionista'),
-      variavel('Exames'),
-      variavel('Farmácia'),
-      fixa('Academia'),
-      GERAL,
-    ],
+    subcategorias: doTemplate('Saúde'),
   },
   {
     nomeCanonico: 'Educação',
     abreviacao: 'Educação',
     icone: 'edu',
     poupanca: false,
-    subcategorias: [
-      fixa('Inglês'),
-      fixa('Cursos'),
-      fixa('MBA'),
-      variavel('Material'),
-      variavel('Consultoria financeira'),
-      GERAL,
-    ],
+    subcategorias: doTemplate('Educação'),
   },
   {
     nomeCanonico: 'Animais de Estimação',
     abreviacao: 'Pets',
     icone: 'pet',
     poupanca: false,
-    subcategorias: [
-      variavel('Ração'),
-      variavel('Veterinário'),
-      fixa('Banho e tosa'),
-      fixa('Plano pet'),
-      GERAL,
-    ],
+    subcategorias: doTemplate('Animais de Estimação'),
   },
   {
     nomeCanonico: 'Despesas Pessoais',
     abreviacao: 'Pessoais',
     icone: 'user',
     poupanca: false,
-    subcategorias: [
-      variavel('Vestuário'),
-      fixa('Cabeleireiro / Barbearia'),
-      variavel('Cosméticos'),
-      fixa('Celular'),
-      fixa('Assinaturas (streaming)'),
-      variavel('Presentes'),
-      GERAL,
-    ],
+    subcategorias: doTemplate('Despesas Pessoais'),
   },
   {
     nomeCanonico: 'Lazer',
     abreviacao: 'Lazer',
     icone: 'lazer',
     poupanca: false,
-    subcategorias: [
-      variavel('Restaurantes'),
-      variavel('Delivery / iFood'),
-      variavel('Bar / Cafés'),
-      variavel('Cinema / Shows'),
-      variavel('Passeios'),
-      fixa('Livros / Revistas'),
-      GERAL,
-    ],
+    subcategorias: doTemplate('Lazer'),
   },
   {
     nomeCanonico: 'Impostos',
     abreviacao: 'Impostos',
     icone: 'imp',
     poupanca: false,
-    subcategorias: [
-      fixa('IPTU'),
-      fixa('IR (provisão do ajuste anual)'),
-      variavel('Taxas e certidões'),
-      GERAL,
-    ],
+    subcategorias: doTemplate('Impostos'),
   },
   {
     nomeCanonico: 'Despesas com Dependentes',
     abreviacao: 'Dependentes',
     icone: 'dep',
     poupanca: false,
-    subcategorias: [fixa('Escola'), fixa('Babá'), variavel('Atividades'), fixa('Mesada'), GERAL],
+    subcategorias: doTemplate('Despesas com Dependentes'),
   },
   {
     nomeCanonico: 'Despesas Empresa',
     abreviacao: 'Empresa',
     icone: 'emp',
     poupanca: false,
-    subcategorias: [
-      fixa('Contador'),
-      fixa('Softwares'),
-      variavel('Marketing'),
-      variavel('Impostos PJ'),
-      GERAL,
-    ],
+    subcategorias: doTemplate('Despesas Empresa'),
   },
   {
     nomeCanonico: 'Despesas Financeiras',
     abreviacao: 'Financeiras',
     icone: 'fin',
     poupanca: false,
-    subcategorias: [
-      fixa('Tarifas bancárias'),
-      fixa('Anuidade do cartão'),
-      variavel('Juros / IOF'),
-      fixa('Seguro de vida'),
-      GERAL,
-    ],
+    subcategorias: doTemplate('Despesas Financeiras'),
   },
   {
     nomeCanonico: NOME_PLANEJAMENTO_FINANCEIRO,
@@ -236,16 +246,7 @@ export const CATEGORIAS_ORCAMENTO: readonly CategoriaCatalogo[] = [
     abreviacao: 'Variáveis',
     icone: 'var',
     poupanca: false,
-    subcategorias: [
-      variavel('Manutenção e reparos'),
-      variavel('Móveis e decoração'),
-      variavel('Anuidades (OAB, CRM, CRP…)'),
-      variavel('Contador IR PF'),
-      variavel('Presentes do mês'),
-      variavel('Utilidades domésticas'),
-      variavel('Papelaria'),
-      GERAL,
-    ],
+    subcategorias: doTemplate('Despesas Variáveis'),
   },
 ];
 
@@ -308,50 +309,64 @@ export function abreviacaoCategoria(nomeCanonico: string): string {
 }
 
 /**
- * Itens-template de despesa do Fluxo (`cashflowTemplates.ts`) → subcategoria equivalente do
- * Anexo A. Só equivalências diretas: servem para não sugerir duplicata ("Supermercado" já cobre
- * "Mercado") e para a fixa padrão. Itens sem equivalente claro ("Pneu", "Teatro") ficam de fora:
- * um alias amplo demais esconderia uma sugestão útil. Nomes iguais a menos de acento/caixa
- * ("Plano de Saúde") já casam pela normalização e não precisam estar aqui.
+ * Nome antigo → linha padrão equivalente (só equivalências diretas). Cobre o template de antes de
+ * 11/2026 (as cópias dos usuários guardam o nome antigo) e o catálogo antigo (Anexo A da spec v.8,
+ * cujas sugestões a ativação criou como linhas). Serve para não sugerir duplicata e para a fixa
+ * padrão. Nomes iguais a menos de acento/caixa/barra ("Metro" × "Metrô") já casam pela
+ * normalização e não precisam estar aqui.
  */
 export const ALIASES_SUBCATEGORIA: Readonly<Record<string, string>> = {
   // Habitação
-  'Aluguel / Prestação': 'Aluguel / Financiamento',
-  'Conta de energia': 'Energia',
-  'Conta de água': 'Água',
-  Internet: 'Internet / TV',
-  Supermercado: 'Mercado',
-  'Empregados/ Diaristas': 'Diarista',
+  'Aluguel / Financiamento': 'Aluguel / Prestação',
+  Energia: 'Conta de energia',
+  Água: 'Conta de água',
+  'Internet / TV': 'Internet',
+  Mercado: 'Supermercado',
+  Diarista: 'Empregados / Diaristas',
   'Telefones celulares': 'Celular',
-  'IPTU + Taxas Municipais': 'IPTU',
+  IPTU: 'IPTU + Taxas Municipais',
   // Transporte
-  'Prestação Moto/ Carro': 'Parcela do carro',
-  'Seguro Carro': 'Seguro',
-  'IPVA + Seguro Obrigatório Carro': 'IPVA / Licenciamento',
-  'Licenciamento Carro': 'IPVA / Licenciamento',
-  'Manutenção / Revisões': 'Manutenção',
-  Estacionamentos: 'Estacionamento / Pedágio',
-  Pedágio: 'Estacionamento / Pedágio',
-  Uber: 'Uber / 99',
+  'Parcela do carro': 'Prestação Moto / Carro',
+  Seguro: 'Seguro Carro',
+  'IPVA + Seguro Obrigatório Carro': 'IPVA + Licenciamento',
+  'Licenciamento Carro': 'IPVA + Licenciamento',
+  'IPVA / Licenciamento': 'IPVA + Licenciamento',
+  Manutenção: 'Manutenção / Revisões',
+  'Estacionamento / Pedágio': 'Estacionamentos',
+  Uber: 'Uber / Táxi',
+  'Uber / 99': 'Uber / Táxi',
+  'Ônibus (Buser)': 'Ônibus',
   // Saúde
-  'Seguro Vida': 'Seguro de vida',
-  'Médicos e terapeutas': 'Médicos',
-  Medicamentos: 'Farmácia',
+  'Seguro Vida': 'Seguro de Vida',
+  Médicos: 'Médicos e terapeutas',
+  Medicamentos: 'Medicamentos / Farmácia',
+  Farmácia: 'Medicamentos / Farmácia',
   // Educação e dependentes
-  'Material escolar': 'Material',
-  'Escola/Faculdade': 'Escola',
+  Material: 'Material escolar',
+  'Consultoria financeira': 'Consultoria Finanças Pessoais',
+  Escola: 'Escola / Faculdade',
   // Despesas pessoais
   Roupas: 'Vestuário',
-  'Cuidados pessoais': 'Cosméticos',
+  'Cuidados pessoais': 'Higiene pessoal',
+  'Cabeleireiro / Barbearia': 'Cabeleireiro',
+  'Assinaturas (streaming)': 'Assinaturas / Streaming',
   // Lazer
-  Cinema: 'Cinema / Shows',
+  'Delivery / iFood': 'Delivery',
+  'Bar / Cafés': 'Cafés e bares',
+  'Livros / Revistas': 'Livros, jornais e revistas',
   // Impostos
-  IRPF: 'IR (provisão do ajuste anual)',
+  'Outros impostos': 'Outros',
   // Despesas Empresa
-  'Impostos, Contribuições Diretas': 'Impostos PJ',
+  'Impostos PJ': 'Impostos, Contribuições Diretas',
+  'Taxas, Alvarás, Etc.': 'Taxas e Alvarás',
   // Despesas Financeiras
-  'Taxas Bancárias': 'Tarifas bancárias',
-  'Anuidade cartão de crédito': 'Anuidade do cartão',
+  'Tarifas bancárias': 'Taxas Bancárias',
+  'Anuidade do cartão': 'Anuidade cartão de crédito',
+  // Despesas Variáveis
+  'Anuidades (OAB, CRM, CRP…)': 'Conselho Profissional',
+  'Contador IR PF': 'Contador IR Pessoa Física',
+  Presentes: 'Presentes do mês',
+  'Taxas e certidões': 'Certidões',
 };
 
 const ALIAS_POR_NOME = new Map<string, string>(
@@ -370,15 +385,8 @@ export function nomeCanonicoSubcategoria(nome: string): string {
   return ALIAS_POR_NOME.get(normalizado) ?? normalizado;
 }
 
-/**
- * Fixas do Anexo A fora de Planejamento (lá todas são fixas por natureza). Nenhum nome aparece
- * em duas categorias com fixa diferente, então um conjunto global basta.
- */
-const FIXAS = new Set<string>(
-  CATEGORIAS_ORCAMENTO.filter((c) => !c.poupanca).flatMap((c) =>
-    c.subcategorias.filter((s) => s.fixa).map((s) => normalizarNome(s.nome)),
-  ),
-);
+/** Fixas fora de Planejamento (lá todas são fixas por natureza), já normalizadas. */
+const FIXAS = new Set<string>([...FIXAS_PADRAO, ...FIXAS_LEGADAS].map(normalizarNome));
 
 /**
  * Fixa padrão, usada quando `CashflowItem.orcamentoFixa` é nulo. Aceita o nome cru (normaliza e
@@ -408,13 +416,28 @@ export const SUBCATEGORIAS_SUGERIDAS: Readonly<Record<string, readonly Subcatego
     ]),
   );
 
+/** Subcategorias (canônicas) presentes em mais de uma categoria do catálogo. */
+const EM_VARIAS_CATEGORIAS = (() => {
+  const vistos = new Set<string>();
+  const repetidos = new Set<string>();
+  for (const c of CATEGORIAS_ORCAMENTO) {
+    for (const nome of new Set(c.subcategorias.map((s) => nomeCanonicoSubcategoria(s.nome)))) {
+      if (vistos.has(nome)) repetidos.add(nome);
+      vistos.add(nome);
+    }
+  }
+  return repetidos;
+})();
+
 /**
  * Sugestões que ainda faltam numa categoria, dados os nomes dos itens que ela já tem (comparação
  * pelo nome canônico normalizado, com aliases). Categoria fora do catálogo → nenhuma.
  *
- * `nomesEmOutrasCategorias`: itens das demais categorias de despesa do usuário. Alguns aliases
- * cruzam categoria ("IPTU + Taxas Municipais" fica em Habitação e equivale a IPTU, de Impostos).
- * Sem esses nomes a sugestão sai em duplicata, então o chamador deve passá-los.
+ * `nomesEmOutrasCategorias`: itens das demais categorias de despesa do usuário. Linha que mora
+ * em outra categoria também conta ("Escola/Faculdade" na Educação antiga cobre "Escola /
+ * Faculdade" de Dependentes; "Telefones celulares" de Habitação cobre "Celular"), menos as que
+ * existem em várias categorias do catálogo ("Outros", "Cursos", "Vestuário"): essas faltam de
+ * verdade na categoria em que não estão.
  */
 export function sugestoesFaltantes(
   nomeCanonicoCategoria: string,
@@ -423,9 +446,10 @@ export function sugestoesFaltantes(
 ): SubcategoriaCatalogo[] {
   const categoria = categoriaDoCatalogo(nomeCanonicoCategoria);
   if (!categoria) return [];
-  const existentes = new Set(
-    [...nomesExistentes, ...nomesEmOutrasCategorias].map(nomeCanonicoSubcategoria),
-  );
+  const deFora = nomesEmOutrasCategorias
+    .map(nomeCanonicoSubcategoria)
+    .filter((n) => !EM_VARIAS_CATEGORIAS.has(n));
+  const existentes = new Set([...nomesExistentes.map(nomeCanonicoSubcategoria), ...deFora]);
   return SUBCATEGORIAS_SUGERIDAS[categoria.nomeCanonico].filter(
     (s) => !existentes.has(nomeCanonicoSubcategoria(s.nome)),
   );
