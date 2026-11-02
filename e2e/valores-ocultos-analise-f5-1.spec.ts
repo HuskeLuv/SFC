@@ -199,8 +199,9 @@ test.describe('esconder valores — Análise de Ativos (desktop 1280)', () => {
       .then(() => true)
       .catch(() => false);
     test.skip(!temChip, 'demo sem posição de FII no Quadro');
+    // o chip nasce do overlay ("N na carteira") e ganha o "% da carteira" quando a aba carrega
+    await expect(chip).toHaveText(/\d+,\d{2}%/, { timeout: 60_000 });
     const texto = await chip.innerText();
-    expect(texto).toMatch(/\d+,\d{2}%/);
     await alternarOlho(page, true);
     await expect(chip.locator('.mf-sensivel--curto')).toHaveCount(1);
     // o % (mercado/alocação) fica
