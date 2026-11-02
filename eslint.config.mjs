@@ -7,11 +7,13 @@ import {
   GLOBS_VALORES_OCULTOS_FASE3,
   GLOBS_VALORES_OCULTOS_FASE4,
   GLOBS_VALORES_OCULTOS_FASE5,
+  GLOBS_VALORES_OCULTOS_FASE6,
   IGNORES_VALORES_OCULTOS,
   IGNORES_VALORES_OCULTOS_FASE2,
   IGNORES_VALORES_OCULTOS_FASE3,
   IGNORES_VALORES_OCULTOS_FASE4,
   IGNORES_VALORES_OCULTOS_FASE5,
+  IGNORES_VALORES_OCULTOS_FASE6,
   OPCOES_VALORES_OCULTOS_FASE2,
   OPCOES_VALORES_OCULTOS_FASE5,
   pluginValoresOcultos,
@@ -36,6 +38,16 @@ const eslintConfig = [
           destructuredArrayIgnorePattern: "^_",
         },
       ],
+    },
+  },
+  // Fase 6 (o resto do app logado, menos Comunidade, Admin e Landing/públicas): 'warn' durante a
+  // fase. Vem ANTES dos blocos das Fases 1–5 para que eles (depois) mantenham 'error' e as opções.
+  {
+    files: GLOBS_VALORES_OCULTOS_FASE6,
+    ignores: IGNORES_VALORES_OCULTOS_FASE6,
+    plugins: { mf: pluginValoresOcultos },
+    rules: {
+      "mf/valor-sem-sensivel": "warn",
     },
   },
   // Esconder valores: valor em dinheiro no JSX sem <Sensivel>/<ValorVisivel>. 'error' desde o

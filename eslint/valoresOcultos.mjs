@@ -276,3 +276,35 @@ export const GLOBS_VALORES_OCULTOS_FASE5 = [
  * valor do usuário — FormPremissas fica fora dos globs.
  */
 export const IGNORES_VALORES_OCULTOS_FASE5 = ['**/__tests__/**'];
+
+/**
+ * Fase 6 (a última; 'warn' durante a fase, 'error' com zero ocorrências no fechamento): TODO o
+ * resto do app logado — Histórico de alterações, Agenda (/calendario), Assistente (só aviso fixo,
+ * decisão 14), Perfil, cabeçalho e qualquer outro arquivo de src/components/** e src/app/(admin)/**.
+ * As pastas das Fases 1–5 continuam com os seus blocos (que vêm DEPOIS no eslint.config.mjs e por
+ * isso mantêm 'error' e as opções de cada fase). Ficam de fora (IGNORES_VALORES_OCULTOS_FASE6):
+ * Comunidade, Admin, Landing/site institucional e páginas públicas (signin/signup/termos).
+ * Atenção: números montados à mão (toFixed, formatNumber, template strings) e props como `hint=`
+ * não são acusados — marque à mão e confira pelo innerText (e2e, coletarNumerosDaPosicao com
+ * ignorarPercentuais).
+ */
+export const GLOBS_VALORES_OCULTOS_FASE6 = [
+  'src/components/**/*.{ts,tsx}',
+  'src/app/(admin)/**/*.{ts,tsx}',
+];
+
+export const IGNORES_VALORES_OCULTOS_FASE6 = [
+  // Comunidade (flag desligada; fora do esconder valores).
+  'src/components/comunidade/**',
+  'src/app/(admin)/(others-pages)/comunidade/**',
+  // Painel /admin (só leitura, dados agregados da plataforma, não do usuário logado).
+  'src/components/admin/**',
+  'src/app/(admin)/(others-pages)/admin/**',
+  // Landing/site institucional e páginas públicas (signin/signup/reset, termos, cookies).
+  'src/components/landing/**',
+  'src/components/legal/**',
+  'src/components/auth/SignInForm.tsx',
+  'src/components/auth/SignUpForm.tsx',
+  'src/components/auth/ResetPasswordForm.tsx',
+  '**/__tests__/**',
+];
