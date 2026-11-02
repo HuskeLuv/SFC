@@ -170,6 +170,7 @@ export default function Step4TesouroDiretoFields(props: Step4FieldsProps) {
             {tesouroDetails.price.sellPU && (
               <div>
                 <span className="font-medium">PU Venda:</span>{' '}
+                {/* eslint-disable-next-line mf/valor-sem-sensivel -- PU do Tesouro Transparente é dado de mercado */}
                 {`R$ ${tesouroDetails.price.sellPU.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`}
               </div>
             )}

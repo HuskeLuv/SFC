@@ -90,9 +90,12 @@ export default function UsarCaixaField({
           <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-300">
             {ligado
               ? origem.length > 0
-                ? `Sai ${origem.join(' e ')}. O caixa total fica em ${formatBRL(totalDepois)}.`
+                ? // eslint-disable-next-line mf/valor-sem-sensivel -- apoio do formulário de lançamento/aporte fica visível (decisão 3)
+                  `Sai ${origem.join(' e ')}. O caixa total fica em ${formatBRL(totalDepois)}.`
                 : 'Nada será descontado.'
-              : `O caixa não será alterado (hoje: ${formatBRL(caixa.total)}` +
+              : // eslint-disable-next-line mf/valor-sem-sensivel -- apoio do formulário de lançamento/aporte fica visível (decisão 3)
+                `O caixa não será alterado (hoje: ${formatBRL(caixa.total)}` +
+                // eslint-disable-next-line mf/valor-sem-sensivel -- apoio do formulário de lançamento/aporte fica visível (decisão 3)
                 (abaLabel ? `, reserva de ${abaLabel} ${formatBRL(plano.reservaAba)}` : '') +
                 ').'}
           </p>

@@ -37,6 +37,7 @@ export default function Step5AporteConfirmation({
         </p>
         <p>
           <span className="font-semibold">Valor do aporte:</span>{' '}
+          {/* eslint-disable-next-line mf/valor-sem-sensivel -- confirmação do formulário de aporte fica visível (decisão 3) */}
           {formData.valorAporte.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
         </p>
       </div>

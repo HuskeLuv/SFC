@@ -67,6 +67,7 @@ export default function PriceDeviationConfirmModal({
             Este ativo teve <span className="font-semibold">{splitHint.eventsLabel}</span> — depois
             da data informada. O preço digitado parece estar na escala atual (pós-evento). Para essa
             data, informe o preço da época (
+            {/* eslint-disable-next-line mf/valor-sem-sensivel -- preço digitado no formulário e fechamento de mercado ficam visíveis (decisão 3) */}
             <span className="font-semibold">R$ {formatCurrency(referencePrice)}</span>) e a
             quantidade da época; o sistema aplica o evento automaticamente.
           </div>
@@ -76,6 +77,7 @@ export default function PriceDeviationConfirmModal({
           <div className="flex items-center justify-between">
             <span className="text-gray-500 dark:text-gray-400">Preço informado</span>
             <span className="font-semibold text-gray-900 dark:text-white">
+              {/* eslint-disable-next-line mf/valor-sem-sensivel -- preço digitado no formulário e fechamento de mercado ficam visíveis (decisão 3) */}
               R$ {formatCurrency(enteredPrice)}
             </span>
           </div>
@@ -84,6 +86,7 @@ export default function PriceDeviationConfirmModal({
               Fechamento em {formatDateBR(effectiveDate)}
             </span>
             <span className="font-semibold text-gray-900 dark:text-white">
+              {/* eslint-disable-next-line mf/valor-sem-sensivel -- preço digitado no formulário e fechamento de mercado ficam visíveis (decisão 3) */}
               R$ {formatCurrency(referencePrice)}
             </span>
           </div>

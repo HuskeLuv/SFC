@@ -251,6 +251,7 @@ export default function Step4RedeemInfo({
           <p className="text-xs text-gray-600 dark:text-gray-400">
             {formData.instituicao ? `${formData.instituicao} · ` : ''}
             investido{' '}
+            {/* eslint-disable-next-line mf/valor-sem-sensivel -- formulário de resgate fica visível (decisão 3) */}
             {(formData.availableTotal ?? 0).toLocaleString('pt-BR', {
               style: 'currency',
               currency: formData.moeda || 'BRL',
@@ -284,6 +285,7 @@ export default function Step4RedeemInfo({
             {/* rótulo honesto: é o CUSTO (totalInvested), não o valor de mercado —
               resgate com rendimento pode (e deve poder) exceder este número */}
             Valor investido:{' '}
+            {/* eslint-disable-next-line mf/valor-sem-sensivel -- formulário de resgate fica visível (decisão 3) */}
             {(formData.availableTotal ?? 0).toLocaleString('pt-BR', {
               style: 'currency',
               currency: formData.moeda || 'BRL',

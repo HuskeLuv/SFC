@@ -114,6 +114,7 @@ export default function Step5Confirmation({
             Total investido (US$):
           </span>
           <span className="text-sm font-semibold text-gray-900 dark:text-white">
+            {/* eslint-disable-next-line mf/valor-sem-sensivel -- confirmação do formulário de lançamento fica visível (decisão 3) */}
             {formatUSD(r.totalUsd)}
           </span>
         </div>
@@ -124,9 +125,12 @@ export default function Step5Confirmation({
         >
           <span className="text-sm text-gray-600 dark:text-gray-400">Equivale a (R$):</span>
           <span className="text-right text-sm font-medium text-gray-900 dark:text-white">
+            {/* eslint-disable-next-line mf/valor-sem-sensivel -- confirmação do formulário de lançamento fica visível (decisão 3) */}
             {formatBRL(r.equivaleBrl)}
             <span className="block text-xs font-normal text-gray-500 dark:text-gray-400">
+              {/* eslint-disable-next-line mf/valor-sem-sensivel -- confirmação do formulário de lançamento fica visível (decisão 3) */}
               {formatUSD(r.totalUsd)} × {formatCotacaoDolar(r.cotacaoMoeda)}
+              {/* eslint-disable-next-line mf/valor-sem-sensivel -- confirmação do formulário de lançamento fica visível (decisão 3) */}
               {r.corretagemBrl > 0 ? ` + ${formatBRL(r.corretagemBrl)}` : ''}
             </span>
           </span>
