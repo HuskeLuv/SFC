@@ -265,21 +265,43 @@ const CREATION_VERBS = new Set(['criar', 'adicionar', 'registrar']);
 const DELETION_VERBS = new Set(['excluir', 'remover']);
 const MAX_SUMMARY_PAIRS = 2;
 
-const formatPair = (change: FieldChange, style: 'edit' | 'single-before' | 'single-after') => {
-  if (style === 'single-before')
-    return `${change.label}: ${formatChangeValue(change.before, change.format)}`;
-  if (style === 'single-after')
-    return `${change.label}: ${formatChangeValue(change.after, change.format)}`;
-  return `${change.label}: ${formatChangeValue(change.before, change.format)} → ${formatChangeValue(change.after, change.format)}`;
+/**
+ * Pedaço do resumo: texto fixo (rótulo, "→", " · ") ou um valor do diff com o seu formato. O
+ * componente (HistoricoEntryRow) usa os pedaços para pôr a pílula só nos valores (esconder
+ * valores, Fase 6); `renderRichDescription` junta tudo na string de sempre.
+ */
+export type ParteResumo = string | { valor: unknown; format?: ChangeValueFormat };
+
+const partesDoPar = (
+  change: FieldChange,
+  style: 'edit' | 'single-before' | 'single-after',
+): ParteResumo[] => {
+  const antes = { valor: change.before, format: change.format };
+  const depois = { valor: change.after, format: change.format };
+  if (style === 'single-before') return [`${change.label}: `, antes];
+  if (style === 'single-after') return [`${change.label}: `, depois];
+  return [`${change.label}: `, antes, ' → ', depois];
 };
 
+/** Junta os pedaços na string do resumo (mesmo texto de sempre). */
+export function textoDasPartes(partes: ParteResumo[]): string {
+  return partes
+    .map((p) => (typeof p === 'string' ? p : formatChangeValue(p.valor, p.format)))
+    .join('');
+}
+
+export interface RichDescriptionPartes {
+  title: string;
+  resumo?: ParteResumo[];
+}
+
 /**
- * Descrição rica: título (frase da ação) + resumo com até 2 campos do diff.
+ * Descrição rica em pedaços: título (frase da ação) + resumo com até 2 campos do diff.
  * Edição mostra antes → depois; criação mostra os valores iniciais; exclusão
  * mostra os valores no momento da exclusão. O expand "Detalhes" continua
  * sendo o lugar da lista completa.
  */
-export function renderRichDescription(entry: HistoricoAlteracaoEntry): RichDescription {
+export function renderRichDescriptionPartes(entry: HistoricoAlteracaoEntry): RichDescriptionPartes {
   const title = renderDescription(entry);
   const changes = entry.changes ?? [];
   if (changes.length === 0) return { title };
@@ -297,14 +319,20 @@ export function renderRichDescription(entry: HistoricoAlteracaoEntry): RichDescr
   const shown = changes.slice(0, MAX_SUMMARY_PAIRS);
   const rest = changes.length - shown.length;
 
-  const parts = shown.map((change) => formatPair(change, style));
-  if (rest > 0) parts.push(`+${rest} ${rest === 1 ? 'outro campo' : 'outros campos'}`);
+  const resumo: ParteResumo[] = [];
+  if (style === 'single-before') resumo.push('Valores no momento da exclusão — ');
+  shown.forEach((change, i) => {
+    if (i > 0) resumo.push(' · ');
+    resumo.push(...partesDoPar(change, style));
+  });
+  if (rest > 0) resumo.push(` · +${rest} ${rest === 1 ? 'outro campo' : 'outros campos'}`);
+  return { title, resumo };
+}
 
-  const summary = parts.join(' · ');
-  return {
-    title,
-    summary: style === 'single-before' ? `Valores no momento da exclusão — ${summary}` : summary,
-  };
+/** Descrição rica como string (título + resumo) — veja `renderRichDescriptionPartes`. */
+export function renderRichDescription(entry: HistoricoAlteracaoEntry): RichDescription {
+  const { title, resumo } = renderRichDescriptionPartes(entry);
+  return resumo ? { title, summary: textoDasPartes(resumo) } : { title };
 }
 
 export function formatEntryDate(createdAt: string): string {

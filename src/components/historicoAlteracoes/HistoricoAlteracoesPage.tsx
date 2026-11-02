@@ -20,12 +20,12 @@ import MobileTabRail from '@/components/ui/tabs/MobileTabRail';
 import MobilePageState from '@/components/ui/mobile/MobilePageState';
 import MobileSaveToast from '@/components/ui/sheet/MobileSaveToast';
 import { useResponsiveConfirm } from '@/components/ui/sheet/useResponsiveConfirm';
-import { SECTION_LABELS, formatChangeValue, renderRichDescription } from './renderChange';
-import { HistoricoEntryRow, HistoricoEntryCard } from './HistoricoEntryRow';
+import { SECTION_LABELS, renderRichDescription } from './renderChange';
+import { HistoricoEntryRow, HistoricoEntryCard, ValorAlteracao } from './HistoricoEntryRow';
 
 const TODAS = 'todas';
 
-/** Até 4 campos no sheet do Desfazer: "Valor volta para R$ 10,00". */
+/** Até 4 campos no sheet do Desfazer: "Valor volta para R$ 10,00" (o valor vira pílula). */
 const MAX_CAMPOS_CONFIRM = 4;
 
 /** O que volta ao desfazer (sheet do celular): título + campos com o valor de antes. */
@@ -44,7 +44,7 @@ const UndoConfirmMessage: React.FC<{ entry: HistoricoAlteracaoEntry; title: stri
         <ul className="space-y-0.5 [overflow-wrap:anywhere]">
           {shown.map((c) => (
             <li key={c.field}>
-              {c.label} volta para {formatChangeValue(c.before, c.format)}.
+              {c.label} volta para <ValorAlteracao value={c.before} format={c.format} />.
             </li>
           ))}
           {changes.length > shown.length ? (
