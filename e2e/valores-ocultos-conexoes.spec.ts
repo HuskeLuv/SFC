@@ -86,6 +86,20 @@ async function alturas(page: Page, seletor: string): Promise<number[]> {
     .evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().height)));
 }
 
+/** Alturas depois de o layout assentar (duas medidas iguais seguidas). */
+async function alturasEstaveis(page: Page, seletor: string): Promise<number[]> {
+  let anterior: number[] = [];
+  await expect
+    .poll(async () => {
+      const atual = await alturas(page, seletor);
+      const igual = JSON.stringify(atual) === JSON.stringify(anterior);
+      anterior = atual;
+      return igual;
+    })
+    .toBe(true);
+  return anterior;
+}
+
 /** Nada de R$, de número da posição nem de sentinela no escopo (olho fechado). */
 async function conferirEscondido(page: Page, escopo: string, numeros: readonly string[]) {
   await expect(page.locator(`${escopo} .mf-sensivel`).first()).toBeVisible();
@@ -96,8 +110,8 @@ async function conferirEscondido(page: Page, escopo: string, numeros: readonly s
 }
 
 /**
- * Fecha o olho e confere o escopo: nada exposto, alturas das `linhas` iguais (ou menores, se o
- * valor de hoje quebrava) e documento sem alargar. Reabre o olho e confere que os números voltam.
+ * Fecha o olho e confere o escopo: nada exposto, alturas das `linhas` IGUAIS (decisão 6: nem
+ * cresce nem encolhe) e documento sem alargar. Reabre o olho e confere que os números voltam.
  */
 async function conferirOlhoFechado(
   page: Page,
@@ -107,16 +121,18 @@ async function conferirOlhoFechado(
 ) {
   const numeros = await coletarNumerosDaPosicao(page, CONTEUDO, OPCOES);
   expect(numeros).toEqual(expect.arrayContaining([...esperados]));
+  const alturasAntes = await alturasEstaveis(page, linhas);
   const antes = await tamanhoDoDocumento(page);
-  const alturasAntes = await alturas(page, linhas);
   expect(alturasAntes.length).toBeGreaterThan(0);
 
   await alternarOlho(page, true);
   await conferirEscondido(page, CONTEUDO, numeros);
-  const alturasDepois = await alturas(page, linhas);
-  expect(alturasDepois).toHaveLength(alturasAntes.length);
-  alturasDepois.forEach((h, i) => expect(h, `linha ${i}`).toBeLessThanOrEqual(alturasAntes[i]));
-  expect((await tamanhoDoDocumento(page)).largura).toBeLessThanOrEqual(antes.largura);
+  await expect
+    .poll(() => alturas(page, linhas), { message: 'alturas das linhas' })
+    .toEqual(alturasAntes);
+  const depois = await tamanhoDoDocumento(page);
+  expect(depois.largura).toBeLessThanOrEqual(antes.largura);
+  expect(depois.altura, 'altura do documento').toBe(antes.altura);
   if (qa && QA_DIR && !process.env.CI) await capturar(page, qa);
 
   await alternarOlho(page, false);
