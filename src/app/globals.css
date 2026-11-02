@@ -218,11 +218,12 @@ html[data-valores-ocultos] .mf-sensivel__valor {
   Pílula que guarda a largura do valor (valor do cartão do celular): o valor fica no lugar,
   invisível (visibility: hidden, fora do innerText e da acessibilidade), e a pílula de 5,5em é
   desenhada por cima, à direita. Assim o título e o subtítulo ao lado não refluem e a altura do
-  cartão não muda ao alternar o olho (decisão 6). A pílula vista continua com largura fixa.
+  cartão não muda ao alternar o olho (decisão 6). O slot nunca passa da largura do valor: com
+  valor estreito ("R$ 5,00") a pílula encolhe até a curta (3,5em) em vez de alargar o slot.
 */
 html[data-valores-ocultos] .mf-sensivel--reserva {
   inline-size: auto;
-  min-inline-size: 5.5em;
+  min-inline-size: 0;
   max-inline-size: none;
   block-size: auto;
   vertical-align: baseline;
@@ -240,6 +241,7 @@ html[data-valores-ocultos] .mf-sensivel--reserva::before {
   top: calc(50% - 0.36em);
   inline-size: 5.5em;
   max-inline-size: 100%;
+  min-inline-size: 3.5em;
   block-size: 0.72em;
   border-radius: 9999px;
   background-color: var(--mf-pilula);
