@@ -20,6 +20,7 @@ import {
   type Efeito,
   type SaudePrevia,
 } from '@/lib/moverEfeitos';
+import { TextoSensivel } from '@/components/common/valores/Sensivel';
 import type { SaudeFinanceiraPayload } from '@/services/saudeFinanceira/saudeFinanceiraServer';
 
 /**
@@ -156,7 +157,8 @@ export function EfeitosMoverList({ efeitos, className, titulo = true }: EfeitosM
                 {efeito.marcador}
               </span>
               <span>
-                {rotulo && <b className="font-semibold">{rotulo}</b>} {resto}
+                {rotulo && <b className="font-semibold">{rotulo}</b>}{' '}
+                <TextoSensivel texto={resto} />
               </span>
             </li>
           );

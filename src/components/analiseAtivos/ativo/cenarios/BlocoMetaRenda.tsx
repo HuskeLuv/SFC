@@ -11,6 +11,10 @@
  *
  * "Criar objetivo no Planejamento" SÓ com diferença > 0: com a posição cobrindo a meta, um texto
  * explica (nunca um botão desabilitado sem motivo, e nunca um objetivo de valor 0).
+ *
+ * Esconder valores (Fase 5): a meta é do USUÁRIO — renda mensal, cotas necessárias, custo, diferença
+ * (cotas e R$) e a posição viram pílula (quantidades curtas). O rendimento por cota e a cotação
+ * (mercado) ficam visíveis.
  */
 import { useState } from 'react';
 import ConfirmarObjetivoPlanejamento from '@/components/analiseAtivos/ativo/cenarios/ConfirmarObjetivoPlanejamento';
@@ -19,6 +23,8 @@ import { formatarNumeroBR } from '@/services/analiseAtivos/regras/valuation/arre
 import type { MetaRendaCenario } from '@/services/analiseAtivos/regras/valuation/montarCenarios';
 import { TEXTOS_CENARIOS } from '@/services/analiseAtivos/textosCenarios';
 import { formatarTexto } from '@/services/analiseAtivos/textos';
+import { Sensivel } from '@/components/common/valores/Sensivel';
+import TextoComSensiveis from '@/components/analiseAtivos/comum/TextoComSensiveis';
 
 const T = TEXTOS_CENARIOS.metaRenda;
 
@@ -58,18 +64,28 @@ export default function BlocoMetaRenda({
   }
   const cot = formatarNumeroBR(meta.cotacao, 2);
   const diferenca = meta.diferenca;
-  const linhaPosicao = formatarTexto(T.diferencaTexto, {
-    n: formatarNumeroBR(meta.quantidade, 0),
-    cotas: `${diferenca < 0 ? '−' : ''}${formatarNumeroBR(Math.abs(diferenca), 0)}`,
-    valor: `R$ ${formatarNumeroBR(Math.abs(diferenca) * meta.cotacao, 0)}`,
-  });
-  const sub = temPosicao
-    ? formatarTexto(consultor ? T.clienteTem : T.voceTem, {
+  const linhaPosicao = (
+    <TextoComSensiveis
+      template={T.diferencaTexto}
+      vars={{
         n: formatarNumeroBR(meta.quantidade, 0),
-      })
-    : consultor
-      ? T.semFundoCliente
-      : T.semFundo;
+        cotas: `${diferenca < 0 ? '−' : ''}${formatarNumeroBR(Math.abs(diferenca), 0)}`,
+        valor: `R$ ${formatarNumeroBR(Math.abs(diferenca) * meta.cotacao, 0)}`,
+      }}
+      modos={{ n: 'curto', cotas: 'curto', valor: 'sensivel' }}
+    />
+  );
+  const sub = temPosicao ? (
+    <TextoComSensiveis
+      template={consultor ? T.clienteTem : T.voceTem}
+      vars={{ n: formatarNumeroBR(meta.quantidade, 0) }}
+      modos={{ n: 'curto' }}
+    />
+  ) : consultor ? (
+    T.semFundoCliente
+  ) : (
+    T.semFundo
+  );
   return (
     <section
       aria-labelledby={`meta-${ticker}`}
@@ -80,7 +96,11 @@ export default function BlocoMetaRenda({
         id={`meta-${ticker}`}
         className="text-[15px] font-semibold text-gray-800 dark:text-white/90"
       >
-        {formatarTexto(T.tituloComRenda, { valor: formatarNumeroBR(meta.rendaMensal, 2) })}
+        <TextoComSensiveis
+          template={T.tituloComRenda}
+          vars={{ valor: formatarNumeroBR(meta.rendaMensal, 2) }}
+          modos={{ valor: 'sensivel' }}
+        />
       </h3>
       <p className="text-[13px] text-gray-600 dark:text-gray-300">{T.explicacao}</p>
       <div className="grid grid-cols-1 gap-2.5 @min-[560px]:grid-cols-3">
@@ -89,7 +109,7 @@ export default function BlocoMetaRenda({
             {T.cotasNecessarias}
           </span>
           <span className="text-lg font-semibold text-gray-800 tabular-nums dark:text-white/90">
-            {formatarNumeroBR(meta.cotas, 0)}
+            <Sensivel curto>{formatarNumeroBR(meta.cotas, 0)}</Sensivel>
           </span>
           <span className="text-xs text-gray-500 dark:text-gray-400">
             {formatarTexto(T.formulaCotas, { valor: formatarNumeroBR(meta.rend12m, 3) })}
@@ -100,10 +120,14 @@ export default function BlocoMetaRenda({
             {T.custoHoje}
           </span>
           <span className="text-lg font-semibold text-gray-800 tabular-nums dark:text-white/90">
-            R$ {formatarNumeroBR(meta.custo, 2)}
+            <Sensivel>R$ {formatarNumeroBR(meta.custo, 2)}</Sensivel>
           </span>
           <span className="text-xs text-gray-500 dark:text-gray-400">
-            {formatarTexto(T.formulaCusto, { cotas: formatarNumeroBR(meta.cotas, 0), valor: cot })}
+            <TextoComSensiveis
+              template={T.formulaCusto}
+              vars={{ cotas: formatarNumeroBR(meta.cotas, 0), valor: cot }}
+              modos={{ cotas: 'curto', valor: 'visivel' }}
+            />
           </span>
         </div>
         <div className={KPI}>
@@ -114,9 +138,13 @@ export default function BlocoMetaRenda({
             className="text-lg font-semibold text-gray-800 tabular-nums dark:text-white/90"
             data-meta-diferenca={diferenca}
           >
-            {formatarTexto(T.cotas, {
-              cotas: `${diferenca < 0 ? '−' : ''}${formatarNumeroBR(Math.abs(diferenca), 0)}`,
-            })}
+            <TextoComSensiveis
+              template={T.cotas}
+              vars={{
+                cotas: `${diferenca < 0 ? '−' : ''}${formatarNumeroBR(Math.abs(diferenca), 0)}`,
+              }}
+              modos={{ cotas: 'curto' }}
+            />
           </span>
           <span className="text-xs text-gray-500 dark:text-gray-400">{sub}</span>
         </div>

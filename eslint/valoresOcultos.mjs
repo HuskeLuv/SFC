@@ -10,10 +10,11 @@
  * Strings devolvidas por render/getValue/cell (fora do JSX) não são acusadas: a autodetecção de
  * R$/US$ dos componentes compartilhados e os testes com sentinelas cobrem esses casos.
  *
- * Nível: 'error' nas pastas das Fases 1, 2, 3 e 4 (todas fechadas com zero ocorrências). A Fase 2
- * fica em GLOBS_VALORES_OCULTOS_FASE2 (bloco próprio por causa da opção `formattersExtras`), a
- * Fase 3 (Planejar) em GLOBS_VALORES_OCULTOS_FASE3 e a Fase 4 (Dívidas e Saúde Financeira) em
- * GLOBS_VALORES_OCULTOS_FASE4.
+ * Nível: 'error' nas pastas das Fases 1, 2, 3, 4 e 5 (todas fechadas com zero ocorrências). A
+ * Fase 2 fica em GLOBS_VALORES_OCULTOS_FASE2 (bloco próprio por causa da opção `formattersExtras`),
+ * a Fase 3 (Planejar) em GLOBS_VALORES_OCULTOS_FASE3, a Fase 4 (Dívidas e Saúde Financeira) em
+ * GLOBS_VALORES_OCULTOS_FASE4 e a Fase 5 (Análise de Ativos, Relatórios e Conexões bancárias) em
+ * GLOBS_VALORES_OCULTOS_FASE5.
  *
  * Fluxo de caixa: o formatCurrency DEPRECATED (src/utils/formatters.ts) é formatNumber, sem "R$".
  * A regra pega formatCurrency/formatBRL no JSX e, na Fase 2, o num() do Orçamento v2 (opção
@@ -233,3 +234,45 @@ export const GLOBS_VALORES_OCULTOS_FASE4 = [
  * é prop e a regra não acusa.
  */
 export const IGNORES_VALORES_OCULTOS_FASE4 = ['**/__tests__/**'];
+
+/**
+ * Fase 5 ('error' desde o fechamento, com zero ocorrências):
+ * Relatórios (a TELA — o PDF do servidor não muda), Conexões bancárias e, na Análise de Ativos, SÓ
+ * os arquivos com dado do USUÁRIO (posição, quantidade, preço médio, valor na carteira, meta de
+ * renda, plano). Dado de MERCADO (cotação, preço-teto, dividendos por cota, fundamentos, gráficos
+ * de cotação/fundamentos) fica visível sem marcação e por isso fica fora do lint (globs
+ * explícitos). Os helpers locais de dinheiro (brl/usd/dinheiro*) entram por
+ * OPCOES_VALORES_OCULTOS_FASE5. Atenção: formatarNumeroBR com "R$" em template string, quantidade
+ * em formatNumber/formatarQuantidade e toLocaleString sem opções não são acusados — marque à mão e confira pelo
+ * innerText (e2e, coletarNumerosDaPosicao com ignorarPercentuais).
+ */
+export const OPCOES_VALORES_OCULTOS_FASE5 = {
+  // brl/usd: helpers locais dos Relatórios (toLocaleString com style 'currency'); dinheiro*: os da
+  // Análise de Ativos (BlocoNaCarteira, ModalPlanejar, ModalVerNaCarteira, ModalRegistrarOperacao).
+  formattersExtras: ['brl', 'usd', 'dinheiro', 'dinheiro0', 'dinheiroInteiro', 'dinheiroAba'],
+};
+
+export const GLOBS_VALORES_OCULTOS_FASE5 = [
+  'src/components/relatorios/**/*.{ts,tsx}',
+  'src/app/(admin)/(home)/relatorios/**/*.{ts,tsx}',
+  'src/components/conexoes/**/*.{ts,tsx}',
+  'src/app/(admin)/(others-pages)/conexoes-bancarias/**/*.{ts,tsx}',
+  'src/components/analiseAtivos/ativo/usuario/**/*.{ts,tsx}',
+  'src/components/analiseAtivos/ativo/acoes/BarraAcoesAtivo.tsx',
+  'src/components/analiseAtivos/ativo/acoes/ModalVerNaCarteira.tsx',
+  'src/components/analiseAtivos/ativo/acoes/ModalRegistrarOperacao.tsx',
+  'src/components/analiseAtivos/ativo/acoes/ModalPlanejar.tsx',
+  'src/components/analiseAtivos/ativo/cenarios/BlocoMetaRenda.tsx',
+  'src/components/analiseAtivos/ativo/cenarios/ConfirmarObjetivoPlanejamento.tsx',
+  'src/components/analiseAtivos/ativo/cenarios/LinhaSuaPosicao.tsx',
+  'src/components/analiseAtivos/quadro/CelulaNaCarteira.tsx',
+];
+
+/**
+ * Formulários da Fase 5 ficam visíveis (decisão 3): ModalRegistrarOperacao e ModalPlanejar
+ * continuam no lint porque o texto de apoio fora do campo (total da operação, posição, preço
+ * médio, valor do plano) vira pílula; o `value` de input é prop e a regra não acusa. FormPremissas
+ * (premissas de mercado: LPA, VPA, DPA) e os modais de conectar/autorizar das Conexões não têm
+ * valor do usuário — FormPremissas fica fora dos globs.
+ */
+export const IGNORES_VALORES_OCULTOS_FASE5 = ['**/__tests__/**'];

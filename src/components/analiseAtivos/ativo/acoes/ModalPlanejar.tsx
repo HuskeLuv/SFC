@@ -20,6 +20,9 @@
  * sem o "≈ X% da carteira total" (`semPesoCarteira`: a Carteira soma US$ ao total em R$). Stock
  * (`abaMista`: a aba Stocks soma cotação em US$ com preço médio em R$): a posição é só a
  * quantidade e o resumo não calcula valor equivalente nem desvio — os números ficam na aba.
+ *
+ * Esconder valores (Fase 5): o campo (%) fica visível (decisão 3); a posição (quantidade e valor) e
+ * o resumo calculado (valor equivalente, quantidade no alvo, desvio em R$/quantidade) viram pílula.
  */
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useAtivoTopo } from '@/hooks/useAnaliseAtivos';
@@ -48,6 +51,8 @@ import {
 } from '@/services/analiseAtivos/textosAcoesCarteira';
 import { TEXTOS_EUA } from '@/services/analiseAtivos/textosEua';
 import { formatNumber } from '@/utils/format';
+import { Sensivel } from '@/components/common/valores/Sensivel';
+import TextoComSensiveis from '@/components/analiseAtivos/comum/TextoComSensiveis';
 import { ehClasseEua } from '@/types/analiseAtivosApi';
 import type { ModalPlanejarProps } from '@/types/analiseAtivosCriterios';
 
@@ -228,22 +233,35 @@ export default function ModalPlanejar({
           },
         )
       : '—';
+  const qtdComUnidade = (q: number) => (
+    <>
+      <Sensivel curto>{inteiro(q)}</Sensivel> {cl.un}
+    </>
+  );
   const posicaoLinha =
-    dados.status === 'posicao' && linha
-      ? abaMista
-        ? // stock: preço médio em R$ e cotação em US$ na aba — só a quantidade
-          `${inteiro(linha.quantidade)} ${cl.un}`
-        : formatarTexto(T.posicaoValor, {
+    dados.status === 'posicao' && linha ? (
+      abaMista ? (
+        // stock: preço médio em R$ e cotação em US$ na aba — só a quantidade
+        qtdComUnidade(linha.quantidade)
+      ) : (
+        <TextoComSensiveis
+          template={T.posicaoValor}
+          vars={{
             qtd: inteiro(linha.quantidade),
             un: cl.un,
             pct: pct1(linha.percentualCarteira),
             valor: dinheiro(linha.valorAtualizado),
-          })
-      : dados.status === 'posicao' && abaMista && dados.quantidade !== null
-        ? `${inteiro(dados.quantidade)} ${cl.un}`
-        : dados.status === 'posicao'
-          ? '—'
-          : T.semPosicao;
+          }}
+          modos={{ qtd: 'curto', valor: 'sensivel' }}
+        />
+      )
+    ) : dados.status === 'posicao' && abaMista && dados.quantidade !== null ? (
+      qtdComUnidade(dados.quantidade)
+    ) : dados.status === 'posicao' ? (
+      '—'
+    ) : (
+      T.semPosicao
+    );
   // "≈ X% da carteira total" = objetivo × peso atual da aba na carteira (informativo)
   const equivalenteLinha = dados.semPesoCarteira
     ? null
@@ -381,26 +399,30 @@ export default function ModalPlanejar({
               <span>
                 {T.valorAlvo}
                 <b className="block text-[14.5px] text-gray-900 tabular-nums dark:text-white">
-                  {dinheiro(conta.alvoValor)}
+                  <Sensivel>{dinheiro(conta.alvoValor)}</Sensivel>
                 </b>
               </span>
               {conta.alvoQtd !== null ? (
                 <span>
                   {formatarTexto(T.qtdAlvo, { un: cl.un })}
                   <b className="block text-[14.5px] text-gray-900 tabular-nums dark:text-white">
-                    {inteiro(conta.alvoQtd)}
+                    <Sensivel curto>{inteiro(conta.alvoQtd)}</Sensivel>
                   </b>
                 </span>
               ) : null}
               <span>
                 {T.desvio}
                 <b className="block text-[14.5px] text-gray-900 tabular-nums dark:text-white">
-                  {formatarTexto(conta.desvioQtd !== null ? T.desvioValor : T.desvioSemQtd, {
-                    pp: ppComSinal(conta.desvioPp),
-                    valor: dinheiro(conta.desvioValor ?? 0),
-                    qtd: inteiro(conta.desvioQtd ?? 0),
-                    un: cl.un,
-                  })}
+                  <TextoComSensiveis
+                    template={conta.desvioQtd !== null ? T.desvioValor : T.desvioSemQtd}
+                    vars={{
+                      pp: ppComSinal(conta.desvioPp),
+                      valor: dinheiro(conta.desvioValor ?? 0),
+                      qtd: inteiro(conta.desvioQtd ?? 0),
+                      un: cl.un,
+                    }}
+                    modos={{ valor: 'sensivel', qtd: 'curto' }}
+                  />
                 </b>
               </span>
             </>

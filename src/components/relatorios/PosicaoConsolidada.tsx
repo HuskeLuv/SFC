@@ -7,12 +7,17 @@ import {
   TABLE_SECTION_STYLE,
 } from '@/components/ui/table/tableStyles';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { Sensivel } from '@/components/common/valores/Sensivel';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import PosicaoConsolidadaCards from './mobile/PosicaoConsolidadaCards';
 
 /**
  * Posição Consolidada do relatório (ticket 20/08/2026, formato Gorila):
  * tabela por categoria → ativo com valor atual e % da carteira, com
  * subtotais por categoria e total geral. Dados de /api/historico/ativos.
+ *
+ * Esconder valores (Fase 5): os valores em R$ viram pílula com o olho fechado; o % da carteira
+ * fica. Na linha de seção (fundo `patrimonio`) a pílula usa a cor de superfície inversa.
  */
 
 export interface PosicaoSecao {
@@ -73,7 +78,9 @@ export default function PosicaoConsolidada({ secoes }: { secoes: PosicaoSecao[] 
             })}
             <tr className={`${TABLE_STYLES.totalRow} font-semibold`}>
               <td className={`${TABLE_STYLES.td} font-semibold`}>Total Geral</td>
-              <td className={`${TABLE_STYLES.td} text-right font-semibold`}>{brl(totalGeral)}</td>
+              <td className={`${TABLE_STYLES.td} text-right font-semibold`}>
+                <Sensivel>{brl(totalGeral)}</Sensivel>
+              </td>
               <td className={`${TABLE_STYLES.td} text-right font-semibold`}>100%</td>
             </tr>
           </tbody>
@@ -92,14 +99,20 @@ function SecaoRows({
   subtotal: number;
   totalGeral: number;
 }) {
+  const { ativo: valoresOcultos } = useValoresOcultos();
   return (
     <>
       {/* Linha da categoria = seção (azul tranquilidade) do padrão único de tabelas */}
-      <tr className={TABLE_STYLES.sectionRow} style={TABLE_SECTION_STYLE}>
+      <tr
+        className={`${TABLE_STYLES.sectionRow}${valoresOcultos ? ' mf-sup-inverso' : ''}`}
+        style={TABLE_SECTION_STYLE}
+      >
         <td className={`${TABLE_STYLES.td} text-white`}>
           {CATEGORIA_LABELS[secao.categoria] ?? secao.categoria}
         </td>
-        <td className={`${TABLE_STYLES.td} text-right text-white`}>{brl(subtotal)}</td>
+        <td className={`${TABLE_STYLES.td} text-right text-white`}>
+          <Sensivel>{brl(subtotal)}</Sensivel>
+        </td>
         <td className={`${TABLE_STYLES.td} text-right text-white`}>
           {pctOf(subtotal, totalGeral)}
         </td>
@@ -110,7 +123,9 @@ function SecaoRows({
         .map((ativo) => (
           <tr key={ativo.portfolioId} className={TABLE_STYLES.row}>
             <td className={`${TABLE_STYLES.td} pl-8`}>{ativo.nome}</td>
-            <td className={`${TABLE_STYLES.td} text-right`}>{brl(ativo.valorAtual)}</td>
+            <td className={`${TABLE_STYLES.td} text-right`}>
+              <Sensivel>{brl(ativo.valorAtual)}</Sensivel>
+            </td>
             <td className={`${TABLE_STYLES.td} text-right`}>
               <span className="text-gray-500 dark:text-gray-400">
                 {pctOf(ativo.valorAtual, totalGeral)}

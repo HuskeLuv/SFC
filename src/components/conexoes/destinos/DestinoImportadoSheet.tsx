@@ -10,6 +10,7 @@ import { DestinoAbaList } from '@/components/carteira/mover/DestinoAbaList';
 import { EfeitosMoverList } from '@/components/carteira/mover/EfeitosMoverList';
 import { intersecaoDestinos } from '@/lib/pluggyDestinos';
 import { formatBRL } from '@/utils/format';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { TEXTO_SEM_DESTINO_COMUM } from './AplicarLoteBarra';
 import { TEXTO_NAO_MUDA, paraEscolhaDoMover, useImpactoDestino } from './DestinoPainelLinha';
 import {
@@ -94,7 +95,7 @@ function SheetItem({
       }
     >
       <p className="-mt-1 mb-3 px-1 text-[13px] text-gray-600 dark:text-gray-300">
-        {item.ticker ? item.nome : item.banco} · {formatBRL(item.saldo)}
+        {item.ticker ? item.nome : item.banco} · <Sensivel>{formatBRL(item.saldo)}</Sensivel>
       </p>
       {escolhaInicial && (
         <button

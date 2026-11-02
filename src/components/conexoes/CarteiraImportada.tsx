@@ -6,6 +6,7 @@ import Button from '@/components/ui/button/Button';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import { formatBRL } from '@/utils/format';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { ResponsiveCardList, type ResponsiveColumn } from '@/components/ui/table/ResponsiveTable';
 import MobileStatusPill, { type MobileStatusTone } from '@/components/ui/mobile/MobileStatusPill';
@@ -167,7 +168,13 @@ export default function CarteiraImportada({
       cell: (i) => <span className="[overflow-wrap:anywhere]">{i.name}</span>,
     },
     { id: 'detalhe', header: '', mobile: 'subtitle', cell: detalheInvestimento },
-    { id: 'saldo', header: 'Saldo no banco', mobile: 'value', cell: (i) => formatBRL(i.balance) },
+    {
+      id: 'saldo',
+      header: 'Saldo no banco',
+      mobile: 'value',
+      // Pílula que guarda a largura do valor: o subtítulo ao lado não reflui (decisão 6).
+      cell: (i) => <Sensivel className="mf-sensivel--reserva">{formatBRL(i.balance)}</Sensivel>,
+    },
     ...(comDestinos
       ? [
           {
@@ -237,7 +244,11 @@ export default function CarteiraImportada({
       mobile: 'value',
       cell: (l) => (
         <span className="text-[#D92D20] dark:text-[#F97066]">
-          {l.outstanding != null ? formatBRL(l.outstanding) : '—'}
+          {l.outstanding != null ? (
+            <Sensivel className="mf-sensivel--reserva">{formatBRL(l.outstanding)}</Sensivel>
+          ) : (
+            '—'
+          )}
         </span>
       ),
     },
@@ -388,7 +399,7 @@ export default function CarteiraImportada({
                   <TableCell
                     className={`${td} text-right tabular-nums text-gray-800 dark:text-white/90`}
                   >
-                    {formatBRL(i.balance)}
+                    <Sensivel>{formatBRL(i.balance)}</Sensivel>
                   </TableCell>
                   {comDestinos ? (
                     <TableCell className={td}>
@@ -462,12 +473,16 @@ export default function CarteiraImportada({
                     </div>
                   </TableCell>
                   <TableCell className={`${td} text-right tabular-nums`}>
-                    {l.contractAmount != null ? formatBRL(l.contractAmount) : '—'}
+                    {l.contractAmount != null ? (
+                      <Sensivel>{formatBRL(l.contractAmount)}</Sensivel>
+                    ) : (
+                      '—'
+                    )}
                   </TableCell>
                   <TableCell
                     className={`${td} text-right tabular-nums text-red-600 dark:text-red-400`}
                   >
-                    {l.outstanding != null ? formatBRL(l.outstanding) : '—'}
+                    {l.outstanding != null ? <Sensivel>{formatBRL(l.outstanding)}</Sensivel> : '—'}
                   </TableCell>
                   <TableCell className={`${td} text-gray-600 dark:text-gray-300`}>
                     {l.paidInstallments != null && l.totalInstallments != null

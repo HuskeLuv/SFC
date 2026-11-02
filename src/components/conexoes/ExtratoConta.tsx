@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components
 import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import { ResponsiveCardList, type ResponsiveColumn } from '@/components/ui/table/ResponsiveTable';
 import { formatBRL } from '@/utils/format';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import {
   useDesaplicarTransacoes,
@@ -113,8 +114,10 @@ export default function ExtratoConta({ conta, onFechar, variant = 'card' }: Extr
                 : 'text-mf-patrimonio dark:text-mf-tranquilidade'
             }
           >
-            {saida ? '−' : '+'}
-            {formatBRL(Math.abs(t.amount))}
+            <Sensivel className="mf-sensivel--reserva">
+              {saida ? '−' : '+'}
+              {formatBRL(Math.abs(t.amount))}
+            </Sensivel>
           </span>
         );
       },
@@ -243,8 +246,10 @@ export default function ExtratoConta({ conta, onFechar, variant = 'card' }: Extr
                               : 'text-emerald-600 dark:text-emerald-400'
                           }`}
                         >
-                          {saida ? '−' : '+'}
-                          {formatBRL(Math.abs(t.amount))}
+                          <Sensivel className="mf-sensivel--reserva">
+                            {saida ? '−' : '+'}
+                            {formatBRL(Math.abs(t.amount))}
+                          </Sensivel>
                         </TableCell>
                       </TableRow>
                     );

@@ -44,6 +44,8 @@ import {
   TEXTOS_ACOES_CARTEIRA,
 } from '@/services/analiseAtivos/textosAcoesCarteira';
 import { formatNumber } from '@/utils/format';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
+import { MASCARA_VALOR } from '@/utils/valoresOcultos';
 import type { AddAssetWizardPreset } from '@/components/carteira/AddAssetWizard';
 import type { BarraAcoesAtivoProps, ModalAcaoAtivo } from '@/types/analiseAtivosCriterios';
 import type {
@@ -170,12 +172,14 @@ export function ChipsCarteira({ ticker, classe }: { ticker: string; classe: Clas
   const cl = CLASSE_CARTEIRA[classe];
   const posicao = noOverlay(overlay.data?.posicoes, t) ?? null;
   const plano = planoNaCarteira(overlay.data, t);
+  // esconder valores: a quantidade do usuário sai do title com o olho fechado
+  const { ativo: ocultos } = useValoresOcultos();
   return (
     <>
       {posicao ? (
         <span
           title={formatarTexto(tx.chipNaCarteiraTitulo, {
-            qtd: posicao.quantidade.toLocaleString('pt-BR'),
+            qtd: ocultos ? MASCARA_VALOR : posicao.quantidade.toLocaleString('pt-BR'),
             un: cl.un,
           })}
         >

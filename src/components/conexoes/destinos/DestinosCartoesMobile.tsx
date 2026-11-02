@@ -3,6 +3,7 @@
 import React from 'react';
 import { twMerge } from 'tailwind-merge';
 import { formatBRL } from '@/utils/format';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 import { DestinoSemEscolha, OrigemDestino, SelosDestino } from './DestinosTabela';
 import {
   ehRevisavel,
@@ -84,7 +85,7 @@ export default function DestinosCartoesMobile({
                         </div>
                       </div>
                       <div className="shrink-0 text-right text-sm font-semibold tabular-nums text-gray-800 dark:text-white/90">
-                        {formatBRL(item.saldo)}
+                        <Sensivel>{formatBRL(item.saldo)}</Sensivel>
                       </div>
                     </div>
                     <div className="mt-2.5 flex items-end gap-2 border-t border-gray-100 pt-2.5 dark:border-gray-800">

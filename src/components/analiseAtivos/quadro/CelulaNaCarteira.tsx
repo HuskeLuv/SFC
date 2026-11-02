@@ -12,6 +12,9 @@
  * Stocks e REITs (feature EUA, fatia D): a fonte é a aba Stocks (useCarteiraStocks) ou REIT's
  * (useReit) — o mesmo "% da aba" da Carteira. As chaves são sem pontuação (chaveCarteira): a linha
  * 'BRKB' do wizard casa o BRK.B do Quadro e o symbol manual 'O-<ts>-<rnd>' da aba REIT's vira 'O'.
+ *
+ * Esconder valores (Fase 5): a quantidade do chip vira pílula curta; o "% da carteira" e o objetivo
+ * (%) ficam.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAcoes } from '@/hooks/useAcoes';
@@ -28,6 +31,7 @@ import { formatarAnalise } from '@/components/analiseAtivos/comum/formatarAnalis
 import { formatPct } from '@/utils/format';
 import { TEXTOS_TELA, formatarTexto } from '@/services/analiseAtivos/textosTela';
 import type { ClasseQuadro, OverlayCarteiraResposta } from '@/types/analiseAtivosApi';
+import TextoComSensiveis from '@/components/analiseAtivos/comum/TextoComSensiveis';
 
 export interface PosicaoAba {
   quantidade: number;
@@ -207,6 +211,27 @@ export default function CelulaNaCarteira({
     );
   }
   const planejado = info.tipo === 'planejado';
+  const t = TEXTOS_TELA.quadro;
+  // posição: a quantidade (do usuário) em pílula curta; o resto da frase é o mesmo texto
+  const conteudo =
+    info.tipo === 'posicao' ? (
+      <TextoComSensiveis
+        template={
+          info.percentual === null
+            ? t.posicaoSemPct
+            : classe === 'fii'
+              ? t.posicaoCotas
+              : t.posicaoAcoes
+        }
+        vars={{
+          n: inteiro(info.quantidade),
+          ...(info.percentual === null ? {} : { valor: pct(info.percentual) }),
+        }}
+        modos={{ n: 'curto' }}
+      />
+    ) : (
+      texto
+    );
   return (
     <span
       data-na-carteira={info.tipo}
@@ -220,7 +245,7 @@ export default function CelulaNaCarteira({
           : 'bg-[#EDF2F8] text-[#396CAA] dark:bg-[#6E9DC4]/15 dark:text-[#6E9DC4]'
       } ${className}`}
     >
-      {texto}
+      {conteudo}
     </span>
   );
 }

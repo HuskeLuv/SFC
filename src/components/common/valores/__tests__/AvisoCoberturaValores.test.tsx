@@ -38,6 +38,10 @@ describe('<AvisoCoberturaValores>', () => {
     '/planejamento-financeiro',
     '/dividas',
     '/saude-financeira',
+    '/analise-ativos',
+    '/analise-ativos/WEGE3',
+    '/relatorios',
+    '/conexoes-bancarias',
   ])('não aparece na rota coberta %s', (rota) => {
     renderAviso(rota, true);
     expect(screen.queryByRole('note')).toBeNull();
