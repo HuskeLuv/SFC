@@ -6,6 +6,7 @@ import { useCsrf } from '@/hooks/useCsrf';
 import { useCashflowYear } from '@/context/CashflowYearContext';
 import { queryKeys } from '@/lib/queryKeys';
 import { MYFINANCE_BRAND } from '@/constants/brandColors';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 
 /**
  * Assistente de IA — botão flutuante + painel de conversa (Fase 1, MVP).
@@ -111,6 +112,8 @@ export default function AssistentePanel() {
   const { csrfFetch } = useCsrf();
   const { year: anoPlanilha } = useCashflowYear();
   const queryClient = useQueryClient();
+  // `ocultos` já vem falso com a flag VALORES_OCULTOS_HABILITADO desligada; não depende da rota.
+  const { ocultos: valoresOcultos } = useValoresOcultos();
   const [habilitado, setHabilitado] = useState(false);
   const [aberto, setAberto] = useState(false);
   const [uso, setUso] = useState<Uso | null>(null);
@@ -430,6 +433,30 @@ export default function AssistentePanel() {
               Limpar
             </button>
           </header>
+
+          {/* Esconder valores (decisão 14): as respostas são texto livre da IA e não viram
+              pílula — com o olho fechado só este aviso; com o olho aberto o painel é o de hoje. */}
+          {valoresOcultos && (
+            <p
+              role="note"
+              data-mf-aviso-assistente-ocultos=""
+              className="flex items-center gap-1.5 border-b border-gray-200 bg-gray-50 px-4 py-1.5 text-[11px] text-gray-600 dark:border-gray-800 dark:bg-white/[0.04] dark:text-gray-300"
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                aria-hidden="true"
+                className="shrink-0"
+              >
+                <path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.1A10 10 0 0 1 12 5c6 0 9.5 7 9.5 7a17 17 0 0 1-3 3.9M6.6 6.6A17 17 0 0 0 2.5 12S6 19 12 19a9.7 9.7 0 0 0 5.4-1.6" />
+              </svg>
+              Com o olho fechado, as respostas do assistente ainda podem mostrar valores.
+            </p>
+          )}
 
           <div ref={listaRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
             {mensagens.length === 0 && (
