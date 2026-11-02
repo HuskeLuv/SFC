@@ -10,6 +10,10 @@
  * Fase 5: Análise de ativos (/analise-ativos, com a página do ativo, comparador, salvos e meus
  * relatos), Relatórios (/relatorios: a tela; o PDF do servidor não muda) e Conexões bancárias
  * (/conexoes-bancarias).
+ * Fase 6 (a última): Histórico de alterações (/historico-alteracoes), Agenda (/calendario) e Perfil
+ * (/profile). O Assistente e o sino não têm rota: o painel do Assistente só mostra um aviso
+ * (decisão 14) e as notificações já se cobrem sozinhas (<ValoresOcultosCobertura>). No fechamento
+ * da fase este arquivo e a faixa são removidos (o olho passa a valer no app inteiro).
  * Cada fase acrescenta as suas rotas aqui; a faixa some quando a última fase fecha.
  */
 export const ROTAS_COM_VALORES_OCULTOS: readonly string[] = [
@@ -24,6 +28,9 @@ export const ROTAS_COM_VALORES_OCULTOS: readonly string[] = [
   '/analise-ativos',
   '/relatorios',
   '/conexoes-bancarias',
+  '/historico-alteracoes',
+  '/calendario',
+  '/profile',
 ];
 
 /** A rota (ou uma sub-rota dela) está coberta? */

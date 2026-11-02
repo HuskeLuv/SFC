@@ -98,7 +98,7 @@ for (const variante of VARIANTES) {
       await expect(olhoValores(page)).toHaveAttribute('aria-pressed', 'true', { timeout: 60_000 });
 
       // Tela não coberta: faixa + olho para abrir de novo.
-      await page.goto('/historico-alteracoes', { waitUntil: 'domcontentloaded' });
+      await page.goto('/educacao', { waitUntil: 'domcontentloaded' });
       const faixa = page
         .getByRole('note')
         .filter({ hasText: 'Nesta tela os valores ainda aparecem.' });

@@ -3,7 +3,7 @@ import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
-vi.mock('next/navigation', () => ({ usePathname: () => '/historico-alteracoes' }));
+vi.mock('next/navigation', () => ({ usePathname: () => '/educacao' }));
 
 import {
   ConteudoSensivel,
@@ -150,7 +150,7 @@ describe('expectSemValoresExpostos (o próprio helper)', () => {
   });
 });
 
-/** Olho fechado, mas sem cobertura local (a rota mockada, /historico-alteracoes, não é coberta). */
+/** Olho fechado, mas sem cobertura local (a rota mockada, /educacao, não é coberta). */
 function ComValoresOcultosSemCobertura({ children }: { children: React.ReactNode }) {
   return (
     <ValoresOcultosProvider habilitado inicial>

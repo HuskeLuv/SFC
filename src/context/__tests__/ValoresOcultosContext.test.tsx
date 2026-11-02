@@ -143,7 +143,7 @@ describe('ValoresOcultosContext', () => {
   });
 
   it('ativo só nas rotas cobertas; a cobertura local vale em qualquer rota', () => {
-    navegacao.pathname = '/historico-alteracoes';
+    navegacao.pathname = '/educacao';
     const { result } = renderHook(() => useValoresOcultos(), { wrapper: wrapper(true, true) });
     expect(result.current).toMatchObject({ ocultos: true, rotaCoberta: false, ativo: false });
     expect(result.current.mascarar('R$ 1,00')).toBe('R$ 1,00');
