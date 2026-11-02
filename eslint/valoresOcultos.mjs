@@ -10,11 +10,10 @@
  * Strings devolvidas por render/getValue/cell (fora do JSX) não são acusadas: a autodetecção de
  * R$/US$ dos componentes compartilhados e os testes com sentinelas cobrem esses casos.
  *
- * Nível: 'error' nas pastas das Fases 1, 2, 3, 4 e 5 (todas fechadas com zero ocorrências). A
- * Fase 2 fica em GLOBS_VALORES_OCULTOS_FASE2 (bloco próprio por causa da opção `formattersExtras`),
- * a Fase 3 (Planejar) em GLOBS_VALORES_OCULTOS_FASE3, a Fase 4 (Dívidas e Saúde Financeira) em
- * GLOBS_VALORES_OCULTOS_FASE4 e a Fase 5 (Análise de Ativos, Relatórios e Conexões bancárias) em
- * GLOBS_VALORES_OCULTOS_FASE5.
+ * Nível: 'error' em TODO src/components/** e src/app/(admin)/** (GLOBS_VALORES_OCULTOS) desde o
+ * fechamento da Fase 6, com zero ocorrências — menos Comunidade, Admin e Landing/páginas públicas
+ * (IGNORES_VALORES_OCULTOS). As Fases 2 e 5 têm um bloco a mais só por causa da opção
+ * `formattersExtras` (helpers locais de dinheiro sem símbolo).
  *
  * Fluxo de caixa: o formatCurrency DEPRECATED (src/utils/formatters.ts) é formatNumber, sem "R$".
  * A regra pega formatCurrency/formatBRL no JSX e, na Fase 2, o num() do Orçamento v2 (opção
@@ -140,30 +139,41 @@ export const pluginValoresOcultos = {
   rules: { 'valor-sem-sensivel': valorSemSensivel },
 };
 
-/** Pastas cobertas (Fase 1). Formulários ficam visíveis (decisão 3), por isso saem. */
+/**
+ * O app logado inteiro ('error', zero ocorrências desde o fechamento da Fase 6). Formulários ficam
+ * visíveis (decisão 3): o `value` de input é prop e a regra não acusa; texto de apoio fora do campo
+ * vira pílula, e o que fica visível de propósito (ex.: assistentes de Lançar/Aporte/Resgate,
+ * /ativos/[id]/editar) leva `eslint-disable-next-line mf/valor-sem-sensivel` com o motivo.
+ * Dado de MERCADO (cotação, índices, preço de ativo, fundamentos) fica visível com o mesmo
+ * comentário ou sem formatter de dinheiro. Atenção: números montados à mão (toFixed, formatNumber,
+ * template strings) e props como `hint=`/`change=` não são acusados — marque à mão e confira pelo
+ * innerText (e2e, coletarNumerosDaPosicao com ignorarPercentuais).
+ */
 export const GLOBS_VALORES_OCULTOS = [
-  'src/components/carteira/**/*.{ts,tsx}',
-  'src/components/analises/**/*.{ts,tsx}',
-  'src/components/consultor/**/*.{ts,tsx}',
-  'src/components/consultant/**/*.{ts,tsx}',
-  'src/components/charts/**/*.{ts,tsx}',
-  'src/app/(admin)/(home)/ativos/[[]id]/page.tsx',
-  'src/app/(admin)/(home)/consultor/**/*.{ts,tsx}',
+  'src/components/**/*.{ts,tsx}',
+  'src/app/(admin)/**/*.{ts,tsx}',
 ];
 
 export const IGNORES_VALORES_OCULTOS = [
-  'src/components/carteira/**/wizard/**',
-  'src/components/carteira/**/redeemWizard/**',
-  'src/components/carteira/**/mover/**',
-  'src/components/carteira/**/Add*.tsx',
-  'src/components/carteira/**/AlocacaoMetaSheet.tsx',
-  'src/components/carteira/**/MobileEditSheet.tsx',
+  // Comunidade (flag desligada; fora do esconder valores).
+  'src/components/comunidade/**',
+  'src/app/(admin)/(others-pages)/comunidade/**',
+  // Painel /admin (só leitura, dados agregados da plataforma, não do usuário logado).
+  'src/components/admin/**',
+  'src/app/(admin)/(others-pages)/admin/**',
+  // Landing/site institucional e páginas públicas (signin/signup/reset, termos, cookies).
+  'src/components/landing/**',
+  'src/components/legal/**',
+  'src/components/auth/SignInForm.tsx',
+  'src/components/auth/SignUpForm.tsx',
+  'src/components/auth/ResetPasswordForm.tsx',
   '**/__tests__/**',
 ];
 
 /**
- * Fase 2 ('error' desde o fechamento): Fluxo de caixa e Orçamento v1/v2, com a opção
- * OPCOES_VALORES_OCULTOS_FASE2 (num() do Orçamento v2).
+ * Fase 2 (Fluxo de caixa e Orçamento v1/v2): bloco a mais só para a opção `formattersExtras`
+ * (num() do Orçamento v2). Os formulários do fluxo saem DESTE bloco (o num() neles é o número
+ * digitado), mas continuam no bloco do app inteiro, sem a opção.
  */
 export const OPCOES_VALORES_OCULTOS_FASE2 = { formattersExtras: ['num'] };
 
@@ -174,11 +184,6 @@ export const GLOBS_VALORES_OCULTOS_FASE2 = [
   'src/components/tables/DataTables/TableTwo/DataTableTwo*.tsx',
 ];
 
-/**
- * Formulários do fluxo ficam visíveis (decisão 3): os campos mostram o número digitado. O que for
- * só leitura dentro das folhas (CellSheet, YearMiniChart, totais de apoio do CellValuePanel)
- * continua no lint.
- */
 export const IGNORES_VALORES_OCULTOS_FASE2 = [
   'src/components/cashflow/AddRowForm.tsx',
   'src/components/cashflow/CurrencyInput.tsx',
@@ -195,60 +200,13 @@ export const IGNORES_VALORES_OCULTOS_FASE2 = [
 ];
 
 /**
- * Fase 3 ('error' desde o fechamento, com zero ocorrências): Planejar — Sonhos e
- * Aposentadoria (/planejamento-financeiro). Sem `formattersExtras`: o formatPremissa do
- * PremissasCard devolve dinheiro, % e anos, então marque à mão e confira pelo innerText (e2e).
- */
-export const GLOBS_VALORES_OCULTOS_FASE3 = [
-  'src/components/planejamento/**/*.{ts,tsx}',
-  'src/app/(admin)/(others-pages)/planejamento-financeiro/**/*.{ts,tsx}',
-];
-
-/**
- * Formulários do Planejar ficam visíveis (decisão 3): os campos mostram o número digitado (o
- * `value` de input é prop, a regra não acusa). Nenhum deles é formulário PURO — todos têm texto de
- * apoio/resultado fora do campo (aporte mensal calculado, "Planejado:", variação do patrimônio,
- * patrimônio projetado), que vira pílula; por isso continuam no lint. Atenção: `hint=` também é
- * prop e a regra não acusa — marque à mão e confira pelo innerText (e2e).
- */
-export const IGNORES_VALORES_OCULTOS_FASE3 = ['**/__tests__/**'];
-
-/**
- * Fase 4 ('error' desde o fechamento, com zero ocorrências): Dívidas (/dividas, com o
- * detalhe e o cronograma) e Saúde Financeira (/saude-financeira). formatBRL/formatBRLCompact dos
- * utils.ts das duas pastas já são reconhecidos. Números montados à mão (toFixed, formatCurrency
- * sem "R$" via formatNumber, template strings) e props como `hint=`/`change=` não são acusados —
- * marque à mão e confira pelo innerText (e2e).
- */
-export const GLOBS_VALORES_OCULTOS_FASE4 = [
-  'src/components/dividas/**/*.{ts,tsx}',
-  'src/components/saude-financeira/**/*.{ts,tsx}',
-  'src/app/(admin)/(others-pages)/dividas/**/*.{ts,tsx}',
-  'src/app/(admin)/(others-pages)/saude-financeira/**/*.{ts,tsx}',
-];
-
-/**
- * Formulários da Fase 4 ficam visíveis (decisão 3): DividaForm, DividaRegistrarPagamentoModal,
- * mobile/SituacaoSheet, MetasConfigForm e SeguroForm. Continuam no lint porque o texto de apoio
- * fora do campo (ex.: "Parcela esperada:" do Registrar pagamento) vira pílula; o `value` de input
- * é prop e a regra não acusa.
- */
-export const IGNORES_VALORES_OCULTOS_FASE4 = ['**/__tests__/**'];
-
-/**
- * Fase 5 ('error' desde o fechamento, com zero ocorrências):
- * Relatórios (a TELA — o PDF do servidor não muda), Conexões bancárias e, na Análise de Ativos, SÓ
- * os arquivos com dado do USUÁRIO (posição, quantidade, preço médio, valor na carteira, meta de
- * renda, plano). Dado de MERCADO (cotação, preço-teto, dividendos por cota, fundamentos, gráficos
- * de cotação/fundamentos) fica visível sem marcação e por isso fica fora do lint (globs
- * explícitos). Os helpers locais de dinheiro (brl/usd/dinheiro*) entram por
- * OPCOES_VALORES_OCULTOS_FASE5. Atenção: formatarNumeroBR com "R$" em template string, quantidade
- * em formatNumber/formatarQuantidade e toLocaleString sem opções não são acusados — marque à mão e confira pelo
- * innerText (e2e, coletarNumerosDaPosicao com ignorarPercentuais).
+ * Fase 5 (Relatórios, Conexões bancárias e, na Análise de Ativos, só os arquivos com dado do
+ * USUÁRIO): bloco a mais só para a opção `formattersExtras` (brl/usd/dinheiro* locais). Os
+ * arquivos de MERCADO da Análise de Ativos ficam fora deste bloco (os helpers locais ali formatam
+ * cotação), mas continuam no bloco do app inteiro, sem a opção. Atenção: formatarNumeroBR com
+ * "R$" em template string e quantidade em formatNumber/formatarQuantidade não são acusados.
  */
 export const OPCOES_VALORES_OCULTOS_FASE5 = {
-  // brl/usd: helpers locais dos Relatórios (toLocaleString com style 'currency'); dinheiro*: os da
-  // Análise de Ativos (BlocoNaCarteira, ModalPlanejar, ModalVerNaCarteira, ModalRegistrarOperacao).
   formattersExtras: ['brl', 'usd', 'dinheiro', 'dinheiro0', 'dinheiroInteiro', 'dinheiroAba'],
 };
 
@@ -268,43 +226,4 @@ export const GLOBS_VALORES_OCULTOS_FASE5 = [
   'src/components/analiseAtivos/quadro/CelulaNaCarteira.tsx',
 ];
 
-/**
- * Formulários da Fase 5 ficam visíveis (decisão 3): ModalRegistrarOperacao e ModalPlanejar
- * continuam no lint porque o texto de apoio fora do campo (total da operação, posição, preço
- * médio, valor do plano) vira pílula; o `value` de input é prop e a regra não acusa. FormPremissas
- * (premissas de mercado: LPA, VPA, DPA) e os modais de conectar/autorizar das Conexões não têm
- * valor do usuário — FormPremissas fica fora dos globs.
- */
 export const IGNORES_VALORES_OCULTOS_FASE5 = ['**/__tests__/**'];
-
-/**
- * Fase 6 (a última; 'warn' durante a fase, 'error' com zero ocorrências no fechamento): TODO o
- * resto do app logado — Histórico de alterações, Agenda (/calendario), Assistente (só aviso fixo,
- * decisão 14), Perfil, cabeçalho e qualquer outro arquivo de src/components/** e src/app/(admin)/**.
- * As pastas das Fases 1–5 continuam com os seus blocos (que vêm DEPOIS no eslint.config.mjs e por
- * isso mantêm 'error' e as opções de cada fase). Ficam de fora (IGNORES_VALORES_OCULTOS_FASE6):
- * Comunidade, Admin, Landing/site institucional e páginas públicas (signin/signup/termos).
- * Atenção: números montados à mão (toFixed, formatNumber, template strings) e props como `hint=`
- * não são acusados — marque à mão e confira pelo innerText (e2e, coletarNumerosDaPosicao com
- * ignorarPercentuais).
- */
-export const GLOBS_VALORES_OCULTOS_FASE6 = [
-  'src/components/**/*.{ts,tsx}',
-  'src/app/(admin)/**/*.{ts,tsx}',
-];
-
-export const IGNORES_VALORES_OCULTOS_FASE6 = [
-  // Comunidade (flag desligada; fora do esconder valores).
-  'src/components/comunidade/**',
-  'src/app/(admin)/(others-pages)/comunidade/**',
-  // Painel /admin (só leitura, dados agregados da plataforma, não do usuário logado).
-  'src/components/admin/**',
-  'src/app/(admin)/(others-pages)/admin/**',
-  // Landing/site institucional e páginas públicas (signin/signup/reset, termos, cookies).
-  'src/components/landing/**',
-  'src/components/legal/**',
-  'src/components/auth/SignInForm.tsx',
-  'src/components/auth/SignUpForm.tsx',
-  'src/components/auth/ResetPasswordForm.tsx',
-  '**/__tests__/**',
-];
