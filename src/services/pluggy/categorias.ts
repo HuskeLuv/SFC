@@ -11,13 +11,22 @@
  *  - 'investimento'  → aporte/resgate: a Carteira é a fonte; sugestão = ignorar
  *  - 'nenhuma'       → sem sugestão (o usuário escolhe)
  *
- * MAPA A VALIDAR COM O PEDRO (decisão 14/09/2026): os nomes do template são
- * os da FLC; itens que não existem no template (ex.: "Assinaturas") caem em
- * "Outros" do subgrupo mais próximo.
+ * MAPA A VALIDAR COM O PEDRO (decisão 14/09/2026; linhas novas de 11/2026): os nomes são os das
+ * linhas padrão (`lib/cashflow/linhasPadrao.ts`); o que não tem linha própria cai em "Outros" do
+ * subgrupo mais próximo. `alternativas` = onde a linha morava no template antigo.
  */
 
 export type SugestaoCategoria =
-  | { tipo: 'linha'; caminho: readonly string[]; item: string }
+  | {
+      tipo: 'linha';
+      caminho: readonly string[];
+      item: string;
+      /**
+       * Onde a mesma linha morava/se chamava no template de antes de 11/2026. Quem já tinha dados
+       * guarda o nome antigo na cópia: o resolvedor tenta `item` e depois cada alternativa.
+       */
+      alternativas?: readonly { caminho: readonly string[]; item: string }[];
+    }
   | { tipo: 'transferencia' | 'investimento' | 'nenhuma' };
 
 const ENT_FIXAS = ['Entradas', 'Entradas Fixas'] as const;
@@ -35,10 +44,17 @@ const DEPENDENTES = ['Despesas', 'Despesas Fixas', 'Despesas com Dependentes'] a
 const FINANCEIRAS = ['Despesas', 'Despesas Fixas', 'Despesas Financeiras'] as const;
 const VARIAVEIS = ['Despesas', 'Despesas Variáveis'] as const;
 
-const linha = (caminho: readonly string[], item: string): SugestaoCategoria => ({
+const linha = (
+  caminho: readonly string[],
+  item: string,
+  ...alternativas: [readonly string[], string][]
+): SugestaoCategoria => ({
   tipo: 'linha',
   caminho,
   item,
+  ...(alternativas.length > 0
+    ? { alternativas: alternativas.map(([c, i]) => ({ caminho: c, item: i })) }
+    : {}),
 });
 const TRANSFERENCIA: SugestaoCategoria = { tipo: 'transferencia' };
 const INVESTIMENTO: SugestaoCategoria = { tipo: 'investimento' };
@@ -48,19 +64,22 @@ const NENHUMA: SugestaoCategoria = { tipo: 'nenhuma' };
 const MAPA: Record<string, SugestaoCategoria> = {
   // Income
   Income: linha(ENT_SEM_TRIB, 'Outros'),
-  Salary: linha(ENT_FIXAS, 'Salário'),
+  Salary: linha(ENT_FIXAS, 'Pró-labore / Salário 1', [ENT_FIXAS, 'Salário']),
   Retirement: linha(ENT_FIXAS, 'Outros'),
-  'Entrepreneurial activities': linha(ENT_COM_TRIB, 'Empresa'),
+  'Entrepreneurial activities': linha(ENT_COM_TRIB, 'Notas Fiscais Emitidas', [
+    ENT_COM_TRIB,
+    'Empresa',
+  ]),
   'Government aid': linha(ENT_SEM_TRIB, 'Outros'),
   'Non-recurring income': linha(ENT_SEM_TRIB, 'Outros'),
   // Loans and Financing
   'Loans and Financing': linha(FINANCEIRAS, 'Outros'),
   'Late payment and overdraft costs': linha(FINANCEIRAS, 'Cheque Especial'),
-  'Interests charged': linha(FINANCEIRAS, 'Outros'),
+  'Interests charged': linha(FINANCEIRAS, 'Cheque Especial', [FINANCEIRAS, 'Outros']),
   Loans: linha(FINANCEIRAS, 'Outros'),
   Financing: linha(FINANCEIRAS, 'Outros'),
   'Real estate financing': linha(HABITACAO, 'Aluguel / Prestação'),
-  'Vehicle Financing': linha(TRANSPORTE, 'Prestação Moto/ Carro'),
+  'Vehicle Financing': linha(TRANSPORTE, 'Prestação Moto / Carro'),
   'Student loan': linha(EDUCACAO, 'Outros'),
   // Investments — a Carteira é a fonte (aporte/resgate já entram por lá)
   Investments: INVESTIMENTO,
@@ -100,59 +119,59 @@ const MAPA: Record<string, SugestaoCategoria> = {
   Alimony: linha(DEPENDENTES, 'Pensão'),
   // Services
   Services: NENHUMA,
-  Telecommunications: linha(HABITACAO, 'Telefones celulares'),
+  Telecommunications: linha(PESSOAIS, 'Celular', [HABITACAO, 'Telefones celulares']),
   Internet: linha(HABITACAO, 'Internet'),
-  Mobile: linha(HABITACAO, 'Telefones celulares'),
+  Mobile: linha(PESSOAIS, 'Celular', [HABITACAO, 'Telefones celulares']),
   TV: linha(HABITACAO, 'Outros'),
   Education: linha(EDUCACAO, 'Outros'),
   'Online Courses': linha(EDUCACAO, 'Cursos'),
-  University: linha(EDUCACAO, 'Escola/Faculdade'),
-  School: linha(EDUCACAO, 'Escola/Faculdade'),
-  Kindergarten: linha(EDUCACAO, 'Escola/Faculdade'),
-  'Wellness and fitness': linha(SAUDE, 'Outros'),
-  'Gyms and fitness centers': linha(SAUDE, 'Outros'),
+  University: linha(DEPENDENTES, 'Escola / Faculdade', [EDUCACAO, 'Escola/Faculdade']),
+  School: linha(DEPENDENTES, 'Escola / Faculdade', [EDUCACAO, 'Escola/Faculdade']),
+  Kindergarten: linha(DEPENDENTES, 'Escola / Faculdade', [EDUCACAO, 'Escola/Faculdade']),
+  'Wellness and fitness': linha(PESSOAIS, 'Academia', [SAUDE, 'Outros']),
+  'Gyms and fitness centers': linha(PESSOAIS, 'Academia', [SAUDE, 'Outros']),
   'Sports practice': linha(LAZER_FIXO, 'Hobbies'),
-  Wellness: linha(PESSOAIS, 'Cuidados pessoais'),
+  Wellness: linha(PESSOAIS, 'Estética', [PESSOAIS, 'Cuidados pessoais']),
   Tickets: linha(LAZER_FIXO, 'Outros'),
   'Stadiums and arenas': linha(LAZER_FIXO, 'Outros'),
   'Landmarks and museums': linha(LAZER_FIXO, 'Outros'),
-  'Cinema, theater and concerts': linha(LAZER_FIXO, 'Cinema'),
+  'Cinema, theater and concerts': linha(LAZER_FIXO, 'Passeios', [LAZER_FIXO, 'Cinema']),
   // Shopping
-  Shopping: linha(VARIAVEIS, 'Compras'),
-  'Online shopping': linha(VARIAVEIS, 'Compras'),
-  Electronics: linha(VARIAVEIS, 'Compras'),
+  Shopping: linha(VARIAVEIS, 'Outros', [VARIAVEIS, 'Compras']),
+  'Online shopping': linha(VARIAVEIS, 'Outros', [VARIAVEIS, 'Compras']),
+  Electronics: linha(LAZER_FIXO, 'Mídias e acessórios', [VARIAVEIS, 'Compras']),
   'Pet supplies and vet': linha(PETS, 'Outros'),
-  Clothing: linha(PESSOAIS, 'Roupas'),
+  Clothing: linha(PESSOAIS, 'Vestuário', [PESSOAIS, 'Roupas']),
   'Kids and toys': linha(DEPENDENTES, 'Outros'),
-  Bookstore: linha(EDUCACAO, 'Material escolar'),
+  Bookstore: linha(LAZER_FIXO, 'Livros, jornais e revistas', [EDUCACAO, 'Material escolar']),
   'Sports goods': linha(PESSOAIS, 'Acessórios'),
-  'Office Supplies': linha(VARIAVEIS, 'Compras'),
-  Cashback: linha(ENT_SEM_TRIB, 'Cash Back'),
-  // Digital services (o template não tem "Assinaturas")
-  'Digital services': linha(LAZER_FIXO, 'Outros'),
+  'Office Supplies': linha(VARIAVEIS, 'Papelaria', [VARIAVEIS, 'Compras']),
+  Cashback: linha(ENT_SEM_TRIB, 'Outros', [ENT_SEM_TRIB, 'Cash Back']),
+  // Digital services
+  'Digital services': linha(PESSOAIS, 'Assinaturas / Streaming', [LAZER_FIXO, 'Outros']),
   Gaming: linha(LAZER_FIXO, 'Hobbies'),
-  'Video streaming': linha(LAZER_FIXO, 'Outros'),
-  'Music streaming': linha(LAZER_FIXO, 'Outros'),
+  'Video streaming': linha(PESSOAIS, 'Assinaturas / Streaming', [LAZER_FIXO, 'Outros']),
+  'Music streaming': linha(PESSOAIS, 'Assinaturas / Streaming', [LAZER_FIXO, 'Outros']),
   // Alimentação
   Groceries: linha(HABITACAO, 'Supermercado'),
   'Food and drinks': linha(LAZER_FIXO, 'Restaurantes'),
   'Eating out': linha(LAZER_FIXO, 'Restaurantes'),
-  'Food delivery': linha(LAZER_FIXO, 'Restaurantes'),
+  'Food delivery': linha(LAZER_FIXO, 'Delivery', [LAZER_FIXO, 'Restaurantes']),
   // Travel
-  Travel: linha(VARIAVEIS, 'Viagem'),
-  'Airport and airlines': linha(VARIAVEIS, 'Viagem'),
-  Accommodation: linha(VARIAVEIS, 'Viagem'),
-  'Mileage programs': linha(VARIAVEIS, 'Viagem'),
-  'Bus tickets': linha(VARIAVEIS, 'Viagem'),
+  Travel: linha(LAZER_FIXO, 'Passagens', [VARIAVEIS, 'Viagem']),
+  'Airport and airlines': linha(LAZER_FIXO, 'Passagens', [VARIAVEIS, 'Viagem']),
+  Accommodation: linha(LAZER_FIXO, 'Hospedagens', [VARIAVEIS, 'Viagem']),
+  'Mileage programs': linha(PESSOAIS, 'Clube de milhas', [VARIAVEIS, 'Viagem']),
+  'Bus tickets': linha(TRANSPORTE, 'Ônibus', [VARIAVEIS, 'Viagem']),
   // Outros
   Donations: linha(FINANCEIRAS, 'Doações / Dízimos'),
   Gambling: linha(LAZER_FIXO, 'Outros'),
   Lottery: linha(LAZER_FIXO, 'Outros'),
   'Online bet': linha(LAZER_FIXO, 'Outros'),
   // Taxes
-  Taxes: linha(IMPOSTOS, 'Outros impostos'),
-  'Income taxes': linha(IMPOSTOS, 'IRPF'),
-  'Taxes on investments': linha(IMPOSTOS, 'Outros impostos'),
+  Taxes: linha(IMPOSTOS, 'Outros', [IMPOSTOS, 'Outros impostos']),
+  'Income taxes': linha(IMPOSTOS, 'Outros', [IMPOSTOS, 'IRPF']),
+  'Taxes on investments': linha(IMPOSTOS, 'Outros', [IMPOSTOS, 'Outros impostos']),
   'Tax on financial operations': linha(FINANCEIRAS, 'Taxas Bancárias'),
   // Bank fees
   'Bank fees': linha(FINANCEIRAS, 'Taxas Bancárias'),
@@ -171,30 +190,33 @@ const MAPA: Record<string, SugestaoCategoria> = {
   // Healthcare
   Healthcare: linha(SAUDE, 'Outros'),
   Dentist: linha(SAUDE, 'Dentista'),
-  Pharmacy: linha(SAUDE, 'Medicamentos'),
+  Pharmacy: linha(SAUDE, 'Medicamentos / Farmácia', [SAUDE, 'Medicamentos']),
   Optometry: linha(SAUDE, 'Médicos e terapeutas'),
   'Hospital clinics and labs': linha(SAUDE, 'Exames'),
   // Transportation
   Transportation: linha(TRANSPORTE, 'Outros'),
-  'Taxi and ride-hailing': linha(TRANSPORTE, 'Uber'),
-  'Public transportation': linha(TRANSPORTE, 'Metro'),
+  'Taxi and ride-hailing': linha(TRANSPORTE, 'Uber / Táxi', [TRANSPORTE, 'Uber']),
+  'Public transportation': linha(TRANSPORTE, 'Metrô'),
   'Car rental': linha(TRANSPORTE, 'Outros'),
   Bicycle: linha(TRANSPORTE, 'Outros'),
   Automotive: linha(TRANSPORTE, 'Outros'),
   'Gas stations': linha(TRANSPORTE, 'Combustível'),
   Parking: linha(TRANSPORTE, 'Estacionamentos'),
   'Tolls and in-vehicle payment': linha(TRANSPORTE, 'Pedágio'),
-  'Vehicle ownership taxes and fees': linha(TRANSPORTE, 'IPVA + Seguro Obrigatório Carro'),
+  'Vehicle ownership taxes and fees': linha(TRANSPORTE, 'IPVA + Licenciamento', [
+    TRANSPORTE,
+    'IPVA + Seguro Obrigatório Carro',
+  ]),
   'Vehicle maintenance': linha(TRANSPORTE, 'Manutenção / Revisões'),
   'Traffic tickets': linha(TRANSPORTE, 'Multas'),
   // Insurance
   Insurance: NENHUMA,
-  'Life insurance': linha(SAUDE, 'Seguro Vida'),
+  'Life insurance': linha(SAUDE, 'Seguro de Vida', [SAUDE, 'Seguro Vida']),
   'Home Insurance': linha(HABITACAO, 'Seguro Residência'),
   'Health insurance': linha(SAUDE, 'Plano de Saúde'),
   'Vehicle insurance': linha(TRANSPORTE, 'Seguro Carro'),
   // Genéricas
-  Leisure: linha(VARIAVEIS, 'Lazer'),
+  Leisure: linha(LAZER_FIXO, 'Outros', [VARIAVEIS, 'Lazer']),
   Other: NENHUMA,
 };
 

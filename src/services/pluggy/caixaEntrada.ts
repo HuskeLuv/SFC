@@ -48,7 +48,15 @@ interface GrupoEstrutura {
 export const isLinhaEspelho = (it: { objetivoId?: string | null; dividaId?: string | null }) =>
   !!it.objetivoId || !!it.dividaId;
 
-const norm = (s: string) => s.trim().toLowerCase();
+/** Sem acento/caixa, espaços colapsados e barra espaçada ("Moto/ Carro" ≡ "moto / carro"). */
+const norm = (s: string) =>
+  s
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/\s*\/\s*/g, ' / ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 /** Índice "caminho|item" → id, montado uma vez por request sobre a árvore mesclada. */
 export function indexarEstrutura(grupos: GrupoEstrutura[]): Map<string, string> {
@@ -71,11 +79,15 @@ export function resolverSugestao(
 ): SugestaoLinha {
   const s = sugerirPorCategoria(categoria);
   if (s.tipo !== 'linha') return { tipo: s.tipo, itemId: null, rotulo: null };
-  const chave = [...s.caminho.map(norm), norm(s.item)].join('|');
+  const chave = (caminho: readonly string[], item: string) =>
+    [...caminho.map(norm), norm(item)].join('|');
+  const candidatos = [{ caminho: s.caminho, item: s.item }, ...(s.alternativas ?? [])];
+  const achado = candidatos.find((c) => idx.has(chave(c.caminho, c.item)));
+  const alvo = achado ?? candidatos[0];
   return {
     tipo: 'linha',
-    itemId: idx.get(chave) ?? null,
-    rotulo: [...s.caminho.slice(1), s.item].join(' › '),
+    itemId: achado ? idx.get(chave(achado.caminho, achado.item))! : null,
+    rotulo: [...alvo.caminho.slice(1), alvo.item].join(' › '),
   };
 }
 
