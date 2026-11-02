@@ -79,13 +79,13 @@ const eslintConfig = [
     },
   },
   // Fase 5 (Análise de Ativos — só arquivos com dado do usuário —, Relatórios e Conexões
-  // bancárias): 'warn' enquanto a fase está aberta; vira 'error' no fechamento.
+  // bancárias): 'error' desde o fechamento da fase, com zero ocorrências.
   {
     files: GLOBS_VALORES_OCULTOS_FASE5,
     ignores: IGNORES_VALORES_OCULTOS_FASE5,
     plugins: { mf: pluginValoresOcultos },
     rules: {
-      "mf/valor-sem-sensivel": ["warn", OPCOES_VALORES_OCULTOS_FASE5],
+      "mf/valor-sem-sensivel": ["error", OPCOES_VALORES_OCULTOS_FASE5],
     },
   },
 ];
