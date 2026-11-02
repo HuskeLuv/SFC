@@ -26,14 +26,21 @@ import {
  * (.mf-sensivel--reserva): o resumo e os detalhes quebram nas mesmas linhas com o olho aberto ou
  * fechado (decisão 6). Olho aberto: a mesma string de formatChangeValue.
  */
+/** A partir de 7 caracteres o número já é tão largo quanto a pílula curta (3,5em). */
+const MIN_CARACTERES_RESERVA = 7;
+
 export const ValorAlteracao: React.FC<{ value: unknown; format?: ChangeValueFormat }> = ({
   value,
   format,
 }) => {
   const texto = formatChangeValue(value, format);
   if (typeof value === 'number' && format !== 'percent') {
+    const curto = format !== 'currency';
+    // Quantidade curta ("137,25") é mais estreita que a pílula mínima da reserva (3,5em), que
+    // cobriria o rótulo ao lado: usa a pílula curta comum, de largura parecida com o número.
+    const reserva = !curto || texto.length >= MIN_CARACTERES_RESERVA;
     return (
-      <Sensivel curto={format !== 'currency'} className="mf-sensivel--reserva">
+      <Sensivel curto={curto} className={reserva ? 'mf-sensivel--reserva' : undefined}>
         {texto}
       </Sensivel>
     );

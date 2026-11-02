@@ -167,9 +167,8 @@ describe.each([
     expectPilulas(container);
     // Quantidade = pílula curta; dinheiro = pílula normal (as duas guardam a largura do valor).
     expect(container.querySelectorAll('.mf-sensivel--curto').length).toBeGreaterThan(0);
-    expect(container.querySelectorAll('.mf-sensivel--reserva').length).toBe(
-      container.querySelectorAll('.mf-sensivel').length,
-    );
+    // Dinheiro guarda a largura do valor (.mf-sensivel--reserva).
+    expect(container.querySelectorAll('.mf-sensivel--reserva').length).toBeGreaterThan(0);
     expect(container.textContent).toContain('0,89%');
     expect(container.textContent).toContain('01/01/2050');
     expect(container.textContent).toContain('Editou o ativo PETR4');
