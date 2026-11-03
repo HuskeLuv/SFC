@@ -3,6 +3,13 @@
 import React, { useState } from 'react';
 import { formatBRL } from '@/utils/format';
 import { TextoSensivel } from '@/components/common/valores/Sensivel';
+import { linhaTemGeralNaCategoria } from '@/lib/cashflow/geralDaCategoria';
+import type { DestinoExclusaoLinha } from '@/hooks/useGroupEditMode';
+import {
+  TEXTO_OUTROS_ANOS,
+  resumirValoresLinha,
+  textoImpactoExclusao,
+} from '@/components/cashflow/ConfirmarExclusaoLinha';
 import {
   InfoNote,
   PrimaryButton,
@@ -27,6 +34,7 @@ export function DeletePanel({
   year,
   item,
   group,
+  groups,
   caps,
   values,
   mutations,
@@ -40,7 +48,12 @@ export function DeletePanel({
   const filled = values.filter((v) => v !== 0).length;
   const total = values.reduce((a, b) => a + b, 0);
 
-  const handleDelete = async () => {
+  // Orçamento v2 (86e3vxd5r): categoria com "Geral" e linha com valores → escolher o destino.
+  const perguntaDestino =
+    linhaTemGeralNaCategoria(groups, item.id) &&
+    (item.values ?? []).some((v) => v.value !== 0 || (v.valorBanco ?? 0) !== 0);
+
+  const handleDelete = async (destino?: DestinoExclusaoLinha) => {
     if (saving) return;
     setSaving(true);
     setBusy(true);
@@ -50,6 +63,7 @@ export function DeletePanel({
       const res = await mutations.saveItemChanges({
         groupId: item.groupId || group.id,
         deletes: [item.id],
+        ...(destino ? { destinoExclusao: { [item.id]: destino } } : {}),
       });
       if (!res.ok) failure = (res.httpOk && res.error) || SAVE_FAILED_MESSAGE;
     } catch {
@@ -78,40 +92,82 @@ export function DeletePanel({
               {SONHO_DELETE_TEXT} O sonho também será apagado do Planejamento.
             </p>
           )}
-          <p>
-            Os valores do ano somem
-            {filled > 0 ? (
-              <TextoSensivel
-                texto={` (${filled} ${filled === 1 ? 'mês' : 'meses'} de ${year}, ${formatBRL(total)})`}
-              />
-            ) : (
-              ''
-            )}
-            .{' '}
-            {linhaPadrao ? (
-              // Ticket 06/10/2026: linha padrão sai só da planilha do usuário (oculta).
-              <>
-                É uma <b>linha padrão</b>: sai só da sua planilha. Para trazer de volta, use{' '}
-                <b>Desfazer</b> no Histórico de alterações.
-              </>
-            ) : (
-              <>
-                <b>Não dá para desfazer</b>: para voltar, será preciso criar a linha de novo.
-              </>
-            )}
-          </p>
+          {perguntaDestino ? (
+            <>
+              <p>
+                <TextoSensivel
+                  texto={textoImpactoExclusao(resumirValoresLinha(item.values, year))}
+                />
+              </p>
+              <p className="mt-1.5">
+                <b>Mover para Geral</b> soma os valores na linha Geral da categoria. <b>Apagar</b>{' '}
+                tira os valores do Fluxo e do Orçamento (use se você já lançou esses valores em
+                outra linha).
+              </p>
+              <p className="mt-1.5">{TEXTO_OUTROS_ANOS}</p>
+            </>
+          ) : (
+            <p>
+              Os valores do ano somem
+              {filled > 0 ? (
+                <TextoSensivel
+                  texto={` (${filled} ${filled === 1 ? 'mês' : 'meses'} de ${year}, ${formatBRL(total)})`}
+                />
+              ) : (
+                ''
+              )}
+              .{' '}
+              {linhaPadrao ? (
+                // Ticket 06/10/2026: linha padrão sai só da planilha do usuário (oculta).
+                <>
+                  É uma <b>linha padrão</b>: sai só da sua planilha. Para trazer de volta, use{' '}
+                  <b>Desfazer</b> no Histórico de alterações.
+                </>
+              ) : (
+                <>
+                  <b>Não dá para desfazer</b>: para voltar, será preciso criar a linha de novo.
+                </>
+              )}
+            </p>
+          )}
         </InfoNote>
       </div>
       <SheetFooter>
         <SaveError message={saveError} />
-        <div className="flex gap-2">
-          <SecondaryButton onClick={() => goTo('valor')} disabled={saving}>
-            Voltar
-          </SecondaryButton>
-          <PrimaryButton onClick={handleDelete} busy={saving} busyLabel="Excluindo…" danger>
-            Excluir linha
-          </PrimaryButton>
-        </div>
+        {perguntaDestino ? (
+          <div className="flex flex-col gap-2">
+            <PrimaryButton
+              onClick={() => void handleDelete('apagar')}
+              busy={saving}
+              busyLabel="Excluindo…"
+              danger
+            >
+              Apagar os valores
+            </PrimaryButton>
+            <div className="flex gap-2">
+              <SecondaryButton onClick={() => goTo('valor')} disabled={saving}>
+                Voltar
+              </SecondaryButton>
+              <SecondaryButton onClick={() => void handleDelete('geral')} disabled={saving}>
+                Mover para Geral
+              </SecondaryButton>
+            </div>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <SecondaryButton onClick={() => goTo('valor')} disabled={saving}>
+              Voltar
+            </SecondaryButton>
+            <PrimaryButton
+              onClick={() => void handleDelete()}
+              busy={saving}
+              busyLabel="Excluindo…"
+              danger
+            >
+              Excluir linha
+            </PrimaryButton>
+          </div>
+        )}
       </SheetFooter>
     </>
   );

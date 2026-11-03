@@ -3,6 +3,9 @@ import { CashflowItem, CashflowValue } from '@/types/cashflow';
 import { ColorOption } from '@/components/cashflow/ColorPickerButton';
 import { cashflowColorCss } from '@/utils/cashflowColorLegend';
 
+/** Para onde vão os valores de uma linha excluída (Orçamento v2): Geral ou apagados. */
+export type DestinoExclusaoLinha = 'geral' | 'apagar';
+
 export interface EditableItemData {
   id: string;
   name: string;
@@ -46,6 +49,10 @@ export const useGroupEditMode = () => {
   const [editingGroups, setEditingGroups] = useState<Set<string>>(new Set());
   const [editedItems, setEditedItems] = useState<Map<string, EditableItemData>>(new Map());
   const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(new Set());
+  // Orçamento v2 (86e3vxd5r): para onde vão os valores de cada linha excluída (ausente = Geral).
+  const [destinosExclusao, setDestinosExclusao] = useState<Map<string, DestinoExclusaoLinha>>(
+    new Map(),
+  );
   // Unified UI mode: null = normal, { type: 'color', color } = color mode, { type: 'comment' } = comment mode
   type UIMode = null | { type: 'color'; color: ColorOption } | { type: 'comment' };
   const [uiMode, setUIMode] = useState<UIMode>(null);
@@ -182,8 +189,14 @@ export const useGroupEditMode = () => {
     setEditedItems((prev) => new Map(prev).set(item.id, toEditableData(item)));
   }, []);
 
-  const deleteItem = useCallback((itemId: string) => {
+  const deleteItem = useCallback((itemId: string, destino?: DestinoExclusaoLinha) => {
     setDeletedItemIds((prev) => new Set(prev).add(itemId));
+    setDestinosExclusao((prev) => {
+      const next = new Map(prev);
+      if (destino) next.set(itemId, destino);
+      else next.delete(itemId);
+      return next;
+    });
     setEditedItems((prev) => {
       const newMap = new Map(prev);
       newMap.delete(itemId);
@@ -265,6 +278,7 @@ export const useGroupEditMode = () => {
           values?: Array<{ month: number; value: number; formula?: string | null }>;
         }>;
         deletes: string[];
+        destinoExclusao?: Record<string, DestinoExclusaoLinha>;
       } = {
         updates: [],
         deletes: [],
@@ -274,6 +288,8 @@ export const useGroupEditMode = () => {
       groupItems.forEach((item) => {
         if (deletedItemIds.has(item.id)) {
           changes.deletes.push(item.id);
+          const destino = destinosExclusao.get(item.id);
+          if (destino) changes.destinoExclusao = { ...changes.destinoExclusao, [item.id]: destino };
         }
       });
 
@@ -382,7 +398,7 @@ export const useGroupEditMode = () => {
 
       return changes;
     },
-    [editedItems, deletedItemIds],
+    [editedItems, deletedItemIds, destinosExclusao],
   );
 
   // Função para atualizar a cor de uma célula específica

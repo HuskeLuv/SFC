@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { TableRow } from '@/components/ui/table';
 import { CashflowItem, CashflowGroup } from '@/types/cashflow';
 import { formatCurrency, formatPercent } from '@/utils/formatters';
 import { CurrencyInput } from './CurrencyInput';
 import { DeleteItemButton } from './DeleteItemButton';
-import { EditableItemData } from '@/hooks/useGroupEditMode';
+import { EditableItemData, type DestinoExclusaoLinha } from '@/hooks/useGroupEditMode';
+import { ConfirmarExclusaoLinha, resumirValoresLinha } from './ConfirmarExclusaoLinha';
 import { CommentIndicator } from './CommentIndicator';
 import { BancoIndicator } from './BancoIndicator';
 import { Sensivel } from '@/components/common/valores/Sensivel';
@@ -26,7 +27,12 @@ interface EditableItemRowProps {
     value: string | number | null,
     monthIndex?: number,
   ) => void;
-  onDeleteItem: (itemId: string) => void;
+  onDeleteItem: (itemId: string, destino?: DestinoExclusaoLinha) => void;
+  /**
+   * Orçamento v2: a categoria tem "Geral" — excluir linha com valores pergunta se eles vão para a
+   * Geral ou são apagados (ticket 86e3vxd5r).
+   */
+  temGeralNaCategoria?: boolean;
   onApplyColor?: (itemId: string, monthIndex: number) => void;
   isColorModeActive?: boolean;
   isCommentModeActive?: boolean;
@@ -50,6 +56,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
   isEditing,
   onUpdateField,
   onDeleteItem,
+  temGeralNaCategoria = false,
   onApplyColor,
   isColorModeActive = false,
   isCommentModeActive = false,
@@ -71,6 +78,8 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
   // confirmação); não em linha de investimento (calculada) nem de dívida.
   const canDelete = isEditing && !isInvestmentItem && !dividaLocked;
 
+  const [confirmando, setConfirmando] = useState(false);
+
   const handleDeleteClick = () => {
     if (
       objetivoLocked &&
@@ -78,6 +87,11 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
         'Esta linha é um sonho do Planejamento. Excluir aqui também remove o objetivo e todo o histórico dele. Continuar?',
       )
     ) {
+      return;
+    }
+    const temValores = (item.values ?? []).some((v) => v.value !== 0 || (v.valorBanco ?? 0) !== 0);
+    if (temGeralNaCategoria && temValores) {
+      setConfirmando(true);
       return;
     }
     onDeleteItem(item.id);
@@ -189,6 +203,17 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
             <span className="flex-shrink-0">
               <DeleteItemButton onClick={handleDeleteClick} />
             </span>
+          )}
+          {confirmando && (
+            <ConfirmarExclusaoLinha
+              nome={item.name}
+              resumo={resumirValoresLinha(item.values, currentYear)}
+              onCancelar={() => setConfirmando(false)}
+              onEscolher={(destino) => {
+                setConfirmando(false);
+                onDeleteItem(item.id, destino);
+              }}
+            />
           )}
         </div>
       </FixedCell>

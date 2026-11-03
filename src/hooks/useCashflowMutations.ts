@@ -100,10 +100,13 @@ export function useCashflowMutations(year: number) {
       groupId,
       updates = [],
       deletes = [],
+      destinoExclusao,
     }: {
       groupId: string;
       updates?: CashflowItemUpdate[];
       deletes?: string[];
+      /** Orçamento v2 (86e3vxd5r): por linha excluída, 'geral' (padrão) ou 'apagar'. */
+      destinoExclusao?: Record<string, 'geral' | 'apagar'>;
     }): Promise<SaveItemChangesResult> => {
       let response: Response;
       try {
@@ -112,7 +115,7 @@ export function useCashflowMutations(year: number) {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ groupId, year, updates, deletes }),
+          body: JSON.stringify({ groupId, year, updates, deletes, destinoExclusao }),
         });
       } catch (error) {
         logger.error('Erro ao salvar alterações:', error);
