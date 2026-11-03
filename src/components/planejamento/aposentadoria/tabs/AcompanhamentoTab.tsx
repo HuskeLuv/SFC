@@ -118,6 +118,19 @@ export default function AcompanhamentoTab({
     return m;
   }, [preview]);
 
+  // Origem de cada registro: 'auto' (preenchido sozinho da carteira, segue
+  // atualizando) ou 'manual' (digitado — o automático não mexe).
+  const origemByOff = useMemo(() => {
+    const m = new Map<number, AposentadoriaEntryDTO['origem']>();
+    entries.forEach((e) => m.set(e.off, e.origem));
+    return m;
+  }, [entries]);
+  // Mês corrente do calendário em offset do plano: o registro automático dele é parcial.
+  const now = new Date();
+  const curCalOff =
+    (now.getFullYear() - params.trackStartYear) * 12 +
+    (now.getMonth() - (params.trackStartMonth - 1));
+
   const [curOffset, setCurOffset] = useState(1);
   const [aporteStr, setAporteStr] = useState('');
   const [patStr, setPatStr] = useState('');
@@ -130,9 +143,11 @@ export default function AcompanhamentoTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [curOffset, entries]);
 
-  // Posiciona o form no próximo mês a registrar na 1ª montagem.
+  // Posiciona o form no próximo mês a registrar na 1ª montagem — sem passar do
+  // mês corrente (com o preenchimento automático, ele já costuma estar gravado).
   useEffect(() => {
-    setCurOffset(Math.min(Math.max(maxOff + 1, 1), Math.max(retM, 1)));
+    const alvo = curCalOff >= 1 ? Math.min(maxOff + 1, curCalOff) : maxOff + 1;
+    setCurOffset(Math.min(Math.max(alvo, 1), Math.max(retM, 1)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -172,6 +187,17 @@ export default function AcompanhamentoTab({
   const formDPatPct = pat && formReqPat > 0 ? (formDPat! / formReqPat) * 100 : 0;
   const { year: curY, month: curM } = off2date(params, curOffset);
   const editingExists = !!entryByOff(svcEntries, curOffset);
+  const origemAtual = editingExists ? origemByOff.get(curOffset) : undefined;
+  const autoAtual = origemAtual === 'auto';
+  // Excluir um mês automático não adianta (ele volta sozinho); num digitado, faz voltar ao automático.
+  const podeExcluir = editingExists && !autoAtual;
+  const avisoOrigem = !editingExists
+    ? null
+    : autoAtual
+      ? curOffset === curCalOff
+        ? 'Preenchido automaticamente pela sua carteira (parcial: atualiza até o fim do mês). Se salvar outro valor, ele passa a valer.'
+        : 'Preenchido automaticamente pela sua carteira. Se salvar outro valor, ele passa a valer.'
+      : 'Digitado por você: o preenchimento automático não altera este mês.';
 
   const handleSave = () => {
     if (!pat) return;
@@ -363,6 +389,8 @@ export default function AcompanhamentoTab({
                 : null
             }
             editingExists={editingExists}
+            podeExcluir={podeExcluir}
+            avisoOrigem={avisoOrigem}
             saving={saving}
             onSave={handleSaveSheet}
             onDelete={() => onDeleteEntry(curOffset)}
@@ -401,6 +429,18 @@ export default function AcompanhamentoTab({
                 </button>
               </div>
             </div>
+
+            {avisoOrigem ? (
+              <p
+                data-mf-apos-origem={origemAtual}
+                className="mb-2 rounded-md border border-brand-200 bg-white/70 px-2 py-1 text-[10px] text-gray-500 dark:border-brand-900/40 dark:bg-white/[0.02] dark:text-gray-400"
+              >
+                {autoAtual ? (
+                  <span className="font-semibold text-brand-600 dark:text-brand-400">✦ </span>
+                ) : null}
+                {avisoOrigem}
+              </p>
+            ) : null}
 
             <label className="mb-1 block text-xs text-gray-500 dark:text-gray-400">
               Aporte realizado
@@ -508,10 +548,11 @@ export default function AcompanhamentoTab({
               >
                 ✔ Salvar
               </button>
-              {editingExists ? (
+              {podeExcluir ? (
                 <button
                   type="button"
                   onClick={() => onDeleteEntry(curOffset)}
+                  title="Remover o valor digitado (o mês volta ao automático da carteira)"
                   disabled={saving}
                   className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600 hover:bg-red-100 disabled:opacity-50 dark:bg-red-900/20 dark:text-red-300"
                 >
@@ -537,7 +578,7 @@ export default function AcompanhamentoTab({
                     onClick={() => autoFill.mutate()}
                     disabled={autoFill.isPending || saving}
                     className="rounded-md bg-brand-500 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-brand-600 disabled:opacity-50"
-                    title="Preenche os meses sem registro com patrimônio e aportes da sua carteira"
+                    title="Os meses já se preenchem sozinhos ao abrir a tela; isto força a atualização agora (o que você digitou não muda)"
                   >
                     {autoFill.isPending
                       ? 'Preenchendo…'
@@ -589,6 +630,14 @@ export default function AcompanhamentoTab({
                               {fMonth(month, year)}
                             </span>{' '}
                             <span className="text-[9px] text-gray-400">M{off}</span>
+                            {e && origemByOff.get(off) === 'auto' ? (
+                              <span
+                                className="ml-1 text-[9px] text-brand-600 dark:text-brand-400"
+                                title="Preenchido automaticamente pela sua carteira"
+                              >
+                                {off === curCalOff ? '✦ parcial' : '✦ auto'}
+                              </span>
+                            ) : null}
                           </td>
                           <td className={`${TABLE_STYLES.compact.td} text-right`}>
                             <span
