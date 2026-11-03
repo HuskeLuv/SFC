@@ -8,6 +8,7 @@ import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableSty
 import { MYFINANCE_BRAND } from '@/constants/brandColors';
 import { useTheme } from '@/context/ThemeContext';
 import { useAdminCs } from '@/hooks/useAdminCs';
+import { useAdminCsat } from '@/hooks/useAdminCsat';
 import {
   AREAS_CS,
   ROTULO_ACAO_ATIVACAO,
@@ -466,22 +467,83 @@ function AbaEngajamento({ dados, clientes }: { dados: PainelCsDados; clientes: C
 }
 
 function AbaCsat() {
+  const { data, loading, error } = useAdminCsat();
+  const r = data?.resumo;
   return (
     <Bloco
       titulo="KPI de CSAT"
-      descricao="Data do atendimento, nota recebida e quantidade de avaliações respondidas."
+      descricao="Data da avaliação, nota recebida e quantidade de avaliações respondidas (pesquisa de 1 a 5 dentro do app). Adiamentos não contam."
     >
-      <p className="text-sm text-gray-600 dark:text-gray-300">
-        A pesquisa de satisfação dentro do app está em construção. Assim que ela entrar no ar, as
-        respostas aparecem aqui: data, nota e quantidade de avaliações respondidas.
-      </p>
+      {loading && <LoadingSpinner size="md" text="Carregando avaliações..." />}
+      {error && <p className="text-sm text-gray-600 dark:text-gray-300">{error}</p>}
+      {data && r && (
+        <>
+          <Grade colunas={4}>
+            <Stat rotulo="Avaliações respondidas" valor={fmtInt(r.respostas)} />
+            <Stat
+              rotulo="Nota média"
+              valor={r.media === null ? '—' : r.media.toLocaleString('pt-BR')}
+              tom="destaque"
+            />
+            <Stat
+              rotulo="Promotores (nota 5)"
+              valor={r.pctPromotores === null ? '—' : fmtPct(r.pctPromotores)}
+              detalhe={`${fmtInt(r.promotores)} clientes`}
+            />
+            <Stat
+              rotulo="Distribuição"
+              valor={(['1', '2', '3', '4', '5'] as const).map((n) => r.distribuicao[n]).join(' · ')}
+              detalhe="notas 1 · 2 · 3 · 4 · 5"
+            />
+          </Grade>
+          {data.itens.length === 0 ? (
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Ainda não há avaliações respondidas.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className={TABLE_STYLES.table}>
+                <thead>
+                  <tr className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
+                    <th className={`${TABLE_STYLES.th} text-left`}>Data</th>
+                    <th className={`${TABLE_STYLES.th} text-left`}>Cliente</th>
+                    <th className={`${TABLE_STYLES.th} text-center`}>Nota</th>
+                    <th className={`${TABLE_STYLES.th} text-left`}>Comentário</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.itens.map((i) => (
+                    <tr key={i.id} className={`${TABLE_STYLES.row} ${TABLE_STYLES.rowHover}`}>
+                      <td className={`${TABLE_STYLES.td} whitespace-nowrap`}>{fmtData(i.data)}</td>
+                      <td className={TABLE_STYLES.td}>
+                        <div className="font-medium text-gray-900 dark:text-white/90">
+                          {i.cliente.nome}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {i.cliente.email}
+                        </div>
+                      </td>
+                      <td className={`${TABLE_STYLES.td} text-center font-semibold tabular-nums`}>
+                        {i.nota}
+                      </td>
+                      <td className={`${TABLE_STYLES.td} text-gray-700 dark:text-gray-300`}>
+                        {i.comentario ?? '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
     </Bloco>
   );
 }
 
 /**
  * Painel de CS (ticket 86e3vmyrc) — dentro do /admin, só leitura, só admin.
- * Clientes, ativação, engajamento e (em breve) CSAT. Sem valores financeiros.
+ * Clientes, ativação, engajamento e CSAT. Sem valores financeiros.
  */
 export default function PainelCs() {
   const { data, loading, isFetching, error, forbidden, refetch } = useAdminCs();
