@@ -87,7 +87,14 @@ export default function GestaoRisco() {
       .map((c) => MOBILE_SERIES_COLORS[c]);
 
     const options: ApexOptions = {
-      chart: { type: 'bubble', toolbar: { show: false }, fontFamily: 'inherit' },
+      // Sem zoom: no ApexCharts 4 o zoom pela rodinha do mouse vem ligado, e rolar a página com
+      // o cursor sobre o gráfico ampliava os eixos (bolhas cortadas, sem botão para voltar).
+      chart: {
+        type: 'bubble',
+        toolbar: { show: false },
+        zoom: { enabled: false, allowMouseWheelZoom: false },
+        fontFamily: 'inherit',
+      },
       colors,
       fill: { opacity: 0.75 },
       xaxis: {

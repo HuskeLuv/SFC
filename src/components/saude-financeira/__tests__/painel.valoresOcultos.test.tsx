@@ -279,6 +279,11 @@ describe('Saúde Financeira (painel) — olho fechado (desktop)', () => {
     expect((eixoY.labels!.formatter as (v: number) => string)(3)).toBe('Total');
     // Eixo de categorias: sem largura reservada (a área do gráfico não encolhe nem pula).
     expect(eixoY.labels!.minWidth).toBeUndefined();
+    // Rolar a página sobre o gráfico não pode dar zoom nos eixos (ticket 86e3vxd5r).
+    expect(capturado.options!.chart!.zoom).toMatchObject({
+      enabled: false,
+      allowMouseWheelZoom: false,
+    });
   });
 
   it('formulários: o valor do campo fica (decisão 3)', () => {
