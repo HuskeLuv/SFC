@@ -9,9 +9,13 @@ import {
   SECOES_POR_ABA,
   TIPOS_ATIVO_PLANEJAVEIS,
   TIPOS_OPERACAO_MANUAIS_PLANEJAVEIS,
+  assertTickerNaoEhEtfB3,
   criarAssetPlanejadoManual,
   encontrarPlanejadoManual,
+  type TipoOperacaoManualPlanejavel,
 } from '@/services/portfolio/ativosPlanejados';
+import { ETF_MANUAL_ASSET_ID } from '@/lib/ativoEmDolar';
+import { carteiraEuaDolarHabilitado } from '@/lib/carteiraEuaConfig';
 import { invalidarContextoUsuario } from '@/services/assistente/contexto';
 import { recordPlanejadoAdicionado } from '@/services/changeHistory';
 
@@ -25,6 +29,9 @@ import { recordPlanejadoAdicionado } from '@/services/changeHistory';
  * - Manual (stock, REIT, fundo sem catálogo): `assetId` sentinela
  *   (`STOCK-MANUAL` / `REIT-MANUAL` / `FUNDO-MANUAL`) ou ausente + `nome`
  *   (ticker ou nome digitado); o Asset é criado aqui.
+ * - ETF americano (nov/2026): manual SÓ com o sentinela `ETF-MANUAL` (ETF sem assetId continua
+ *   400, para nenhum ETF em US$ nascer em silêncio). Asset etf/USD, seção 'estados_unidos',
+ *   guarda anti-B3 e a chave CARTEIRA_EUA_DOLAR_HABILITADO como interruptor.
  */
 const SENTINELAS_MANUAIS = new Set([
   'STOCK-MANUAL',
@@ -45,7 +52,7 @@ const planejadoCreateSchema = z.object({
   observacoes: z.string().max(500).optional().nullable(),
 });
 
-const isTipoManual = (t: string): t is 'stock' | 'reit' | 'fundo' =>
+const isTipoManual = (t: string): t is TipoOperacaoManualPlanejavel =>
   (TIPOS_OPERACAO_MANUAIS_PLANEJAVEIS as readonly string[]).includes(t);
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
@@ -62,7 +69,14 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     throw new ApiError(400, 'Este tipo de ativo ainda não pode ser planejado sem posição');
   }
 
-  const manual = !assetIdInformado || SENTINELAS_MANUAIS.has(assetIdInformado);
+  // ETF: manual só pelo sentinela (o ETF da B3 vem do catálogo; sem assetId é 400).
+  const manual =
+    tipoAtivo === 'etf'
+      ? assetIdInformado === ETF_MANUAL_ASSET_ID
+      : !assetIdInformado || SENTINELAS_MANUAIS.has(assetIdInformado);
+  if (!manual && !assetIdInformado) {
+    throw new ApiError(400, 'Escolha um ativo do catálogo para planejar');
+  }
   if (manual && !isTipoManual(tipoAtivo)) {
     throw new ApiError(
       400,
@@ -74,9 +88,19 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   if (manual && !nome) {
     throw new ApiError(400, 'Informe o ticker ou o nome do ativo');
   }
+  const isEtfManual = manual && tipoAtivo === 'etf';
+  if (isEtfManual) {
+    if (!carteiraEuaDolarHabilitado()) throw new ApiError(400, 'ETF americano indisponível');
+    await assertTickerNaoEhEtfB3(prisma, nome);
+  }
 
   const secoesValidas = SECOES_POR_ABA[aba];
-  const secaoFinal = secoesValidas.length > 0 ? secao || secoesValidas[0] : null;
+  // ETF americano fica sempre na seção EUA (a região não decide moeda; aqui só a seção).
+  const secaoFinal = isEtfManual
+    ? 'estados_unidos'
+    : secoesValidas.length > 0
+      ? secao || secoesValidas[0]
+      : null;
   if (secaoFinal && !secoesValidas.includes(secaoFinal)) {
     throw new ApiError(400, 'Seção inválida para esta aba');
   }
@@ -101,6 +125,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       (aba !== 'stocks' || asset.currency === 'USD');
     if (!pertence) {
       throw new ApiError(400, 'O ativo escolhido não pertence a esta aba da carteira');
+    }
+    // ETF manual (americano) não é catálogo: só nasce pelo sentinela. Por id, seria o Asset de
+    // outro usuário (sem dono na tabela) ou um órfão.
+    if (tipoAtivo === 'etf' && asset.source === 'manual') {
+      throw new ApiError(403, 'Este ativo não está na sua carteira.');
     }
 
     const posicao = await prisma.portfolio.findFirst({
