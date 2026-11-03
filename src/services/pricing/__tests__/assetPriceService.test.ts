@@ -354,6 +354,8 @@ describe('assetPriceService', () => {
       const manualSymbol = 'AAPL-1731234567890-abc';
       const manualSymbolUpper = manualSymbol.toUpperCase();
 
+      // 1ª consulta: o manual é ETF? (não é — stock)
+      mockPrisma.asset.findMany.mockResolvedValueOnce([]);
       // assetsWithPrice batch DB lookup — base ticker AAPL has today's price
       mockPrisma.asset.findMany.mockResolvedValueOnce([
         { symbol: 'AAPL', currentPrice: new Decimal(180), priceUpdatedAt: TODAY },
@@ -365,6 +367,20 @@ describe('assetPriceService', () => {
 
       // Base ticker AAPL price should be mapped back to the full manual symbol
       expect(result.get(manualSymbolUpper)).toBe(180);
+    });
+
+    it('never quotes a manual US ETF (ETF-MANUAL) by its base ticker — frozen by rule', async () => {
+      const manualEtf = 'VOO-1731234567890-sbqmz93';
+
+      // 1ª consulta: o manual é ETF (type 'etf') → fica fora do ticker base
+      mockPrisma.asset.findMany.mockResolvedValueOnce([{ symbol: manualEtf }]);
+
+      const result = await getAssetPrices([manualEtf]);
+
+      expect(result.get(manualEtf.toUpperCase())).toBeUndefined();
+      expect(result.get(manualEtf)).toBeUndefined();
+      expect(mockFetchQuotes).not.toHaveBeenCalled();
+      expect(mockPrisma.asset.findMany).toHaveBeenCalledTimes(1);
     });
 
     it('skips blocked symbols', async () => {
