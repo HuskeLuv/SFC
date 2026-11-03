@@ -217,6 +217,30 @@ describe('useCarteira', () => {
       });
     });
 
+    it('refetches the resumo after a successful save (totais follow the new caixa)', async () => {
+      const fetchMock = mockFetchSequence([
+        { data: mockResumo },
+        { data: mockResumoFull },
+        { data: mockResumo },
+        { data: mockResumoFull },
+      ]);
+      vi.stubGlobal('fetch', fetchMock);
+      mockCsrfFetch.mockResolvedValue(mockFetchResponse({ success: true }));
+
+      const { result } = renderHookWithClient(() => useCarteira());
+
+      await waitFor(() => {
+        expect(result.current.resumo).not.toBeNull();
+      });
+      const chamadasAntes = fetchMock.mock.calls.length;
+
+      await result.current.updateCaixaParaInvestir(7000);
+
+      await waitFor(() => {
+        expect(fetchMock.mock.calls.length).toBeGreaterThan(chamadasAntes);
+      });
+    });
+
     it('rolls back on error', async () => {
       const fetchMock = mockFetchSequence([{ data: mockResumo }, { data: mockResumoFull }]);
       vi.stubGlobal('fetch', fetchMock);

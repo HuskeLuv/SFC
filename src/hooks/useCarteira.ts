@@ -164,6 +164,12 @@ export const useCarteira = () => {
         if (result !== true) {
           // Recusa por regra (ex.: total abaixo das reservas) — desfaz o otimista.
           queryClient.setQueryData<CarteiraResumo>(queryKey, previousResumo);
+        } else {
+          // O otimista só troca o caixa: `totais` (denominador da alocação), os % e a
+          // necessidade de aporte ficavam com o caixa antigo até recarregar a página
+          // (ticket 86e3vxd5r). Rebusca o resumo e o que deriva dele, como faz a aba.
+          await queryClient.invalidateQueries({ queryKey });
+          invalidatePortfolioDerivedQueries(queryClient);
         }
         return result;
       } catch (err) {

@@ -41,7 +41,7 @@ interface AlocacaoAtivo {
   percentualTarget: number;
   quantoFalta: number;
   necessidadeAporte: number;
-  /** Necessidade antes de abater o caixa livre (base da distribuição do caixa). */
+  /** Base da distribuição do caixa livre (hoje igual a `necessidadeAporte`). */
   necessidadeSemCaixa: number;
   /** Quanto a classe está ACIMA do target, em R$ (0 quando falta ou bate). */
   excessoAporte: number;
@@ -150,7 +150,6 @@ export default function AlocacaoAtivosTable({
 
   const calcularDados = (): AlocacaoAtivo[] => {
     const dados: AlocacaoAtivo[] = [];
-    let totalNecessidadeAporte = 0;
 
     // Primeiro, calcular todas as necessidades de aporte sem subtrair o caixa
     Object.entries(distribuicao).forEach(([key, value]) => {
@@ -190,7 +189,6 @@ export default function AlocacaoAtivosTable({
         // Excesso em R$ (pedido do Wellington 16/09/2026): a coluna de
         // necessidade mostrava "-" quando a classe passava do target.
         const valorExcedente = Math.max(0, value.valor - valorAlvo);
-        totalNecessidadeAporte += valorNecessario;
 
         dados.push({
           categoria: key,
@@ -209,19 +207,11 @@ export default function AlocacaoAtivosTable({
       }
     });
 
-    // Agora, se houver caixa para investir e necessidade de aporte, distribuir proporcionalmente
-    if (caixaParaInvestir > 0 && totalNecessidadeAporte > 0) {
-      const caixaDisponivel = Math.min(caixaParaInvestir, totalNecessidadeAporte);
-      const fatorReducao = 1 - caixaDisponivel / totalNecessidadeAporte;
-
-      // Atualizar necessidade de aporte de cada categoria proporcionalmente
-      dados.forEach((item) => {
-        if (item.categoria !== 'imoveisBens' && item.necessidadeAporte > 0) {
-          item.necessidadeAporte = Math.max(0, item.necessidadeAporte * fatorReducao);
-        }
-      });
-    }
-
+    // O caixa LIVRE NÃO abate a necessidade (ticket 86e3vxd5r, Pedro 24/10/2026). Ele já está
+    // dentro de `totalCarteira` (totais.dinheiro = categorias + caixa livre), então o valor-alvo
+    // de cada classe já cresce com o caixa; abater de novo zerava a coluna inteira quando o caixa
+    // cobria tudo (R$ 500 mil → só "-"). A coluna mostra quanto cada classe precisa receber
+    // para chegar no target — o caixa é a fonte desse aporte ("Distribuir caixa livre").
     return dados;
   };
 
