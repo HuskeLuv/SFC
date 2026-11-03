@@ -239,7 +239,7 @@ export async function recalculatePortfolioFromTransactions(params: {
 /**
  * Carteira EUA em US$ (out/2026): `moedaRegistro` e `totalInvestedBrl` de um ativo em dólar.
  *
- *  - Todas as transações em US$ (marcador `unidade: 'USD'`, ou REIT sem marcador): grava
+ *  - Todas as transações em US$ (marcador `unidade: 'USD'`, ou REIT/ETF sem marcador): grava
  *    moedaRegistro 'USD' e totalInvestedBrl = replay paralelo em R$, em que cada compra vale
  *    total US$ × câmbio da transação + fees (R$) e cada venda tira a fração vendida (mesmo
  *    custo médio do replay em US$). Compra sem câmbio (nem nas notes, nem na série) deixa
@@ -247,7 +247,8 @@ export async function recalculatePortfolioFromTransactions(params: {
  *  - Todas em R$ (stock legado): nada muda.
  *  - Mistura de unidades no mesmo Asset: logger.error e NÃO toca as colunas — o
  *    moedaRegistro já gravado pela compra nunca é rebaixado para null nem para BRL.
- *  - Ativo que não está em dólar (ação BR, ETF, cripto...): devolve {} (colunas intocadas).
+ *  - Ativo que não está em dólar (ação BR, ETF da B3/BRL, cripto...): devolve {} (colunas
+ *    intocadas). O ETF americano (etf/USD, nov/2026) é em dólar e segue o REIT.
  */
 async function colunasMoedaDaPosicao(
   asset: (AtivoMoedaRef & { symbol?: string | null }) | null,

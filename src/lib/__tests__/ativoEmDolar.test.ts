@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
+  ETF_MANUAL_ASSET_ID,
+  TIPOS_ATIVO_EM_DOLAR,
+  TIPOS_SEMPRE_EM_DOLAR,
   isAtivoEmDolar,
   lerNotesTransacao,
   marcadorOperacaoUsd,
@@ -11,17 +14,23 @@ const PETR4 = { type: 'stock', currency: 'BRL' };
 const STOCK_SEM_MOEDA = { type: 'stock', currency: null };
 const CRYPTO_USD = { type: 'crypto', currency: 'USD' };
 const ETF_USD = { type: 'etf', currency: 'USD' };
+const ETF_BRL = { type: 'etf', currency: 'BRL' };
+const IVVB11 = { type: 'etf', currency: 'BRL', symbol: 'IVVB11', regiaoEtf: 'estados_unidos' };
+const ETF_CVM_USD = { type: 'etf-cvm', currency: 'USD' };
 const REIT_USD = { type: 'reit', currency: 'USD' };
 const STOCK_USD = { type: 'stock', currency: 'USD' };
 
 const notesCom = (operation: Record<string, unknown>) => JSON.stringify({ operation });
 
 describe('isAtivoEmDolar', () => {
-  it('só stock/reit com currency USD', () => {
+  it('só stock/reit/etf com currency USD', () => {
     expect(isAtivoEmDolar(PETR4)).toBe(false);
     expect(isAtivoEmDolar(STOCK_SEM_MOEDA)).toBe(false);
     expect(isAtivoEmDolar(CRYPTO_USD)).toBe(false);
-    expect(isAtivoEmDolar(ETF_USD)).toBe(false);
+    expect(isAtivoEmDolar(ETF_USD)).toBe(true);
+    expect(isAtivoEmDolar(ETF_BRL)).toBe(false);
+    expect(isAtivoEmDolar(IVVB11)).toBe(false);
+    expect(isAtivoEmDolar(ETF_CVM_USD)).toBe(false);
     expect(isAtivoEmDolar(REIT_USD)).toBe(true);
     expect(isAtivoEmDolar(STOCK_USD)).toBe(true);
     expect(isAtivoEmDolar(null)).toBe(false);
@@ -44,7 +53,17 @@ describe('unidadeDaTransacao', () => {
   it('ação BR é sempre BRL, mesmo com marcador USD', () => {
     expect(unidadeDaTransacao({ notes: notesCom({ unidade: 'USD' }) }, PETR4)).toBe('BRL');
     expect(unidadeDaTransacao({ notes: null }, PETR4)).toBe('BRL');
-    expect(unidadeDaTransacao({ notes: notesCom({ unidade: 'USD' }) }, ETF_USD)).toBe('BRL');
+    expect(unidadeDaTransacao({ notes: notesCom({ unidade: 'USD' }) }, ETF_BRL)).toBe('BRL');
+    // Região nunca decide moeda: IVVB11 na seção EUA continua em R$.
+    expect(unidadeDaTransacao({ notes: notesCom({ unidade: 'USD' }) }, IVVB11)).toBe('BRL');
+    expect(unidadeDaTransacao({ notes: notesCom({ unidade: 'USD' }) }, ETF_CVM_USD)).toBe('BRL');
+  });
+
+  it('ETF USD: com marcador, sem marcador e com notes ilegível = USD', () => {
+    expect(unidadeDaTransacao({ notes: notesCom({ unidade: 'USD' }) }, ETF_USD)).toBe('USD');
+    expect(unidadeDaTransacao({ notes: null }, ETF_USD)).toBe('USD');
+    expect(unidadeDaTransacao({ notes: notesCom({ moeda: 'USD' }) }, ETF_USD)).toBe('USD');
+    expect(unidadeDaTransacao({ notes: '{quebrado' }, ETF_USD)).toBe('USD');
   });
 
   it('com marcador segue o marcador', () => {
@@ -81,7 +100,16 @@ describe('posicaoEmDolar', () => {
   it('ativo que não está em dólar: nunca', () => {
     expect(posicaoEmDolar({ moedaRegistro: 'USD' }, PETR4)).toBe(false);
     expect(posicaoEmDolar({ moedaRegistro: 'USD' }, STOCK_SEM_MOEDA)).toBe(false);
-    expect(posicaoEmDolar({ moedaRegistro: 'USD' }, ETF_USD)).toBe(false);
+    expect(posicaoEmDolar({ moedaRegistro: 'USD' }, ETF_BRL)).toBe(false);
+    expect(posicaoEmDolar({ moedaRegistro: null }, IVVB11)).toBe(false);
+    expect(posicaoEmDolar({ moedaRegistro: 'USD' }, ETF_CVM_USD)).toBe(false);
+  });
+
+  it('ETF USD: moedaRegistro USD, null ou ausente = sim; BRL explícito = não', () => {
+    expect(posicaoEmDolar({ moedaRegistro: 'USD' }, ETF_USD)).toBe(true);
+    expect(posicaoEmDolar({ moedaRegistro: null }, ETF_USD)).toBe(true);
+    expect(posicaoEmDolar({}, ETF_USD)).toBe(true);
+    expect(posicaoEmDolar({ moedaRegistro: 'BRL' }, ETF_USD)).toBe(false);
   });
 
   it("moedaRegistro 'BRL' explícito: não", () => {
@@ -94,5 +122,14 @@ describe('marcadorOperacaoUsd', () => {
     expect(marcadorOperacaoUsd(5.2)).toEqual({ moeda: 'USD', unidade: 'USD', cotacaoMoeda: 5.2 });
     expect(marcadorOperacaoUsd(0).cotacaoMoeda).toBeNull();
     expect(marcadorOperacaoUsd().cotacaoMoeda).toBeNull();
+  });
+});
+
+describe('contratos do ETF americano', () => {
+  it('conjuntos e sentinela: etf em dólar, só reit/etf no fallback, etf-cvm fora', () => {
+    expect(TIPOS_ATIVO_EM_DOLAR.has('etf')).toBe(true);
+    expect(TIPOS_ATIVO_EM_DOLAR.has('etf-cvm')).toBe(false);
+    expect([...TIPOS_SEMPRE_EM_DOLAR].sort()).toEqual(['etf', 'reit']);
+    expect(ETF_MANUAL_ASSET_ID).toBe('ETF-MANUAL');
   });
 });

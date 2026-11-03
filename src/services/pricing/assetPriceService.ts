@@ -195,7 +195,18 @@ export const getAssetPrices = async (
   // Símbolos manuais (stock, reit): "AAPL-1731234567890-abc" -> buscar cotação pelo ticker base "AAPL"
   const manualToBase = new Map<string, string>();
   const baseTickersFromManual = new Set<string>();
-  const manualSymbols = rawSymbols.filter((s) => extractBaseTickerFromManualSymbol(s));
+  let manualSymbols = rawSymbols.filter((s) => extractBaseTickerFromManualSymbol(s));
+  // ETF americano manual (ETF-MANUAL, nov/2026): cotação CONGELADA no preço médio em US$ por
+  // regra — nunca herda a cotação do ticker base (BRAPI) nem dispara busca por ele. Mesmo
+  // formato de símbolo do Stock/REIT manual, então o filtro é pelo type do Asset.
+  if (manualSymbols.length > 0) {
+    const etfsManuais = await prisma.asset.findMany({
+      where: { symbol: { in: manualSymbols, mode: 'insensitive' }, type: 'etf' },
+      select: { symbol: true },
+    });
+    const etfsUpper = new Set((etfsManuais ?? []).map((a) => a.symbol.toUpperCase()));
+    if (etfsUpper.size > 0) manualSymbols = manualSymbols.filter((s) => !etfsUpper.has(s));
+  }
   for (const s of manualSymbols) {
     const base = extractBaseTickerFromManualSymbol(s);
     if (base) {

@@ -124,8 +124,9 @@ export const getTransactionValue = (transaction: {
  *  - no dia de uma compra/venda em US$ o valor usa o MESMO câmbio do fluxo — senão a
  *    diferença entre a cotação informada e a da série vira retorno espúrio;
  *  - sem câmbio: o item fica fora da soma (nunca soma US$ como R$).
- * Stock legado em R$ (sem marcador e sem moedaRegistro), ações BR, crypto, moedas e ETF
- * não passam por estes ramos: a série é idêntica à de antes.
+ * Stock legado em R$ (sem marcador e sem moedaRegistro), ações BR, crypto, moedas e ETF da
+ * B3 (BRL) não passam por estes ramos: a série é idêntica à de antes. O ETF americano
+ * (etf/USD, nov/2026) passa, como o REIT.
  */
 
 /**

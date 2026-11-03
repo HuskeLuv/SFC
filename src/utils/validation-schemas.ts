@@ -136,10 +136,10 @@ export const resgateSchema = z.object({
   // quando isReinvestimento ou quando o ativo não é em reais nem em dólar.
   creditarCaixa: z.boolean().optional(),
   // Ativo em dólar: cotação do câmbio (R$ por US$) do resgate. Opcional aqui porque o
-  // schema vale para todos os ativos; para Stock EUA/REIT (isAtivoEmDolar) a rota a exige
-  // (400), grava em notes.operation e converte o preço (sempre em US$) para a unidade da
-  // posição. Nos demais ativos em dólar (ETF) só converte o crédito do caixa — sem ela, usa
-  // a cotação atual do USD-BRL.
+  // schema vale para todos os ativos; para Stock EUA/REIT/ETF americano (isAtivoEmDolar) a
+  // rota a exige (400), grava em notes.operation e converte o preço (sempre em US$) para a
+  // unidade da posição. Nos demais ativos com currency USD fora do helper (ex.: etf-cvm) só
+  // converte o crédito do caixa — sem ela, usa a cotação atual do USD-BRL.
   cotacaoMoeda: z.number().finite().positive().optional(),
 });
 

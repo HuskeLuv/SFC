@@ -69,14 +69,45 @@ describe('valuatePortfolioItem — fontes de valor', () => {
     expect(v.categoria).toBe('moedasCriptos');
   });
 
-  it('fallback sem cotação = qty×avgPrice (já em BRL, sem dupla conversão)', () => {
+  it('ETF americano manual sem quote: q × avgPrice US$ × câmbio (cotação congelada)', () => {
+    // ETF etf/USD (nov/2026) é gravado em US$: sem cotação, o preço fica no médio em US$ e
+    // só o câmbio mexe no valor em R$. O aplicado é o totalInvestedBrl (câmbio de cada compra).
     const v = valuatePortfolioItem({
-      item: item({ quantity: 10, avgPrice: 2448, totalInvested: 24480 }),
-      asset: { symbol: 'VOO', type: 'etf', currency: 'USD' },
+      item: {
+        ...item({ quantity: 10, avgPrice: 500, totalInvested: 5000 }),
+        moedaRegistro: 'USD',
+        totalInvestedBrl: 26000,
+      },
+      asset: { symbol: 'VOO-1730000000000-ab3cd11', type: 'etf', currency: 'USD' },
       quote: null,
       cotacaoDolar: 5.5,
     });
-    expect(v.valorAtualBRL).toBeCloseTo(24480);
+    expect(v.valorAtualBRL).toBeCloseTo(10 * 500 * 5.5);
+    expect(v.valorAplicadoBRL).toBeCloseTo(26000);
+    expect(v.fonte).toBe('fallback');
+    expect(v.categoria).toBe('etfs');
+  });
+
+  it('ETF americano sem câmbio do dia: semCambio, fora da soma (nunca US$ como R$)', () => {
+    const v = valuatePortfolioItem({
+      item: { ...item({ quantity: 10, avgPrice: 500, totalInvested: 5000 }), moedaRegistro: 'USD' },
+      asset: { symbol: 'VOO-1730000000000-ab3cd11', type: 'etf', currency: 'USD' },
+      quote: null,
+      cotacaoDolar: null,
+    });
+    expect(v.semCambio).toBe(true);
+    expect(v.valorAtualBRL).toBe(0);
+    expect(v.contaNoSaldoBruto).toBe(false);
+  });
+
+  it('ETF da B3 (IVVB11, BRL) sem quote: qty×avgPrice em R$, sem conversão', () => {
+    const v = valuatePortfolioItem({
+      item: item({ quantity: 10, avgPrice: 380, totalInvested: 3800 }),
+      asset: { symbol: 'IVVB11', type: 'etf', currency: 'BRL' },
+      quote: null,
+      cotacaoDolar: 5.5,
+    });
+    expect(v.valorAtualBRL).toBeCloseTo(3800);
     expect(v.fonte).toBe('fallback');
   });
 

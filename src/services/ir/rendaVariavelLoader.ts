@@ -6,6 +6,7 @@
  * Agenda (fonte `ir`) projete o DARF a partir da MESMA apuração que a tela de
  * IR mostra — uma regra só, sem risco de divergir.
  */
+import { isAtivoEmDolar } from '@/lib/ativoEmDolar';
 import { prisma } from '@/lib/prisma';
 import {
   apurarRendaVariavel,
@@ -28,12 +29,18 @@ export const isB3StockTicker = (ticker: string): boolean =>
  *   - type='etf' + ticker B3 (final 11) = ETF BR
  * Stocks US, BDR, crypto, fundos, previdência e REIT ficam de fora — cada um
  * tem regra própria em outra fase do IR.
+ *
+ * Guarda de moeda (nov/2026): ativo em dólar (isAtivoEmDolar, ex.: ETF americano manual
+ * com symbol 'VOO-<ts>-ab3cd11') é ganho de capital no exterior (stocksUsIR) e nunca
+ * entra no DARF BR, mesmo que o symbol termine em '11'. O IVVB11 (BRL) segue etf_br.
  */
 export function categorizeTransaction(
   ticker: string | null,
   assetType: string | null,
+  currency?: string | null,
 ): RendaVariavelCategory | null {
   if (!ticker) return null;
+  if (isAtivoEmDolar({ type: assetType, currency })) return null;
   const upper = ticker.toUpperCase();
   if (assetType === 'fii') return 'fii';
   if (assetType === 'stock' && isB3StockTicker(upper)) return 'acao_br';
@@ -52,7 +59,11 @@ export async function carregarApuracaoRendaVariavel(userId: string): Promise<Apu
   for (const tx of transactions) {
     if (tx.type !== 'compra' && tx.type !== 'venda') continue;
     const ticker = tx.asset?.symbol || null;
-    const category = categorizeTransaction(ticker, tx.asset?.type ?? null);
+    const category = categorizeTransaction(
+      ticker,
+      tx.asset?.type ?? null,
+      tx.asset?.currency ?? null,
+    );
     if (!category) continue;
 
     rvTransactions.push({

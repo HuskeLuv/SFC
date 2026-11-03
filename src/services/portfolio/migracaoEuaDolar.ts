@@ -4,7 +4,7 @@
  *
  * Regra (docs/carteira-eua-dolar/desenho.json, migracao_dados):
  *  - Só Asset stock/reit com currency 'USD' (isAtivoEmDolar) e symbol manual
- *    ('TICKER-<13 dígitos>-<rnd>'). Ação BR nunca entra.
+ *    ('TICKER-<13 dígitos>-<rnd>'). Ação BR e ETF (mesmo o etf/USD) nunca entram.
  *  - REIT: não converte valores — só grava o marcador notes.operation.{unidade, moeda} = 'USD'
  *    (e cotacaoMoeda, se faltar, a partir de notes.cotacaoMoeda).
  *  - Stock legado em R$: compras ÷ cotação gravada (sem ela, o Asset INTEIRO é pulado);
@@ -80,9 +80,19 @@ export interface OpcoesPlano {
   renomear?: boolean;
 }
 
-/** O Asset entra na migração? (stock/reit em dólar, symbol manual). */
+/** Tipos que a migração trata. O ETF em US$ nasceu já gravado em US$: não tem legado. */
+const TIPOS_MIGRACAO: ReadonlySet<string> = new Set(['stock', 'reit']);
+
+/**
+ * O Asset entra na migração? (stock/reit em dólar, symbol manual). O ETF fica fora de
+ * propósito: isAtivoEmDolar já inclui o etf/USD (nov/2026), e tratá-lo como stock legado
+ * dividiria pelo câmbio um preço que já está em US$.
+ */
 export const elegivelParaMigracao = (asset: AssetMigracao | null | undefined): boolean =>
-  !!asset && isAtivoEmDolar(asset) && SIMBOLO_MANUAL_RE.test(asset.symbol);
+  !!asset &&
+  TIPOS_MIGRACAO.has(asset.type ?? '') &&
+  isAtivoEmDolar(asset) &&
+  SIMBOLO_MANUAL_RE.test(asset.symbol);
 
 const taxaValida = (v: unknown): number | null => {
   const n = typeof v === 'string' ? parseFloat(v) : Number(v);
