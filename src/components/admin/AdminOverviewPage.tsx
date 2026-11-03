@@ -50,6 +50,28 @@ function BlocoCuradoria({ dados }: { dados: NonNullable<AdminOverview['curadoria
   );
 }
 
+/** Atalho para o painel de CS (/admin/cs): clientes, ativação e engajamento. */
+function BlocoCs() {
+  return (
+    <Bloco
+      titulo="CS — Clientes"
+      descricao="Lista de clientes, KPI de ativação e de engajamento (inativos há 7/30 dias), com exportação em CSV."
+      acao={
+        <Link
+          href="/admin/cs"
+          className="inline-flex min-h-11 shrink-0 items-center rounded-lg border border-gray-300 px-4 text-sm font-medium text-[#396CAA] hover:bg-gray-50 dark:border-gray-700 dark:text-[#6E9DC4] dark:hover:bg-white/[0.03]"
+        >
+          Abrir painel de CS
+        </Link>
+      }
+    >
+      <p className="text-sm text-gray-600 dark:text-gray-300">
+        Somente leitura, sem valores financeiros por cliente.
+      </p>
+    </Bloco>
+  );
+}
+
 /**
  * Painel administrativo (11/09/2026) — só leitura, role admin. Quatro blocos:
  * Usuários, Uso por funcionalidade, Assistente de IA, Sistema.
@@ -89,6 +111,7 @@ export default function AdminOverviewPage() {
           Atualizar
         </Button>
       </div>
+      <BlocoCs />
       {data.curadoria && <BlocoCuradoria dados={data.curadoria} />}
       <BlocoUsuarios dados={data.usuarios} />
       <BlocoUso dados={data.uso} />
