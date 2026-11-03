@@ -35,7 +35,8 @@ import {
  *  - NÃO gera arquivo da DAA — apenas retorna os números pra transcrição
  *    manual.
  *
- * Carteira EUA em US$ (out/2026): stocks/REITs em dólar (isAtivoEmDolar) entram só no
+ * Carteira EUA em US$ (out/2026; ETF americano nov/2026): stocks, REITs e ETFs em dólar
+ * (isAtivoEmDolar) entram só no
  * ganho de capital em ME (preço pela unidade gravada, sem dupla conversão) e os proventos
  * deles saem dos isentos BR para `rendimentos.exterior` (tributáveis), convertidos em R$
  * pelo câmbio de mercado da data de pagamento. Sem câmbio, o provento fica fora da soma.
@@ -62,7 +63,7 @@ interface AnualResumo {
       jcp: number; // 15% IRRF na fonte (já líquido) — declarável separadamente
       total: number;
     };
-    /** Proventos de stocks/REITs EUA (tributáveis no Brasil, fora dos isentos), em R$. */
+    /** Proventos de stocks, REITs e ETFs EUA (tributáveis no Brasil, fora dos isentos), em R$. */
     exterior: {
       proventos: number;
       total: number;
@@ -83,7 +84,7 @@ function categorizeBR(
   asset: AtivoMoedaRef | null | undefined,
 ): RendaVariavelCategory | null {
   if (!ticker) return null;
-  // Stock/REIT em dólar é ganho de capital em ME (Fase 3), nunca renda variável BR.
+  // Stock/REIT/ETF em dólar é ganho de capital em ME (Fase 3), nunca renda variável BR.
   if (isAtivoEmDolar(asset)) return null;
   const assetType = asset?.type ?? null;
   const upper = ticker.toUpperCase();
@@ -139,7 +140,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     .filter((m) => m.year === year)
     .reduce((s, m) => s + m.irTotalDevido, 0);
 
-  // ---- Fase 3: Stocks US/REIT (só isAtivoEmDolar; preço pela unidade gravada) ----
+  // ---- Fase 3: Stocks, REITs e ETFs EUA (só isAtivoEmDolar; preço pela unidade gravada) ----
   // A série USD-BRL (fallback do câmbio das operações e câmbio dos proventos) só é
   // carregada quando há ativo em dólar.
   const temAtivoEmDolar =
@@ -251,7 +252,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   for (const e of proventos) {
     if (e.paymentDay < yearStart || e.paymentDay > yearEnd || e.paymentDay > hojeMs) continue;
     if (isBlocked(e.symbol)) continue;
-    // Ativo em dólar (REIT, stock EUA): linha Exterior, bruto em US$ → R$.
+    // Ativo em dólar (REIT, stock ou ETF EUA): linha Exterior, bruto em US$ → R$.
     if (e.moeda === 'USD') {
       somarExterior(e.gross, new Date(e.paymentDay));
       continue;
@@ -282,17 +283,17 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const fmt = (n: number) =>
       n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
     observacoes.push(
-      `Exterior (tributável): ${fmt(exteriorTotal)} em proventos de Stocks/REITs EUA, fora dos isentos — convertidos pelo ${ROTULO_FONTE_CAMBIO} da data de pagamento (aproximado). Regra anual da Lei 14.754 em revisão; confira com seu contador.`,
+      `Exterior (tributável): ${fmt(exteriorTotal)} em proventos de Stocks, REITs e ETFs EUA, fora dos isentos — convertidos pelo ${ROTULO_FONTE_CAMBIO} da data de pagamento (aproximado). Regra anual da Lei 14.754 em revisão; confira com seu contador.`,
     );
   }
   if (slots.exteriorSemCambio > 0) {
     observacoes.push(
-      `${slots.exteriorSemCambio} provento(s) de Stocks/REITs EUA sem câmbio na data ficaram fora da soma.`,
+      `${slots.exteriorSemCambio} provento(s) de Stocks, REITs e ETFs EUA sem câmbio na data ficaram fora da soma.`,
     );
   }
   if (usMontagem.comCambioAproximado > 0) {
     observacoes.push(
-      `Stocks EUA: ${usMontagem.comCambioAproximado} operação(ões) sem cotação gravada usaram o ${ROTULO_FONTE_CAMBIO} da data (aproximado).`,
+      `Stocks, REITs e ETFs EUA: ${usMontagem.comCambioAproximado} operação(ões) sem cotação gravada usaram o ${ROTULO_FONTE_CAMBIO} da data (aproximado).`,
     );
   }
 
