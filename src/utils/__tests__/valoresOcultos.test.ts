@@ -28,11 +28,26 @@ describe('contemValorMonetario', () => {
     'R$ 1,2 mi',
     'R$ 300 mil',
     'Total: R$ 5 bi',
+    '$575',
+    '$1,575,000',
+    '-$12.50',
+    'Realty Income - $575 - 10/03/2026',
   ])('casa %s', (texto) => {
     expect(contemValorMonetario(texto)).toBe(true);
   });
 
-  it.each(['12,5%', '1.234,56', '7777', 'CDI 100%', 'R$', 'Aplicado'])('não casa %s', (texto) => {
+  it.each([
+    '12,5%',
+    '1.234,56',
+    '7777',
+    'CDI 100%',
+    'R$',
+    'Aplicado',
+    '$',
+    'US$',
+    '${valor}',
+    '$ 10',
+  ])('não casa %s', (texto) => {
     expect(contemValorMonetario(texto)).toBe(false);
   });
 
@@ -55,6 +70,12 @@ describe('mascararTexto', () => {
     expect(mascararTexto('-R$ 10,00')).toBe(`R$ ${MASCARA_VALOR}`);
     expect(mascararTexto('CDB Banco - R$ 10.000,00 - 01/2027')).toBe(
       `CDB Banco - R$ ${MASCARA_VALOR} - 01/2027`,
+    );
+  });
+
+  it('"$" puro do en-US (nome de REIT) mascara o número inteiro e mantém o resto', () => {
+    expect(mascararTexto('Realty Income - $1,575,000 - 10/03/2026')).toBe(
+      `Realty Income - $ ${MASCARA_VALOR} - 10/03/2026`,
     );
   });
 
