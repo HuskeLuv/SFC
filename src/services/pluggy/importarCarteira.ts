@@ -12,6 +12,8 @@
  *    JÁ tem o ativo, só vincula (não duplica a posição);
  *  - renda fixa bancária vira Asset 'bond' + FixedIncomeAsset (marcação na
  *    curva pela taxa/indexador contratados, como o wizard);
+ *  - debênture (DEBENTURES/CORPORATE_DEBT) entra como a debênture do wizard, na
+ *    curva a partir da data da compra;
  *  - fundo/previdência: pelo CNPJ no catálogo CVM quando existir; senão ativo
  *    manual cujo "valor atual" segue o saldo do banco;
  *  - empréstimo vira Dívida (financiamento) com espelho no fluxo de caixa;
@@ -88,6 +90,7 @@ export function mapInvestment(i: Investment, connectionId: string, userId: strin
     rateType: (x.rateType as string | undefined) ?? null,
     fixedAnnualRate: num(x.fixedAnnualRate),
     issueDate: dt(x.issueDate),
+    purchaseDate: dt(x.purchaseDate),
     dueDate: dt(x.dueDate),
     issuer: (x.issuer as string | undefined) ?? null,
     // Fora de chaveInvestimento: o CNPJ não pode mudar a identidade da posição.
@@ -138,6 +141,13 @@ export function mapLoan(l: Loan, connectionId: string, userId: string) {
 // ---------------------------------------------------------------------------
 
 const LISTADOS = new Set(['EQUITY', 'ETF']);
+/**
+ * Debênture e crédito privado: o Pluggy manda DEBENTURES / CORPORATE_DEBT (o
+ * 'DEBENTURE' no singular nunca chegou, e as debêntures caíam em "cadastre à
+ * mão" — ticket 86e3x9801). Entram como a debênture do wizard: tipo CDB_*,
+ * marcada na curva pela taxa contratada.
+ */
+export const SUBTIPOS_DEBENTURE = new Set(['DEBENTURES', 'CORPORATE_DEBT', 'DEBENTURE']);
 const RF_BANCARIA = new Set([
   'CDB',
   'LCI',
@@ -147,13 +157,14 @@ const RF_BANCARIA = new Set([
   'LF',
   'CRI',
   'CRA',
-  'DEBENTURE',
   'LIG',
+  ...SUBTIPOS_DEBENTURE,
 ]);
 const ISENTOS = new Set(['LCI', 'LCA', 'CRI', 'CRA', 'LIG']);
 
 export function tipoRendaFixa(subtype: string | null, rateType: string | null): FixedIncomeType {
-  const base = subtype && RF_BANCARIA.has(subtype) && subtype !== 'DEBENTURE' ? subtype : 'CDB';
+  const base =
+    subtype && RF_BANCARIA.has(subtype) && !SUBTIPOS_DEBENTURE.has(subtype) ? subtype : 'CDB';
   const hib = rateType === 'IPCA';
   return `${base}_${hib ? 'HIB' : 'PRE'}` as FixedIncomeType;
 }
@@ -577,7 +588,11 @@ export async function importarInvestimento(
         inv.rate,
         inv.fixedAnnualRate,
       );
-      const start = inv.issueDate ?? inv.providerDate ?? agora;
+      // Debênture é comprada no secundário: issueDate é a emissão do papel (NTEN11 = 2020),
+      // não a compra do cliente. Curva a partir da emissão inflava o valor.
+      const debenture = SUBTIPOS_DEBENTURE.has(inv.subtype ?? '');
+      const start =
+        (debenture ? inv.purchaseDate : null) ?? inv.issueDate ?? inv.providerDate ?? agora;
       let maturity = inv.dueDate;
       if (!maturity || maturity <= start) {
         maturity = new Date(start);

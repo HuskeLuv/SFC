@@ -68,6 +68,7 @@ const base = {
   rateType: null,
   fixedAnnualRate: null,
   issueDate: new Date('2026-01-10T00:00:00Z'),
+  purchaseDate: null,
   dueDate: new Date('2028-01-10T00:00:00Z'),
   issuer: 'Banco do Pluggy',
   issuerCnpj: null,
@@ -126,6 +127,8 @@ describe('mapeamentos', () => {
       indexerPercent: null,
       annualRate: 12,
     });
+    expect(tipoRendaFixa('DEBENTURES', 'IPCA')).toBe('CDB_HIB');
+    expect(tipoRendaFixa('CORPORATE_DEBT', null)).toBe('CDB_PRE');
   });
 
   it('dívida: tipo, taxa a.a.→a.m., prazo e indexador', () => {
@@ -343,6 +346,42 @@ describe('importarInvestimento', () => {
       data: expect.objectContaining({ quantity: 1, avgPrice: 2000, totalInvested: 2000 }),
     });
     expect(mockRecalc).not.toHaveBeenCalled();
+  });
+
+  it('debênture (DEBENTURES) entra sozinha na curva, a partir da data da compra', async () => {
+    const st = await importarInvestimento({
+      ...base,
+      type: 'FIXED_INCOME',
+      subtype: 'DEBENTURES',
+      name: 'DEBENTURES - BANCO BTG PACTUAL S.A.',
+      code: 'NTEN11',
+      isin: 'BRNTENDBS005',
+      issuer: 'BANCO BTG PACTUAL S.A.',
+      balance: 23813.7,
+      quantity: 24,
+      amountOriginal: 29584.21,
+      rate: 100,
+      rateType: 'IPCA',
+      fixedAnnualRate: 8.55,
+      issueDate: new Date('2020-05-15T03:00:00Z'),
+      purchaseDate: new Date('2023-03-10T03:00:00Z'),
+      dueDate: new Date('2030-05-15T03:00:00Z'),
+    });
+    expect(st).toBe('importado');
+    expect(mockPrisma.tx.fixedIncomeAsset.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: 'CDB_HIB',
+        indexer: 'IPCA',
+        indexerPercent: 100,
+        annualRate: 8.55,
+        investedAmount: 29584.21,
+        startDate: new Date('2023-03-10T03:00:00Z'),
+        liquidityType: null,
+        taxExempt: false,
+        // a corretora (BTG) não é emissora da debênture
+        emissorInstitutionId: null,
+      }),
+    });
   });
 
   describe('Tesouro Direto', () => {

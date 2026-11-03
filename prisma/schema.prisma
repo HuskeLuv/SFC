@@ -1777,6 +1777,8 @@ model BankInvestment {
   rateType             String? // CDI | IPCA | SELIC | PRE…
   fixedAnnualRate      Float?
   issueDate            DateTime?
+  /// Data da compra (purchaseDate do provedor) — na debênture, issueDate é a emissão do papel.
+  purchaseDate         DateTime?
   dueDate              DateTime?
   issuer               String?
   /// CNPJ do emissor informado pelo provedor (issuerCNPJ), só dígitos.
