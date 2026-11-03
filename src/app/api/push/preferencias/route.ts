@@ -26,6 +26,7 @@ const patchSchema = z
   .object({
     orcamento: z.boolean().optional(),
     agenda: z.boolean().optional(),
+    proventos: z.boolean().optional(),
     comunidade: z.boolean().optional(),
     conta: z.boolean().optional(),
     analise: z.boolean().optional(),
@@ -45,6 +46,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     categorias: {
       orcamento: pref?.orcamento ?? true,
       agenda: pref?.agenda ?? true,
+      proventos: pref?.proventos ?? true,
       comunidade: pref?.comunidade ?? true,
       conta: pref?.conta ?? true,
       analise: pref?.analise ?? true,

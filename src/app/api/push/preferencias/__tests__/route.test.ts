@@ -43,7 +43,14 @@ describe('GET /api/push/preferencias', () => {
     expect(await res.json()).toEqual({
       habilitado: true,
       vapidPublicKey: 'chave-publica-vapid',
-      categorias: { orcamento: true, agenda: true, comunidade: true, conta: true, analise: true },
+      categorias: {
+        orcamento: true,
+        agenda: true,
+        proventos: true,
+        comunidade: true,
+        conta: true,
+        analise: true,
+      },
       comunidadeVisivel: false,
       analiseVisivel: false,
     });
@@ -57,6 +64,7 @@ describe('GET /api/push/preferencias', () => {
     mocks.prisma.pushPreferencia.findUnique.mockResolvedValue({
       orcamento: false,
       agenda: true,
+      proventos: false,
       comunidade: false,
       conta: true,
       analise: false,
@@ -67,6 +75,7 @@ describe('GET /api/push/preferencias', () => {
       categorias: {
         orcamento: false,
         agenda: true,
+        proventos: false,
         comunidade: false,
         conta: true,
         analise: false,

@@ -15,9 +15,12 @@ vi.mock('@/services/push/enviarPush', () => ({ enviarPushDaNotificacao: mocks.en
 
 import {
   AGENDA_LEMBRETE_TYPE,
+  HREF_PROVENTOS,
+  PROVENTO_RECEBIDO_TYPE,
   runAgendaLembretesJob,
   selecionarLembretes,
   textoDoLembrete,
+  textoProventosRecebidos,
 } from '../lembretes';
 import type { EventoAgenda, TipoEvento } from '../types';
 
@@ -93,7 +96,7 @@ describe('textoDoLembrete', () => {
       'vespera',
     );
     expect(parcela.title).toBe('Parcela vence amanhã');
-    expect(parcela.message.replace(/ /g, ' ')).toContain('R$ 1.234,50');
+    expect(parcela.message.replace(/\s/g, ' ')).toContain('R$ 1.234,50');
     expect(parcela.message).toContain('19/09/2026');
 
     const provento = textoDoLembrete(
@@ -109,6 +112,30 @@ describe('textoDoLembrete', () => {
     expect(textoDoLembrete(ev({ tipo: 'manual', data: AMANHA }), 'vespera').message).not.toContain(
       '()',
     );
+  });
+});
+
+describe('textoProventosRecebidos', () => {
+  const prov = (symbol: string, valor: number | null, tipoProvento = 'Dividendo') =>
+    ev({
+      tipo: 'provento',
+      data: HOJE,
+      id: `provento:${symbol}:${tipoProvento}`,
+      valor,
+      detalhe: { evento: 'pagamento', symbol, tipoProvento },
+    });
+
+  it('dois ativos: nomes no título; sem valor não inventa R$', () => {
+    const t = textoProventosRecebidos([prov('ITSA4', null), prov('BBAS3', 12.5)]);
+    expect(t.title).toBe('Você recebeu proventos de ITSA4 e BBAS3');
+    expect(t.message.replace(/\s/g, ' ')).toBe(
+      '2 proventos com pagamento hoje: ITSA4 (Dividendo) e BBAS3 (Dividendo) R$ 12,50.',
+    );
+  });
+
+  it('mesmo ativo com JCP e dividendo: um nome só no título', () => {
+    const t = textoProventosRecebidos([prov('ITSA4', 1, 'JCP'), prov('ITSA4', 2)]);
+    expect(t.title).toBe('Você recebeu proventos de ITSA4');
   });
 });
 
@@ -181,6 +208,105 @@ describe('runAgendaLembretesJob', () => {
 
     const r = await runAgendaLembretesJob(AGORA);
     expect(r.notificacoes).toBe(10);
+  });
+
+  it('provento de hoje vira UM aviso próprio, com o ativo no título e o valor só na mensagem', async () => {
+    mocks.prisma.user.findMany.mockResolvedValue([{ id: 'u1' }]);
+    mocks.montarAgenda.mockResolvedValue({
+      eventos: [
+        ev({
+          tipo: 'provento',
+          data: HOJE,
+          id: 'provento:ITSA4:JCP:2026-09-18:pagamento',
+          titulo: 'ITSA4 · JCP',
+          valor: 80,
+          link: '/ativos/p1',
+          detalhe: { evento: 'pagamento', symbol: 'ITSA4', tipoProvento: 'JCP' },
+        }),
+      ],
+      fontesComErro: [],
+    });
+
+    const r = await runAgendaLembretesJob(AGORA);
+    expect(r.notificacoes).toBe(1);
+    const { data } = mocks.prisma.notification.create.mock.calls[0][0];
+    expect(data.type).toBe(PROVENTO_RECEBIDO_TYPE);
+    expect(data.title).toBe('Você recebeu proventos de ITSA4');
+    expect(data.title).not.toContain('R$');
+    expect(data.message.replace(/\s/g, ' ')).toBe('Você recebeu R$ 80,00 de ITSA4 (JCP) hoje.');
+    expect(data.metadata).toEqual({
+      data: HOJE,
+      eventoIds: ['provento:ITSA4:JCP:2026-09-18:pagamento'],
+      symbols: ['ITSA4'],
+      href: '/ativos/p1',
+    });
+    expect(mocks.enviarPush).toHaveBeenCalledWith({ id: 'notif-criada' });
+  });
+
+  it('vários proventos no dia: um resumo só, fora do teto dos lembretes', async () => {
+    mocks.prisma.user.findMany.mockResolvedValue([{ id: 'u1' }]);
+    const symbols = ['ITSA4', 'BBAS3', 'TAEE11', 'HGLG11', 'MXRF11', 'KNRI11', 'VALE3'];
+    mocks.montarAgenda.mockResolvedValue({
+      eventos: [
+        ...symbols.map((s) =>
+          ev({
+            tipo: 'provento',
+            data: HOJE,
+            id: `provento:${s}`,
+            valor: 10,
+            detalhe: { evento: 'pagamento', symbol: s, tipoProvento: 'Dividendo' },
+          }),
+        ),
+        ev({ tipo: 'rf', data: AMANHA, valor: 100 }),
+      ],
+      fontesComErro: [],
+    });
+
+    const r = await runAgendaLembretesJob(AGORA);
+    expect(r.notificacoes).toBe(2);
+    const proventos = mocks.prisma.notification.create.mock.calls
+      .map((c) => c[0].data)
+      .filter((d) => d.type === PROVENTO_RECEBIDO_TYPE);
+    expect(proventos).toHaveLength(1);
+    expect(proventos[0].title).toBe('Você recebeu proventos de 7 ativos');
+    expect(proventos[0].message.replace(/\s/g, ' ')).toContain('R$ 70,00 em 7 proventos');
+    expect(proventos[0].message).toContain('e mais 2');
+    expect(proventos[0].metadata.href).toBe(HREF_PROVENTOS);
+  });
+
+  it('não reenvia o aviso de proventos no mesmo dia (cron rodando de novo)', async () => {
+    mocks.prisma.user.findMany.mockResolvedValue([{ id: 'u1' }]);
+    mocks.montarAgenda.mockResolvedValue({
+      eventos: [
+        ev({
+          tipo: 'provento',
+          data: HOJE,
+          valor: 5,
+          detalhe: { evento: 'pagamento', symbol: 'ITSA4' },
+        }),
+      ],
+      fontesComErro: [],
+    });
+    mocks.prisma.notification.findMany.mockResolvedValue([
+      { type: PROVENTO_RECEBIDO_TYPE, metadata: { data: HOJE, eventoIds: ['x'] } },
+    ]);
+
+    const r = await runAgendaLembretesJob(AGORA);
+    expect(r.notificacoes).toBe(0);
+    expect(mocks.prisma.notification.create).not.toHaveBeenCalled();
+  });
+
+  it('provento já avisado no formato antigo (lembrete da agenda) não repete', async () => {
+    mocks.prisma.user.findMany.mockResolvedValue([{ id: 'u1' }]);
+    mocks.montarAgenda.mockResolvedValue({
+      eventos: [ev({ tipo: 'provento', data: HOJE, detalhe: { evento: 'pagamento' } })],
+      fontesComErro: [],
+    });
+    mocks.prisma.notification.findMany.mockResolvedValue([
+      { type: AGENDA_LEMBRETE_TYPE, metadata: { eventoId: 'provento:2026-09-18', data: HOJE } },
+    ]);
+
+    expect((await runAgendaLembretesJob(AGORA)).notificacoes).toBe(0);
   });
 
   it('falha de um usuário não derruba a rodada', async () => {

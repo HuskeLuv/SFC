@@ -220,6 +220,8 @@ model PushPreferencia {
   conta      Boolean  @default(true)
   // Análise de Ativos (bloco 1): avisos das listas dos Salvos (categoria de push 'analise')
   analise    Boolean  @default(true)
+  // Proventos recebidos (ticket 86e3yeay4): aviso do dia em que o provento cai (categoria 'proventos')
+  proventos  Boolean  @default(true)
   updatedAt  DateTime @updatedAt
 
   @@map("push_preferencias")

@@ -62,6 +62,11 @@ const CATEGORIAS: { chave: CategoriaPush; titulo: string; descricao: string; bet
   },
   { chave: 'agenda', titulo: 'Agenda', descricao: 'Lembretes de contas e eventos que você marcou' },
   {
+    chave: 'proventos',
+    titulo: 'Proventos',
+    descricao: 'Dividendos e JCP da sua carteira que caem na conta no dia',
+  },
+  {
     chave: 'comunidade',
     titulo: 'Comunidade',
     descricao: 'Curtidas e comentários nos seus posts',
