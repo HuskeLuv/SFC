@@ -192,3 +192,25 @@ describe('sugestoesComparar (banco em memória)', () => {
     expect(JSON.stringify(r)).not.toMatch(/indice|semaforo|destaque|nota|rating|score/i);
   });
 });
+
+describe('sugestoesComparar · Stocks e REITs (24/10)', () => {
+  beforeEach(() => {
+    mocks.criterios.mockResolvedValue(new Map());
+  });
+  const stock = (ticker: string, over: Partial<LinhaQuadroApi> = {}) =>
+    acao(ticker, { classe: 'stock', setor: 'Tecnologia', segmento: null, ...over });
+
+  it('só a mesma classe; pares do mesmo setor primeiro; P/L só se houver', async () => {
+    mocks.linhas.mockResolvedValue([
+      stock('AAPL'),
+      stock('MSFT', { pl: { estado: 'sem_dado' } as LinhaQuadroApi['pl'] }),
+      stock('AAA', { setor: 'Energia' }),
+      acao('WEGE3'),
+      acao('O', { classe: 'reit' }),
+    ]);
+    const r = await sugestoesComparar({} as never, { ticker: 'AAPL', janela: 5, q: null });
+    expect(r?.itens.map((i) => i.ticker)).toEqual(['MSFT', 'AAA']);
+    expect(r?.itens[0]).toMatchObject({ mesmoSetor: true, metrica: null });
+    expect(r?.itens[1]).toMatchObject({ mesmoSetor: false, metrica: { rotulo: 'P/L' } });
+  });
+});

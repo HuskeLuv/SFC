@@ -215,10 +215,11 @@ export default function BarraAcoesAtivo({
   const t = ticker.toUpperCase();
   const tx = TEXTOS_ACOES_CARTEIRA.barra;
   const overlay = useOverlayCarteira();
-  // Comparar só com o recurso Comparador (Bloco D) — mesma regra do useComparadorLigado.
+  // Comparar só com o recurso Comparador (Bloco D) — mesma regra do useComparadorLigado. Stocks e
+  // REITs (24/10) também: o Comparador já os aceita (só da mesma classe), e a página EUA só existe
+  // com a chave EUA ligada.
   const config = useAnaliseAtivosConfig();
-  const comparador =
-    config.data?.recursos?.comparador === true && (classe === 'acao' || classe === 'fii');
+  const comparador = config.data?.recursos?.comparador === true;
   const [modal, setModal] = useState<ModalAcaoAtivo | null>(null);
   // Bloco 1: Salvar (sem recursos.salvos, salvar.ligado = false e nada aparece)
   const salvar = useSalvarAtivo({ ticker: t, classe, detalhes: true });

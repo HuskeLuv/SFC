@@ -4,10 +4,12 @@ import { NextRequest } from 'next/server';
 const mocks = vi.hoisted(() => ({
   exigir: vi.fn(),
   sugestoes: vi.fn(),
+  flagsEua: vi.fn(() => ({ eua: false, euaPreco: false })),
 }));
 vi.mock('@/lib/prisma', () => ({ default: { tag: 'prisma' }, prisma: { tag: 'prisma' } }));
 vi.mock('@/services/analiseAtivos/acesso/acessoAnalise', () => ({
   exigirRecursoAnalise: mocks.exigir,
+  flagsEua: mocks.flagsEua,
 }));
 vi.mock('@/services/analiseAtivos/leitura/ativo/sugestoesComparar', () => ({
   sugestoesComparar: mocks.sugestoes,
@@ -73,6 +75,25 @@ describe('GET /api/analise-ativos/ativos/[ticker]/comparar-sugestoes', () => {
     expect((await chamar('WEGE3', `?q=${'a'.repeat(41)}`)).status).toBe(400);
     expect((await chamar('WEGE')).status).toBe(400);
     expect(mocks.sugestoes).not.toHaveBeenCalled();
+  });
+
+  it('Stocks/REITs (24/10): ticker EUA só com a chave EUA; BRK-B vira BRK.B', async () => {
+    expect((await chamar('AAPL')).status).toBe(400);
+    mocks.flagsEua.mockReturnValue({ eua: true, euaPreco: false });
+    expect((await chamar('aapl')).status).toBe(200);
+    expect(mocks.sugestoes).toHaveBeenLastCalledWith(expect.anything(), {
+      ticker: 'AAPL',
+      janela: 5,
+      q: null,
+    });
+    await chamar('BRK-B');
+    expect(mocks.sugestoes).toHaveBeenLastCalledWith(expect.anything(), {
+      ticker: 'BRK.B',
+      janela: 5,
+      q: null,
+    });
+    expect((await chamar('WEGE3')).status).toBe(200);
+    mocks.flagsEua.mockReturnValue({ eua: false, euaPreco: false });
   });
 
   it('404 sem acesso (sem ler dados) e 404 ticker fora da área', async () => {

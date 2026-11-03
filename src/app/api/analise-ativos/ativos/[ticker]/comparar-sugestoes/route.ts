@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { ApiError, withErrorHandler } from '@/utils/apiErrorHandler';
-import { exigirRecursoAnalise } from '@/services/analiseAtivos/acesso/acessoAnalise';
+import { exigirRecursoAnalise, flagsEua } from '@/services/analiseAtivos/acesso/acessoAnalise';
 import { sugestoesComparar } from '@/services/analiseAtivos/leitura/ativo/sugestoesComparar';
 import { JANELA_PADRAO, ehJanela } from '@/types/analiseAtivosCriterios';
+import { ehTickerEua, symbolAnaliseDaSec } from '@/types/analiseAtivosEua';
 
 /**
  * GET /api/analise-ativos/ativos/[ticker]/comparar-sugestoes?q=&janela= → SugestoesCompararResposta
@@ -13,6 +14,8 @@ import { JANELA_PADRAO, ehJanela } from '@/types/analiseAtivosCriterios';
  * - exigirRecursoAnalise('comparador'): 404 com a área ou o Comparador desligados, 401 sem sessão,
  *   404 fora do beta (o modal só existe com o Comparador ligado);
  * - zod: q ≤ 40 caracteres; janela 3 | 5 | 10 (padrão 5); ticker no formato da B3 (400);
+ * - Stocks e REITs (24/10): ticker EUA (AAPL, BRK.B/BRK-B) só com ANALISE_ATIVOS_EUA_HABILITADO;
+ *   sem a chave, 400 como antes. As sugestões ficam na mesma classe (stock com stock, REIT com REIT).
  * - 404 ticker fora da área. Só o banco; nenhum dado do usuário (private, max-age=300).
  */
 export const dynamic = 'force-dynamic';
@@ -37,8 +40,10 @@ type Ctx = { params: Promise<{ ticker: string }> };
 export const GET = withErrorHandler(async (request: NextRequest, ctx: Ctx) => {
   await exigirRecursoAnalise(request, 'comparador');
   const { ticker } = await ctx.params;
-  const symbol = decodeURIComponent(ticker).toUpperCase();
-  if (!TICKER_RE.test(symbol)) throw new ApiError(400, 'Ticker inválido');
+  const bruto = decodeURIComponent(ticker).trim().toUpperCase();
+  const eua = flagsEua().eua && !TICKER_RE.test(bruto) && ehTickerEua(bruto);
+  const symbol = eua ? symbolAnaliseDaSec(bruto) : bruto;
+  if (!TICKER_RE.test(symbol) && !eua) throw new ApiError(400, 'Ticker inválido');
 
   const sp = request.nextUrl.searchParams;
   const parsed = querySchema.safeParse({
