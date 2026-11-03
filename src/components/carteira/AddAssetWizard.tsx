@@ -37,6 +37,7 @@ import WizardProgress from './wizard/WizardProgress';
 import WizardFooter from './wizard/WizardFooter';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { useWizardStepFocus } from './wizard/useWizardStepFocus';
+import { ETF_MANUAL_ASSET_ID } from '@/lib/ativoEmDolar';
 
 /**
  * Abertura já com o ativo escolhido (Análise de Ativos: "Registrar operação" / "Planejar na
@@ -188,6 +189,36 @@ export function aplicarPreset(preset: AddAssetWizardPreset): {
   return { formData, stepId };
 }
 
+/** ETF americano manual (nov/2026): gravado em US$, sem catálogo nem cotação automática. */
+export const isEtfManual = (formData: Pick<WizardFormData, 'tipoAtivo' | 'assetId'>): boolean =>
+  formData.tipoAtivo === 'etf' && formData.assetId === ETF_MANUAL_ASSET_ID;
+
+/**
+ * Recusa do guarda anti-B3 do back ("Este ETF é negociado na B3: escolha-o na busca") para um
+ * ETF manual: o wizard volta ao passo 3 e mostra a mensagem no campo do ativo.
+ */
+export const isRecusaEtfB3 = (
+  formData: Pick<WizardFormData, 'tipoAtivo' | 'assetId'>,
+  mensagem: unknown,
+): boolean => isEtfManual(formData) && typeof mensagem === 'string' && /\bB3\b/.test(mensagem);
+
+/**
+ * Ajusta o corpo da compra de ETF: o manual vai em US$ (moeda USD, região EUA, ticker em
+ * maiúsculas); o do catálogo nunca leva moeda/câmbio que tenham sobrado de uma troca de modo.
+ */
+export function ajustarCompraEtf(apiFormData: WizardFormData): WizardFormData {
+  if (apiFormData.tipoAtivo !== 'etf') return apiFormData;
+  if (isEtfManual(apiFormData)) {
+    return {
+      ...apiFormData,
+      ativo: apiFormData.ativo.trim().toUpperCase(),
+      moeda: 'USD',
+      regiaoEtf: 'estados_unidos',
+    };
+  }
+  return { ...apiFormData, moeda: '', cotacaoMoeda: 0 };
+}
+
 /** Erro de quem tenta avançar a renda fixa coberta sem banco emissor. */
 export const ERRO_EMISSOR_OBRIGATORIO = 'Escolha o banco emissor na lista.';
 
@@ -264,6 +295,8 @@ function getVisibleStepIds(formData: WizardFormData): string[] {
 function getPriceCheckParams(
   formData: WizardFormData,
 ): { enteredPrice: number; threshold: number } | null {
+  // ETF americano manual: o preço é em US$ e não há fechamento comparável.
+  if (isEtfManual(formData)) return null;
   switch (formData.tipoAtivo) {
     case 'acao':
     case 'acoes-brasil':
@@ -604,7 +637,8 @@ export default function AddAssetWizard({
           dataCompra &&
           formData.regiaoEtf &&
           formData.quantidade > 0 &&
-          formData.cotacaoUnitaria > 0
+          formData.cotacaoUnitaria > 0 &&
+          (!isEtfManual(formData) || formData.cotacaoMoeda > 0)
         );
       }
 
@@ -705,6 +739,9 @@ export default function AddAssetWizard({
                 isValid = !!(formData.ativo?.trim() && formData.assetId === 'REIT-MANUAL');
               } else if (formData.tipoAtivo === 'stock') {
                 isValid = !!(formData.ativo?.trim() && formData.assetId === 'STOCK-MANUAL');
+              } else if (formData.tipoAtivo === 'etf') {
+                // ETF do catálogo (B3) ou ETF americano manual com o ticker digitado.
+                isValid = isEtfManual(formData) ? !!formData.ativo?.trim() : !!formData.assetId;
               } else if (formData.tipoAtivo === 'acoes-brasil') {
                 isValid = !!(formData.assetId && formData.acoesBrasilTipo);
               } else if (formData.tipoAtivo === 'previdencia') {
@@ -741,6 +778,14 @@ export default function AddAssetWizard({
 
   const visibleStepIds = getVisibleStepIds(formData);
   const currentStepId = visibleStepIds[currentStep];
+  // Recusa do ETF manual pelo back: a mensagem entra no campo só depois que o passo 3 montou
+  // (o Step3Asset limpa o erro do ativo ao montar; o efeito do pai roda depois do filho).
+  const [erroAtivoPendente, setErroAtivoPendente] = useState<string | null>(null);
+  useEffect(() => {
+    if (!erroAtivoPendente || currentStepId !== 'asset') return;
+    setErrors((prev) => ({ ...prev, ativo: erroAtivoPendente }));
+    setErroAtivoPendente(null);
+  }, [erroAtivoPendente, currentStepId]);
   // Celular: ao trocar de etapa, volta ao topo e foca o título da etapa.
   const { stepRef, titleRef } = useWizardStepFocus(currentStepId, isOpen && isBelowLg);
 
@@ -802,6 +847,15 @@ export default function AddAssetWizard({
     setErrors((prev) => ({ ...prev, ...newErrors }));
   }, []);
 
+  // ETF da B3 digitado como ETF americano manual: volta ao passo 3 em modo busca, com a mensagem
+  // do back no campo. O assetId sai para que o ETF tenha de ser escolhido na lista.
+  const voltarAoAtivoComErro = (mensagem: string) => {
+    setFormData((prev) => ({ ...prev, assetId: '' }));
+    setErroAtivoPendente(mensagem);
+    const indiceAtivo = getVisibleStepIds(formData).indexOf('asset');
+    if (indiceAtivo >= 0) setCurrentStep(indiceAtivo);
+  };
+
   const handleSubmit = async () => {
     if (isSubmittingRef.current) {
       return;
@@ -833,7 +887,9 @@ export default function AddAssetWizard({
                 : formData.tipoAtivo,
             secao: secao || null,
             // Ativos manuais (stock/REIT/fundo sem catálogo): o Asset nasce do nome digitado.
-            nome: formData.ativo || null,
+            nome:
+              (isEtfManual(formData) ? formData.ativo.trim().toUpperCase() : formData.ativo) ||
+              null,
             objetivo: formData.objetivo ?? 0,
             observacoes: formData.observacoes || null,
           }),
@@ -846,7 +902,11 @@ export default function AddAssetWizard({
           const errorData = await response.json().catch(() => ({}));
           const errorMessage = errorData.error || errorData.message || 'Erro desconhecido';
           logger.error('Erro ao planejar ativo:', errorMessage);
-          setErrors((prev) => ({ ...prev, objetivo: errorMessage }));
+          if (isRecusaEtfB3(formData, errorMessage)) {
+            voltarAoAtivoComErro(errorMessage);
+          } else {
+            setErrors((prev) => ({ ...prev, objetivo: errorMessage }));
+          }
         }
         return;
       }
@@ -883,7 +943,7 @@ export default function AddAssetWizard({
       }
 
       // Converter 'reserva-emergencia' e 'reserva-oportunidade' para o formato da API
-      const apiFormData = { ...formData };
+      const apiFormData = ajustarCompraEtf({ ...formData });
       if (apiFormData.tipoAtivo === 'renda-fixa') {
         apiFormData.rendaFixaIndexer = apiFormData.rendaFixaIndexer || 'PRE';
       }
@@ -942,6 +1002,7 @@ export default function AddAssetWizard({
         const errorData = await response.json();
         const errorMessage = errorData.error || errorData.message || 'Erro desconhecido';
         logger.error('Erro ao adicionar investimento:', errorMessage);
+        if (isRecusaEtfB3(formData, errorMessage)) voltarAoAtivoComErro(errorMessage);
         if (errorData.details) {
           logger.error('Detalhes do erro:', errorData.details);
         }
