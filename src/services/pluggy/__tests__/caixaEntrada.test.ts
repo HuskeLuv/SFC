@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mockPrisma = vi.hoisted(() => ({
   bankTransaction: { count: vi.fn(), findMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   cashflowGroup: { findUnique: vi.fn() },
+  cashflowItem: { findUnique: vi.fn() },
   cashflowValue: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
 }));
 // $transaction em lote (aplicar) e interativo (recomputarCelula — o tx é o próprio mock).
@@ -22,6 +23,7 @@ vi.mock('@/utils/cashflowSetup', () => ({ getUserCashflowStructure: mockEstrutur
 
 import {
   aplicar,
+  comentarioComBanco,
   desaplicar,
   ignorar,
   indexarEstrutura,
@@ -82,6 +84,14 @@ beforeEach(() => {
   mockPrisma.bankTransaction.update.mockResolvedValue({});
   mockPrisma.bankTransaction.updateMany.mockResolvedValue({ count: 1 });
   mockPrisma.cashflowGroup.findUnique.mockResolvedValue({ type: 'despesa' });
+  mockPrisma.cashflowItem.findUnique.mockResolvedValue({ group: { type: 'despesa' } });
+});
+
+/** Transação aplicada como o recomputo lê (valor, data e descrição para o comentário). */
+const tx = (amount: number, description = 'PIX MERCADO', date = '2026-08-10T12:00:00Z') => ({
+  amount,
+  description,
+  date: new Date(date),
 });
 
 describe('sugestão sobre a árvore do usuário', () => {
@@ -195,7 +205,7 @@ describe('recomputarCelula', () => {
   });
 
   it('célula vazia: cria com a soma do mês (competência do cartão ou, sem ela, a data UTC) como parte do banco', async () => {
-    mockPrisma.bankTransaction.findMany.mockResolvedValue([{ amount: -185 }, { amount: -120.5 }]);
+    mockPrisma.bankTransaction.findMany.mockResolvedValue([tx(-185), tx(-120.5)]);
     expect(await recomputarCelula('u1', celula)).toBe(305.5);
     expect(mockPrisma.bankTransaction.findMany).toHaveBeenCalledWith({
       where: {
@@ -211,33 +221,98 @@ describe('recomputarCelula', () => {
           },
         ],
       },
-      select: { amount: true },
+      select: { amount: true, date: true, description: true },
+      orderBy: [{ date: 'asc' }, { id: 'asc' }],
     });
     expect(mockPrisma.cashflowValue.create).toHaveBeenCalledWith({
-      data: { ...celula, userId: 'u1', value: 305.5, valorBanco: 305.5 },
+      data: {
+        ...celula,
+        userId: 'u1',
+        value: 305.5,
+        valorBanco: 305.5,
+        comment:
+          'Gasto de R$ 185,00 — 10/08 PIX MERCADO (Open Finance)\nGasto de R$ 120,50 — 10/08 PIX MERCADO (Open Finance)',
+      },
     });
   });
 
   it('SOMA ao valor digitado: 874,75 digitados + 30 do banco = 904,75', async () => {
-    mockPrisma.bankTransaction.findMany.mockResolvedValue([{ amount: -30 }]);
+    mockPrisma.bankTransaction.findMany.mockResolvedValue([tx(-30)]);
     mockPrisma.cashflowValue.findUnique.mockResolvedValue(
       linha(874.75, 0, { formula: '=800+74,75' }),
     );
     expect(await recomputarCelula('u1', celula)).toBe(904.75);
     expect(mockPrisma.cashflowValue.update).toHaveBeenCalledWith({
       where,
-      data: { value: 904.75, valorBanco: 30, formula: null },
+      data: {
+        value: 904.75,
+        valorBanco: 30,
+        formula: null,
+        comment: 'Gasto de R$ 30,00 — 10/08 PIX MERCADO (Open Finance)',
+      },
     });
   });
 
   it('total editado depois do lançamento: aplica só a diferença da parte do banco', async () => {
     // Banco tinha 10,88; o usuário editou o total para 874,75; entra mais 20 do banco.
-    mockPrisma.bankTransaction.findMany.mockResolvedValue([{ amount: -10.88 }, { amount: -20 }]);
-    mockPrisma.cashflowValue.findUnique.mockResolvedValue(linha(874.75, 10.88));
+    mockPrisma.bankTransaction.findMany.mockResolvedValue([tx(-10.88), tx(-20)]);
+    mockPrisma.cashflowValue.findUnique.mockResolvedValue(
+      linha(874.75, 10.88, {
+        comment: 'conta de agosto\nGasto de R$ 10,88 — 10/08 PIX MERCADO (Open Finance)',
+      }),
+    );
     expect(await recomputarCelula('u1', celula)).toBe(894.75);
     expect(mockPrisma.cashflowValue.update).toHaveBeenCalledWith({
       where,
-      data: { value: 894.75, valorBanco: 30.88, formula: null },
+      data: {
+        value: 894.75,
+        valorBanco: 30.88,
+        formula: null,
+        // A linha que já existia é reescrita (não duplica) e o texto digitado fica no topo.
+        comment:
+          'conta de agosto\nGasto de R$ 10,88 — 10/08 PIX MERCADO (Open Finance)\nGasto de R$ 20,00 — 10/08 PIX MERCADO (Open Finance)',
+      },
+    });
+  });
+
+  it('tirar uma transação remove só a linha dela; o comentário digitado e o da IA ficam', async () => {
+    mockPrisma.bankTransaction.findMany.mockResolvedValue([
+      tx(-20, 'UBER TRIP', '2026-08-12T00:00:00Z'),
+    ]);
+    mockPrisma.cashflowValue.findUnique.mockResolvedValue(
+      linha(80, 50, {
+        comment: [
+          'Gasto de R$ 30,00 — padaria (assistente)',
+          'Gasto de R$ 30,00 — 10/08 PIX MERCADO (Open Finance)',
+          'Gasto de R$ 20,00 — 12/08 UBER TRIP (Open Finance)',
+          'conferir',
+        ].join('\n'),
+      }),
+    );
+    expect(await recomputarCelula('u1', celula)).toBe(50);
+    expect(mockPrisma.cashflowValue.update).toHaveBeenCalledWith({
+      where,
+      data: {
+        value: 50,
+        valorBanco: 20,
+        formula: null,
+        comment: [
+          'Gasto de R$ 30,00 — padaria (assistente)',
+          'conferir',
+          'Gasto de R$ 20,00 — 12/08 UBER TRIP (Open Finance)',
+        ].join('\n'),
+      },
+    });
+  });
+
+  it('linha de Entradas vira "Receita"', async () => {
+    mockPrisma.bankTransaction.findMany.mockResolvedValue([tx(5000, 'TED SALARIO')]);
+    mockPrisma.cashflowItem.findUnique.mockResolvedValue({ group: { type: 'entrada' } });
+    await recomputarCelula('u1', celula);
+    expect(mockPrisma.cashflowValue.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        comment: 'Receita de R$ 5000,00 — 10/08 TED SALARIO (Open Finance)',
+      }),
     });
   });
 
@@ -254,7 +329,10 @@ describe('recomputarCelula', () => {
 
   it('célula só do banco: desfazer apaga a linha; com comentário, mantém zerada', async () => {
     mockPrisma.bankTransaction.findMany.mockResolvedValue([]);
-    mockPrisma.cashflowValue.findUnique.mockResolvedValueOnce(linha(305.5, 305.5));
+    // O comentário só com linhas do banco some junto: a célula fica vazia e é apagada.
+    mockPrisma.cashflowValue.findUnique.mockResolvedValueOnce(
+      linha(305.5, 305.5, { comment: 'Gasto de R$ 305,50 — 10/08 PIX MERCADO (Open Finance)' }),
+    );
     expect(await recomputarCelula('u1', celula)).toBe(0);
     expect(mockPrisma.cashflowValue.delete).toHaveBeenCalledWith({ where });
 
@@ -269,11 +347,45 @@ describe('recomputarCelula', () => {
   });
 
   it('parte do banco igual: não mexe na célula (nem na fórmula)', async () => {
-    mockPrisma.bankTransaction.findMany.mockResolvedValue([{ amount: -30 }]);
-    mockPrisma.cashflowValue.findUnique.mockResolvedValue(linha(904.75, 30));
+    mockPrisma.bankTransaction.findMany.mockResolvedValue([tx(-30)]);
+    mockPrisma.cashflowValue.findUnique.mockResolvedValue(
+      linha(904.75, 30, { comment: 'Gasto de R$ 30,00 — 10/08 PIX MERCADO (Open Finance)' }),
+    );
     expect(await recomputarCelula('u1', celula)).toBe(904.75);
     expect(mockPrisma.cashflowValue.update).not.toHaveBeenCalled();
     expect(mockPrisma.cashflowValue.create).not.toHaveBeenCalled();
+  });
+
+  it('parte do banco igual sem a linha no comentário (lançada antes): só o comentário muda', async () => {
+    mockPrisma.bankTransaction.findMany.mockResolvedValue([tx(-30)]);
+    mockPrisma.cashflowValue.findUnique.mockResolvedValue(
+      linha(904.75, 30, { formula: '=1', comment: 'conferir' }),
+    );
+    expect(await recomputarCelula('u1', celula)).toBe(904.75);
+    expect(mockPrisma.cashflowValue.update).toHaveBeenCalledWith({
+      where,
+      data: { comment: 'conferir\nGasto de R$ 30,00 — 10/08 PIX MERCADO (Open Finance)' },
+    });
+  });
+});
+
+describe('comentarioComBanco', () => {
+  const l = (n: number) => `Gasto de R$ ${n},00 — 10/08 ${'X'.repeat(80)} (Open Finance)`;
+
+  it('sem nada do banco antes nem agora devolve o comentário intacto', () => {
+    expect(comentarioComBanco('  oi \n\n', [])).toBe('  oi \n\n');
+    expect(comentarioComBanco(null, [])).toBeNull();
+  });
+
+  it('acima do teto resume as últimas em "+ N lançamentos do banco" e cabe em 2000', () => {
+    const linhas = Array.from({ length: 40 }, (_, i) => l(i + 1));
+    const texto = comentarioComBanco('nota', linhas)!;
+    expect(texto.length).toBeLessThanOrEqual(2000);
+    expect(texto.startsWith('nota\nGasto de R$ 1,00')).toBe(true);
+    expect(texto).toMatch(/\n\+ \d+ lançamentos do banco \(Open Finance\)$/);
+    // O resumo também é linha do banco: recomputar de novo não acumula.
+    expect(comentarioComBanco(texto, linhas)).toBe(texto);
+    expect(comentarioComBanco(texto, [])).toBe('nota');
   });
 });
 
@@ -284,7 +396,7 @@ describe('aplicar / desaplicar / ignorar', () => {
         { id: 't1', date: new Date('2026-08-15T00:00:00Z') },
         { id: 't2', date: new Date('2026-08-20T00:00:00Z') },
       ])
-      .mockResolvedValue([{ amount: -185 }, { amount: -120 }]);
+      .mockResolvedValue([tx(-185), tx(-120)]);
     mockEnsure.mockResolvedValue({ itemId: 'it-energia-user', item: { groupId: 'g-hab' } });
 
     const r = await aplicar('u1', [
@@ -311,7 +423,7 @@ describe('aplicar / desaplicar / ignorar', () => {
           competenciaMes: 9,
         },
       ])
-      .mockResolvedValue([{ amount: 100 }]);
+      .mockResolvedValue([tx(100)]);
     mockEnsure.mockResolvedValue({ itemId: 'it-super', item: { groupId: 'g-hab' } });
 
     const r = await aplicar('u1', [{ id: 't1', itemId: 'it-super' }]);
