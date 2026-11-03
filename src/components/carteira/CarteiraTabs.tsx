@@ -9,6 +9,7 @@ import { CarteiraResumoProvider } from '@/context/CarteiraResumoContext';
 import type { NecessidadeAporteMap } from '@/context/CarteiraResumoContext';
 import { invalidatePortfolioDerivedQueries } from '@/lib/invalidatePortfolio';
 import ConectarBancoCard from '@/components/conexoes/ConectarBancoCard';
+import { AvisoPrecoMedioAgregado } from '@/components/carteira/PrecoMedioNaoInformado';
 import { ResponsiveTabNav } from '@/components/ui/tabs/ResponsiveTabNav';
 import { QUICK_LAUNCH_EVENT, takePendingQuickLaunch } from '@/layout/mobile/quickLaunch';
 import { CarteiraLaunchProvider, type CarteiraLaunchValue } from './CarteiraLaunchContext';
@@ -387,6 +388,9 @@ export default function CarteiraTabs() {
 
           {/* Entrada do Open Finance (só sem banco conectado e com a integração ligada). */}
           <ConectarBancoCard contexto="carteira" className="mb-4" />
+
+          {/* Open Finance: posições que vieram sem preço médio (some quando o cliente informa). */}
+          <AvisoPrecoMedioAgregado className="mb-4" />
 
           {/* Main Tabs Navigation */}
           {isBelowLg ? (
