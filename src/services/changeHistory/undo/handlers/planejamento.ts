@@ -304,7 +304,7 @@ const aposentadoriaAporteRegistrar: UndoDefinition = {
     const off = (snap.meta as { off?: number } | undefined)?.off;
     const prevEntry = (
       snap.data as {
-        prevEntry: { aporteReal: number; patFinal: number } | null;
+        prevEntry: { aporteReal: number; patFinal: number; origem?: string } | null;
       }
     ).prevEntry;
     if (typeof off !== 'number') {
@@ -334,7 +334,12 @@ const aposentadoriaAporteRegistrar: UndoDefinition = {
     } else if (current) {
       await prisma.aposentadoriaPlanoEntry.update({
         where: { id: current.id },
-        data: prevEntry,
+        data: {
+          aporteReal: prevEntry.aporteReal,
+          patFinal: prevEntry.patFinal,
+          // Snapshot antigo (sem origem) = registro digitado.
+          origem: prevEntry.origem ?? 'manual',
+        },
       });
     }
     return { changes: invertChanges(getChanges(entry)) };
@@ -352,6 +357,7 @@ const aposentadoriaAporteExcluir: UndoDefinition = {
       month: number;
       aporteReal: number;
       patFinal: number;
+      origem?: string;
     };
 
     const plano = await prisma.aposentadoriaPlano.findUnique({
@@ -361,9 +367,28 @@ const aposentadoriaAporteExcluir: UndoDefinition = {
       throw new UndoError(409, 'O plano de aposentadoria não existe mais');
     }
 
+    // Após a exclusão o mês pode ter sido regravado pelo automático: um registro
+    // 'auto' no lugar não é do cliente, então o desfazer o substitui.
+    const ocupante = await prisma.aposentadoriaPlanoEntry.findUnique({
+      where: { planoId_off: { planoId: plano.id, off: data.off } },
+    });
+    if (ocupante?.origem === 'auto') {
+      await prisma.aposentadoriaPlanoEntry.update({
+        where: { id: ocupante.id },
+        data: {
+          year: data.year,
+          month: data.month,
+          aporteReal: data.aporteReal,
+          patFinal: data.patFinal,
+          origem: data.origem ?? 'manual',
+        },
+      });
+      return { changes: invertChanges(getChanges(entry)) };
+    }
+
     try {
       await prisma.aposentadoriaPlanoEntry.create({
-        data: { planoId: plano.id, ...data },
+        data: { planoId: plano.id, ...data, origem: data.origem ?? 'manual' },
       });
     } catch (error: unknown) {
       if (isUniqueViolation(error)) throw new UndoError(409, 'O mês já tem um registro novo');

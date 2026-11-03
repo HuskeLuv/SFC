@@ -21,12 +21,20 @@ const mockRequireAuthWithActing = vi.hoisted(() =>
 );
 
 const mockDerive = vi.hoisted(() => vi.fn());
+const mockSync = vi.hoisted(() => vi.fn());
 
 vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mockRequireAuthWithActing }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
-vi.mock('@/services/planejamento/acompanhamentoAuto', () => ({
-  deriveAcompanhamentoEntries: mockDerive,
-}));
+vi.mock('@/services/planejamento/acompanhamentoAuto', async () => {
+  const actual = await vi.importActual<typeof import('@/services/planejamento/acompanhamentoAuto')>(
+    '@/services/planejamento/acompanhamentoAuto',
+  );
+  return {
+    ...actual,
+    deriveAcompanhamentoEntries: mockDerive,
+    sincronizarAcompanhamentoAuto: mockSync,
+  };
+});
 
 import { GET, POST } from '../route';
 
@@ -36,13 +44,19 @@ const planoTrack = {
   trackStartYear: 2026,
   idade: 30,
   apos: 65,
-  entries: [{ off: 1 }], // fev já registrado manualmente
+  entries: [
+    // fev já registrado manualmente
+    { id: 'e1', off: 1, year: 2026, month: 2, aporteReal: 0, patFinal: 999, origem: 'manual' },
+    // abr gravado pelo automático com valor antigo → desatualizado
+    { id: 'e3', off: 3, year: 2026, month: 4, aporteReal: 0, patFinal: 1200, origem: 'auto' },
+  ],
 };
 
 const derived = [
   { off: 1, year: 2026, month: 2, aporteReal: 0, patFinal: 1100, hasData: true },
   { off: 2, year: 2026, month: 3, aporteReal: 500, patFinal: null, hasData: false },
   { off: 3, year: 2026, month: 4, aporteReal: -200, patFinal: 1300, hasData: true },
+  { off: 4, year: 2026, month: 5, aporteReal: 100, patFinal: 1400, hasData: true },
 ];
 
 const updatedPlano = {
@@ -71,15 +85,16 @@ beforeEach(() => {
   mockPrisma.aposentadoriaPlano.findUniqueOrThrow.mockResolvedValue(updatedPlano);
   mockPrisma.aposentadoriaPlanoEntry.createMany.mockResolvedValue({ count: 1 });
   mockDerive.mockResolvedValue(derived);
+  mockSync.mockResolvedValue({ criados: 1, atualizados: 1, removidos: 0 });
 });
 
 describe('GET /api/aposentadoria/entries/auto', () => {
-  it('retorna derivados e quantos meses são preenchíveis (com snapshot e sem registro)', async () => {
+  it('fillable = meses sem registro + registros automáticos desatualizados (manual fica fora)', async () => {
     const res = await GET(new NextRequest('http://localhost/api/aposentadoria/entries/auto'));
     const data = await res.json();
-    // off=1 tem registro (skip), off=3 tem snapshot e sem registro → fillable=1
-    expect(data.fillable).toBe(1);
-    expect(data.derived).toHaveLength(3);
+    // off=1 manual (skip), off=2 sem snapshot, off=3 auto desatualizado, off=4 sem registro
+    expect(data.fillable).toBe(2);
+    expect(data.derived).toHaveLength(4);
   });
 
   it('404 quando não há plano', async () => {
@@ -90,31 +105,26 @@ describe('GET /api/aposentadoria/entries/auto', () => {
 });
 
 describe('POST /api/aposentadoria/entries/auto', () => {
-  it('preenche apenas meses com snapshot e sem registro existente', async () => {
+  it('força o preenchimento automático e registra no histórico', async () => {
     const res = await POST(
       new NextRequest('http://localhost/api/aposentadoria/entries/auto', { method: 'POST' }),
     );
     const data = await res.json();
 
-    expect(mockPrisma.aposentadoriaPlanoEntry.createMany).toHaveBeenCalledTimes(1);
-    const arg = mockPrisma.aposentadoriaPlanoEntry.createMany.mock.calls[0][0];
-    // só off=3 (off=1 já existe, off=2 sem snapshot)
-    expect(arg.data).toHaveLength(1);
-    expect(arg.data[0]).toMatchObject({ off: 3, patFinal: 1300, aporteReal: -200 });
-    expect(data.filled).toBe(1);
+    expect(mockSync).toHaveBeenCalledWith('u1', planoTrack);
+    expect(data.filled).toBe(2);
     expect(data.plano.id).toBe('plan-1');
+    expect(mockPrisma.userChangeLog.create).toHaveBeenCalled();
   });
 
-  it('não chama createMany quando não há nada a preencher', async () => {
-    mockDerive.mockResolvedValue([
-      { off: 1, year: 2026, month: 2, aporteReal: 0, patFinal: 1100, hasData: true },
-    ]); // off=1 já registrado
+  it('não registra histórico quando não há nada a preencher', async () => {
+    mockSync.mockResolvedValue({ criados: 0, atualizados: 0, removidos: 0 });
     const res = await POST(
       new NextRequest('http://localhost/api/aposentadoria/entries/auto', { method: 'POST' }),
     );
     const data = await res.json();
-    expect(mockPrisma.aposentadoriaPlanoEntry.createMany).not.toHaveBeenCalled();
     expect(data.filled).toBe(0);
+    expect(mockPrisma.userChangeLog.create).not.toHaveBeenCalled();
   });
 
   it('404 quando não há plano', async () => {

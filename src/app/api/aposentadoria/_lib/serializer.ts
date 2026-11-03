@@ -17,6 +17,8 @@ export interface AposentadoriaEntryDTO {
   month: number;
   aporteReal: number;
   patFinal: number;
+  /** 'auto' = preenchido da carteira · 'manual' = digitado pelo cliente. */
+  origem: 'auto' | 'manual';
 }
 
 export interface AposentadoriaPlanoDTO {
@@ -47,6 +49,7 @@ type EntryRow = {
   month: number;
   aporteReal: DecimalLike;
   patFinal: DecimalLike;
+  origem?: string | null;
 };
 
 type PlanoRow = {
@@ -102,6 +105,7 @@ export function serializeEntry(e: EntryRow): AposentadoriaEntryDTO {
     month: e.month,
     aporteReal: decimalToNumber(e.aporteReal),
     patFinal: decimalToNumber(e.patFinal),
+    origem: e.origem === 'auto' ? 'auto' : 'manual',
   };
 }
 

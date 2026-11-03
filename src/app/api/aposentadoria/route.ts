@@ -1,7 +1,13 @@
 /**
  * Simulador de Aposentadoria — plano (singleton por usuário).
  *
- * GET /api/aposentadoria  → plano do user (com entries) ou { plano: null }
+ * GET /api/aposentadoria  → plano do user (com entries) ou { plano: null }.
+ *                           Antes de responder, grava sozinho o acompanhamento
+ *                           mensal a partir da carteira (meses fechados + o mês
+ *                           corrente, que fica "parcial" até virar). Só cria/
+ *                           atualiza registros 'auto' — o que o cliente digitou
+ *                           ('manual') nunca é sobrescrito. Best-effort: se a
+ *                           derivação falhar, o plano é devolvido do mesmo jeito.
  * PUT /api/aposentadoria  → upsert dos parâmetros do plano (perfil, taxas,
  *                           acumulação, renda, eventos, início do tracking)
  *
@@ -17,9 +23,25 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { aposentadoriaPlanoUpsertSchema, validationError } from '@/utils/validation-schemas';
 import { recordChange, diffFields, APOSENTADORIA_FIELD_LABELS } from '@/services/changeHistory';
 import { serializePlano } from './_lib/serializer';
+import { sincronizarAcompanhamentoAuto } from '@/services/planejamento/acompanhamentoAuto';
+import { logger } from '@/lib/logger';
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const { targetUserId } = await requireAuthWithActing(request);
+
+  const base = await prisma.aposentadoriaPlano.findUnique({
+    where: { userId: targetUserId },
+    select: { id: true, trackStartMonth: true, trackStartYear: true, idade: true, apos: true },
+  });
+  if (!base) return NextResponse.json({ plano: null });
+
+  try {
+    await sincronizarAcompanhamentoAuto(targetUserId, base);
+  } catch (error: unknown) {
+    logger.warn('Aposentadoria: falha ao preencher acompanhamento automático', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   const plano = await prisma.aposentadoriaPlano.findUnique({
     where: { userId: targetUserId },

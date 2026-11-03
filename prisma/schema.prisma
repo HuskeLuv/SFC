@@ -1245,6 +1245,8 @@ model AposentadoriaPlanoEntry {
   month      Int // 1-12
   aporteReal Decimal            @db.Decimal(15, 2) // aporte realizado no mês
   patFinal   Decimal            @db.Decimal(15, 2) // patrimônio ao fim do mês
+  /// 'auto' = preenchido da carteira (atualizável) · 'manual' = digitado (nunca sobrescrito)
+  origem     String             @default("manual")
   createdAt  DateTime           @default(now())
   updatedAt  DateTime           @updatedAt
 

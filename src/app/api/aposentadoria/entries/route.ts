@@ -20,6 +20,7 @@ import {
   APOSENTADORIA_ENTRY_FIELD_LABELS,
 } from '@/services/changeHistory';
 import { serializePlano } from '../_lib/serializer';
+import { ORIGEM_AUTO, ORIGEM_MANUAL } from '@/services/planejamento/acompanhamentoAuto';
 
 const MESES_ABREV = [
   'jan',
@@ -65,10 +66,18 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     where: { planoId_off: { planoId: plano.id, off } },
   });
 
+  // Digitado pelo cliente = 'manual' (o automático nunca mais sobrescreve).
+  // Exceção: salvar um mês automático sem mudar os valores mantém 'auto'.
+  const semMudanca =
+    !!prevEntry &&
+    Math.abs(Number(prevEntry.aporteReal) - aporteReal) < 0.005 &&
+    Math.abs(Number(prevEntry.patFinal) - patFinal) < 0.005;
+  const origem = prevEntry?.origem === ORIGEM_AUTO && semMudanca ? ORIGEM_AUTO : ORIGEM_MANUAL;
+
   await prisma.aposentadoriaPlanoEntry.upsert({
     where: { planoId_off: { planoId: plano.id, off } },
-    create: { planoId: plano.id, off, year, month, aporteReal, patFinal },
-    update: { year, month, aporteReal, patFinal },
+    create: { planoId: plano.id, off, year, month, aporteReal, patFinal, origem },
+    update: { year, month, aporteReal, patFinal, origem },
   });
 
   await recordChange({
@@ -92,7 +101,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       kind: 'aposentadoria-entry',
       data: {
         prevEntry: prevEntry
-          ? { aporteReal: Number(prevEntry.aporteReal), patFinal: Number(prevEntry.patFinal) }
+          ? {
+              aporteReal: Number(prevEntry.aporteReal),
+              patFinal: Number(prevEntry.patFinal),
+              origem: prevEntry.origem,
+            }
           : null,
       },
       meta: { off },
