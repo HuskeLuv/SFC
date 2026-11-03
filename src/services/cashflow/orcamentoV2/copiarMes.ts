@@ -15,6 +15,7 @@
  * cada célula escrita — o undo (`handlers/orcamentoV2.ts`) só restaura se nenhuma delas mudou
  * depois (409 STATE_MISMATCH).
  */
+import { invalidarContextoUsuario } from '@/services/assistente/contexto';
 import prisma from '@/lib/prisma';
 import type { Orcado } from '@/lib/orcamento/regras';
 import type { CashflowGroup, CashflowItem } from '@/types/cashflow';
@@ -125,6 +126,7 @@ export async function copiarMes(
     }
     return plano;
   });
+  if (resultado.celulas.length > 0) invalidarContextoUsuario(userId);
 
   if (resultado.celulas.length > 0 && opts.contexto) {
     const dados: DadosSnapshotCopiar = { de, para, sobrescrever, celulas: resultado.celulas };

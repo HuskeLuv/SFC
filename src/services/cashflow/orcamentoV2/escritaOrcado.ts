@@ -13,6 +13,7 @@
  *   anterior, `handlers/orcamentoV2.ts`) e `orcamento.subcategoria.fixa` (undo restaura o anterior). O consultor
  *   (acting) fica registrado pelo próprio `recordChange` (`viaConsultant`/`actorId`).
  */
+import { invalidarContextoUsuario } from '@/services/assistente/contexto';
 import prisma from '@/lib/prisma';
 import { ApiError } from '@/utils/apiErrorHandler';
 import { ensurePersonalizedItem } from '@/utils/cashflowPersonalization';
@@ -209,6 +210,8 @@ export async function salvarOrcado(
     }
     return { antes: anterior, mudou: true };
   });
+  // O assistente lê o orçado do contexto em cache (5 min): sem isto ele repetia o valor velho.
+  if (mudou) invalidarContextoUsuario(userId);
 
   if (mudou && opts.contexto) {
     const dados: DadosSnapshotEditarOrcado = { itemId: idFinal, ano, mes: mes0, antes, depois };
