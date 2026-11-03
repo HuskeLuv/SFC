@@ -12,6 +12,7 @@ import {
   compactHistoricoCarteira,
   compactObjetivo,
   compactOrcamento,
+  compactOrcamentoV2,
   compactProventos,
   familiaProvento,
   listarLinhasEditaveis,
@@ -752,6 +753,106 @@ describe('lote 1 (16/09/2026) — campos que o slim descartava', () => {
       metaMesAtual: 1000,
       realMesAtual: 750,
     });
+  });
+});
+
+describe('compactOrcamentoV2 (orçado por subcategoria)', () => {
+  const v2 = {
+    versao: 2,
+    ano: 2026,
+    mes: 11,
+    receitaPrevista: { valor: 50000, origem: 'fluxo' },
+    resumo: { orcado: 2800, realizado: 3207.21, disponivel: -407.21 },
+    categorias: [
+      {
+        id: 'g1',
+        nome: 'Lazer',
+        orcado: 2800,
+        realizado: 3207.21,
+        diferenca: -407.21,
+        consumido: 1.1454,
+        status: 'estouro',
+        subcategorias: [
+          {
+            id: 'i1',
+            nome: 'Delivery',
+            orcado: 800,
+            realizado: 189.73,
+            diferenca: 610.27,
+            status: 'ok',
+          },
+          {
+            id: 'i2',
+            nome: 'Restaurantes',
+            orcado: 2000,
+            realizado: 2387.78,
+            diferenca: -387.78,
+            status: 'estouro',
+          },
+          {
+            id: 'i3',
+            nome: 'Cinema',
+            orcado: 0,
+            realizado: 0,
+            diferenca: 0,
+            status: 'sem_orcamento',
+          },
+        ],
+      },
+      {
+        id: 'g2',
+        nome: 'Impostos',
+        orcado: 0,
+        realizado: 0,
+        diferenca: 0,
+        consumido: null,
+        subcategorias: [],
+      },
+    ],
+  };
+
+  it('o orçado da categoria é a soma das subcategorias do v2 (Lazer 2.800, não a meta antiga)', () => {
+    const o = compactOrcamentoV2(v2)!;
+    expect(o.mesReferencia).toBe('novembro');
+    expect(o.totais).toEqual({
+      orcadoMes: 2800,
+      realizadoMes: 3207.21,
+      disponivelMes: -407.21,
+      receitaPrevistaMes: 50000,
+    });
+    const cats = o.categorias as Array<Record<string, unknown>>;
+    expect(cats).toHaveLength(1);
+    expect(cats[0]).toMatchObject({
+      nome: 'Lazer',
+      orcadoMes: 2800,
+      realizadoMes: 3207.21,
+      restanteMes: -407.21,
+      consumidoPct: 114.5,
+      status: 'estouro',
+    });
+    expect((cats[0].subcategorias as unknown[]).map((s) => (s as { nome: string }).nome)).toEqual([
+      'Delivery',
+      'Restaurantes',
+    ]);
+  });
+
+  it('ignora payload que não é do v2', () => {
+    expect(compactOrcamentoV2({ categorias: [] })).toBeNull();
+    expect(compactOrcamentoV2(null)).toBeNull();
+  });
+
+  it('montarContexto usa o formato v2 quando o orçamento veio do v2', () => {
+    const ctx = montarContexto({
+      ano: 2026,
+      resumo: null,
+      posicoes: {},
+      cashflow: null,
+      orcamento: v2,
+      dividas: null,
+      saude: null,
+      sonhos: null,
+    });
+    expect((ctx.orcamento as { totais: { orcadoMes: number } }).totais.orcadoMes).toBe(2800);
   });
 });
 

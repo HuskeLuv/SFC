@@ -27,6 +27,7 @@
  * `tratarOrcadosAntesDeApagarItem` cobre os outros caminhos que apagam linha com orçado (espelho de
  * sonho e de dívida): meses fechados na Geral da categoria, o resto apagado.
  */
+import { invalidarContextoUsuario } from '@/services/assistente/contexto';
 import type { NextRequest } from 'next/server';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import prisma from '@/lib/prisma';
@@ -763,6 +764,7 @@ export async function executarExclusaoSubcategoria(
     (tx) => excluirSubcategoria(tx, userId, itemId, hojeSP, opts.destino ?? 'geral'),
     { timeout: TIMEOUT_TX_MS },
   );
+  invalidarContextoUsuario(userId);
 
   if (opts.contexto) {
     const d = resultado.snapshot.data as unknown as DadosSnapshotExclusao;

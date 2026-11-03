@@ -17,6 +17,7 @@ import {
   type PlanejadoComAsset,
 } from '@/services/portfolio/ativosPlanejados';
 import { simplifyAssetName } from '@/utils/assetDisplayName';
+import { estadoAcessoOrcamentoV2 } from '@/services/cashflow/orcamentoV2/acesso';
 import {
   listarLinhasEditaveis,
   type CashGroupLike,
@@ -554,6 +555,58 @@ export function compactOrcamento(orc: Json | null | undefined, mesIndex: number)
   };
 }
 
+/**
+ * Orçamento v2 (orçado por subcategoria e mês, tela "Orçamento" do Fluxo de Caixa): o orçado da
+ * categoria é a SOMA das subcategorias no mês. Quem tem o v2 ativado tem a tabela antiga
+ * congelada — ler dela fazia a IA citar a meta velha (Lazer 2.500 em vez de 2.800, 02/11/2026).
+ * Subcategoria entra só com orçado ou realizado no mês; categoria sem nenhum dos dois fica fora.
+ */
+export function compactOrcamentoV2(orc: Json | null | undefined): Json | null {
+  if (!orc || orc.versao !== 2) return null;
+  const num = (v: unknown): number => round(Number(v ?? 0));
+  const pct = (v: unknown): number | undefined =>
+    typeof v === 'number' ? Math.round(v * 1000) / 10 : undefined;
+  const categorias = ((orc.categorias ?? []) as Json[])
+    .filter((c) => num(c.orcado) !== 0 || num(c.realizado) !== 0)
+    .map((c) => {
+      const subcategorias = ((c.subcategorias ?? []) as Json[])
+        .filter((s) => num(s.orcado) !== 0 || num(s.realizado) !== 0)
+        .map((s) => ({
+          nome: s.nome,
+          orcadoMes: num(s.orcado),
+          realizadoMes: num(s.realizado),
+          restanteMes: num(s.diferenca),
+          ...(s.status ? { status: s.status } : {}),
+        }));
+      return {
+        nome: c.nome,
+        orcadoMes: num(c.orcado),
+        realizadoMes: num(c.realizado),
+        restanteMes: num(c.diferenca),
+        ...(pct(c.consumido) !== undefined ? { consumidoPct: pct(c.consumido) } : {}),
+        ...(c.status ? { status: c.status } : {}),
+        subcategorias,
+      };
+    });
+  const resumo = (orc.resumo ?? {}) as Json;
+  const receita = (orc.receitaPrevista ?? {}) as Json;
+  const mes = Number(orc.mes ?? 0);
+  return {
+    observacao:
+      'Orçamento do mês por categoria: orcadoMes = soma das subcategorias; restanteMes = orçado − ' +
+      'realizado (negativo = estourou). Valores do mês de referência.',
+    mesReferencia: MESES_LONGOS[mes - 1] ?? undefined,
+    ano: orc.ano,
+    totais: {
+      orcadoMes: num(resumo.orcado),
+      realizadoMes: num(resumo.realizado),
+      disponivelMes: num(resumo.disponivel),
+      ...(typeof receita.valor === 'number' ? { receitaPrevistaMes: num(receita.valor) } : {}),
+    },
+    categorias,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Lote 2 (16/09/2026): agenda, aposentadoria, meta de patrimônio, alocação
 // alvo, cobertura FGC — rotas pequenas, uma chamada cada.
@@ -772,7 +825,8 @@ export function montarContexto(raw: ContextoBruto, hoje: Date = new Date()): Jso
     fluxoDeCaixa: raw.cashflow ? compactCashflow(raw.cashflow.groups) : null,
     // Todas as linhas editáveis, por grupo, para propor_lancamento acertar a linha/seção.
     linhasDoFluxo: raw.cashflow ? catalogoLinhas(raw.cashflow.groups) : null,
-    orcamento: compactOrcamento(orc, hoje.getMonth()),
+    // v2 ativado → orçado por subcategoria; senão a meta antiga por categoria.
+    orcamento: orc?.versao === 2 ? compactOrcamentoV2(orc) : compactOrcamento(orc, hoje.getMonth()),
     // Com saldo devedor, próxima parcela e prazo restante (antes só o cadastro).
     dividas: (raw.dividas?.dividas ?? []).map((d) => compactDivida(d)),
     saudeFinanceira: raw.saude
@@ -809,6 +863,7 @@ const ROTAS: Record<string, () => Promise<{ GET: RouteHandler }>> = {
   '/api/analises/proventos': () => import('@/app/api/analises/proventos/route'),
   '/api/cashflow': () => import('@/app/api/cashflow/route'),
   '/api/cashflow/orcamento': () => import('@/app/api/cashflow/orcamento/route'),
+  '/api/cashflow/orcamento/v2': () => import('@/app/api/cashflow/orcamento/v2/route'),
   '/api/dividas': () => import('@/app/api/dividas/route'),
   '/api/saude-financeira': () => import('@/app/api/saude-financeira/route'),
   '/api/planejamento-sonhos': () => import('@/app/api/planejamento-sonhos/route'),
@@ -853,6 +908,16 @@ async function chamarRota<T = Json>(
   }
 }
 
+/** A tela de Orçamento mostra o v2 só com a flag liberada para o dono dos dados E ativado. */
+async function orcamentoV2AtivoPara(userId: string): Promise<boolean> {
+  try {
+    const { estado, ativado } = await estadoAcessoOrcamentoV2(userId);
+    return estado === 'liberada' && ativado;
+  } catch {
+    return false;
+  }
+}
+
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const CACHE_NS = 'assistente-contexto';
 
@@ -868,12 +933,18 @@ export async function buildContextoUsuario(request: NextRequest, userId: string)
   const hit = cache.get(key);
   if (hit) return hit;
 
-  const resumo = await chamarRota(request, '/api/carteira/resumo');
+  const [resumo, orcamentoV2Ativo] = await Promise.all([
+    chamarRota(request, '/api/carteira/resumo'),
+    orcamentoV2AtivoPara(userId),
+  ]);
   const classes = classesComPosicao(resumo);
   const [cashflow, orcamento, dividas, saude, sonhos, proventos, ...posicoesArr] =
     await Promise.all([
       chamarRota<{ groups: CashGroupLike[] }>(request, '/api/cashflow', { year: String(ano) }),
-      chamarRota(request, '/api/cashflow/orcamento', { year: String(ano) }),
+      // Mesma fonte da tela: com o v2 ativado, a tabela antiga está congelada.
+      orcamentoV2Ativo
+        ? chamarRota(request, '/api/cashflow/orcamento/v2')
+        : chamarRota(request, '/api/cashflow/orcamento', { year: String(ano) }),
       chamarRota<{ dividas: Json[] }>(request, '/api/dividas'),
       chamarRota(request, '/api/saude-financeira'),
       chamarRota<{ objetivos: Json[] }>(request, '/api/planejamento-sonhos'),
