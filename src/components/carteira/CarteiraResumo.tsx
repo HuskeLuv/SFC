@@ -214,8 +214,8 @@ export default function CarteiraResumo() {
     <AlocacaoAtivosTable
       distribuicao={resumo.distribuicao}
       alocacaoConfig={alocacaoConfig}
-      // Só o caixa LIVRE abate a necessidade de aporte: as reservas por aba
-      // já estão dentro do valor de cada categoria.
+      // Só o caixa LIVRE entra aqui (base do "Distribuir caixa livre"): as
+      // reservas por aba já estão dentro do valor de cada categoria.
       caixaParaInvestir={Math.max(0, resumo.caixa?.livre ?? resumo.caixaParaInvestir ?? 0)}
       totais={resumo.totais}
       onNavigateToTab={handleTabChange}
