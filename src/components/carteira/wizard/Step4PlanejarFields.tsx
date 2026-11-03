@@ -1,10 +1,11 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { WizardFormData, WizardErrors } from '@/types/wizard';
 import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
 import Select from '@/components/form/Select';
 import { FUNDO_SUBTIPO_LABEL, FUNDO_SUBTIPO_ORDER, isFundoSubtipo } from '@/lib/fundoTypes';
+import { ETF_MANUAL_ASSET_ID } from '@/lib/ativoEmDolar';
 
 interface Step4PlanejarFieldsProps {
   formData: WizardFormData;
@@ -27,6 +28,14 @@ export default function Step4PlanejarFields({
   const [objetivoTexto, setObjetivoTexto] = useState(
     formData.objetivo && formData.objetivo > 0 ? String(formData.objetivo).replace('.', ',') : '',
   );
+
+  // ETF americano manual (nov/2026): sempre na seção EUA (a rota também força).
+  const etfManual = formData.tipoAtivo === 'etf' && formData.assetId === ETF_MANUAL_ASSET_ID;
+  useEffect(() => {
+    if (etfManual && formData.regiaoEtf !== 'estados_unidos') {
+      onFormDataChange({ regiaoEtf: 'estados_unidos' });
+    }
+  }, [etfManual, formData.regiaoEtf, onFormDataChange]);
 
   const setField = (field: keyof WizardFormData, value: string | number) => {
     onFormDataChange({ [field]: value });
@@ -149,6 +158,24 @@ export default function Step4PlanejarFields({
         );
       }
       case 'etf':
+        if (etfManual) {
+          return (
+            <div>
+              <Label htmlFor="regiaoEtf">Região *</Label>
+              <div
+                id="regiaoEtf"
+                data-campo-fixo=""
+                className="flex h-11 items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-white/90"
+              >
+                <span>EUA</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">fixo</span>
+              </div>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                ETF americano fica em US$ e sempre aparece na seção EUA.
+              </p>
+            </div>
+          );
+        }
         return (
           <div>
             <Label htmlFor="regiaoEtf">Região *</Label>

@@ -47,13 +47,17 @@ export const quickRedeemQuantity = (available: number, fraction: number): number
   return units / factor;
 };
 
+/** Tipos do resgate que, com moeda USD, estão em dólar (Stock EUA vem como 'acao' no wizard). */
+export const TIPOS_RESGATE_EM_DOLAR: readonly string[] = ['acao', 'stock', 'reit', 'etf'];
+
 /**
- * Carteira EUA em US$: resgate de Stock EUA (tipo 'acao' com moeda USD no wizard) ou REIT exige a
- * cotação do dólar da venda — o servidor recusa sem ela (400), grava em notes.operation e converte
- * o preço (sempre em US$) para a unidade da posição. ETF em dólar não entra aqui.
+ * Carteira EUA em US$: resgate de Stock EUA (tipo 'acao' com moeda USD no wizard), REIT ou ETF
+ * americano (etf com currency USD, nov/2026) exige a cotação do dólar da venda — o servidor recusa
+ * sem ela (400), grava em notes.operation e converte o preço (sempre em US$) para a unidade da
+ * posição. O ETF da B3 (IVVB11, currency BRL) não pede câmbio, mesmo na seção EUA.
  */
 export const resgateExigeCambio = (formData: Pick<RedeemWizardFormData, 'tipoAtivo' | 'moeda'>) =>
-  formData.moeda === 'USD' && ['acao', 'stock', 'reit'].includes(formData.tipoAtivo);
+  formData.moeda === 'USD' && TIPOS_RESGATE_EM_DOLAR.includes(formData.tipoAtivo);
 
 /** Câmbio com até 4 casas; vírgula OU ponto é o decimal ("5,1111" e "5.1111"). */
 const parseCambio = (texto: string): number | undefined => {

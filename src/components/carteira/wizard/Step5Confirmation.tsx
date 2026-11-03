@@ -17,6 +17,7 @@ import {
   rendaFixaPedeEmissor,
 } from '@/types/wizard';
 import { formatBRL, formatUSD } from '@/utils/format';
+import { ETF_MANUAL_ASSET_ID } from '@/lib/ativoEmDolar';
 
 interface Step5ConfirmationProps {
   formData: WizardFormData;
@@ -94,7 +95,7 @@ export default function Step5Confirmation({
     );
   };
 
-  // Stock EUA/REIT (Carteira EUA em US$): total da posição em US$, corretagem em R$ à parte e o
+  // Stock EUA/REIT/ETF americano (Carteira EUA em US$): total da posição em US$, corretagem em R$ à parte e o
   // equivalente em R$ (o que sai do Caixa para Investir). A rota decide a unidade da gravação.
   const formatCurrencyUSD = (value: string | number | Date | null | undefined) =>
     typeof value === 'number' ? formatUSD(value) : '-';
@@ -523,6 +524,28 @@ export default function Step5Confirmation({
         );
 
       case 'etf':
+        // ETF americano manual (nov/2026): em US$, como o Stock EUA. O ETF da B3 segue em R$.
+        if (formData.assetId === ETF_MANUAL_ASSET_ID) {
+          return (
+            <>
+              {renderFieldValue('Região', 'EUA')}
+              {renderFieldValue('Data de Compra', formData.dataCompra, formatDate)}
+              {renderFieldValue('Moeda', MOEDA_ATIVO_EUA_LABEL)}
+              {renderFieldValue(
+                'Cotação do dólar no dia da compra',
+                formData.cotacaoMoeda,
+                formatCotacaoDolar,
+              )}
+              {renderFieldValue('Quantidade', formData.quantidade)}
+              {renderFieldValue(
+                'Preço por Cota (US$)',
+                formData.cotacaoUnitaria,
+                formatCurrencyUSD,
+              )}
+              {renderResumoEmDolar()}
+            </>
+          );
+        }
         return (
           <>
             {renderFieldValue('Região', formData.regiaoEtf, (val) =>

@@ -14,6 +14,16 @@ import {
 import Step3RendaFixaSelect from './Step3RendaFixaSelect';
 import Step3MoedaSelect from './Step3MoedaSelect';
 import Step3SearchWithManualFallback from './Step3SearchWithManualFallback';
+import { ETF_MANUAL_ASSET_ID } from '@/lib/ativoEmDolar';
+
+/**
+ * ETF americano manual (nov/2026): ticker terminado em "11" costuma ser ETF da B3. Só avisa, não
+ * bloqueia — o back recusa apenas o ticker que bate com um ETF em R$ do catálogo.
+ */
+export const avisoTickerEtfManual = (ticker: string): string | null =>
+  /11$/.test(ticker.trim().toUpperCase().replace(/\.SA$/, ''))
+    ? 'Parece um ETF da B3. Se for, volte para a busca e escolha-o na lista: ETF da B3 fica em reais.'
+    : null;
 
 interface Step3AssetProps {
   formData: WizardFormData;
@@ -264,6 +274,33 @@ export default function Step3Asset({
         manualTitle="Não encontrou o fundo?"
         manualPrefix="FUNDO"
         manualPlaceholder="Ex: XP Macro FIM, BTG Pactual FIA"
+      />
+    );
+  }
+
+  // ETF (nov/2026): o catálogo traz só os ETFs da B3, em R$. O ETF americano (VOO, QQQ...) entra
+  // pelo modo manual (assetId ETF-MANUAL) e é gravado em US$, como o Stock EUA.
+  if (formData.tipoAtivo === 'etf') {
+    const etfManual = formData.assetId === ETF_MANUAL_ASSET_ID;
+    return (
+      <Step3SearchWithManualFallback
+        {...stepProps}
+        tipoAtivo="etf"
+        searchPlaceholder={getPlaceholderText('etf')}
+        manualTitle="ETF americano (US$)?"
+        manualPrefix="ETF"
+        manualPlaceholder="Ex: VOO, QQQ, SPY"
+        manualTextos={{
+          titulo: 'Entrada manual · ETF americano',
+          descricao:
+            'Digite o ticker. O ETF é registrado em US$, sem cotação automática: a cotação fica igual ao preço que você pagou.',
+          rotulo: 'Ticker do ETF *',
+          comoBuscar:
+            'ETF da B3 (BOVA11, IVVB11): escolha na lista. ETF americano (VOO, QQQ): digite o ticker e use "Adicionar manualmente"; ele fica em US$ e a cotação fica igual ao preço que você pagou.',
+        }}
+        manualToUpperCase
+        manualAviso={etfManual ? avisoTickerEtfManual(formData.ativo) : null}
+        iniciarNoManual={etfManual}
       />
     );
   }

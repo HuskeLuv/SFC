@@ -86,6 +86,8 @@ function getPriceCheckParams(
   formData: RedeemWizardFormData,
 ): { enteredPrice: number; threshold: number } | null {
   if (formData.metodoResgate !== 'quantidade') return null;
+  // ETF americano manual: preço em US$ e sem cotação de mercado para comparar.
+  if (formData.tipoAtivo === 'etf' && formData.moeda === 'USD') return null;
   switch (formData.tipoAtivo) {
     case 'acao':
     case 'fii':
@@ -155,11 +157,11 @@ export default function RedeemAssetWizard({ isOpen, onClose, onSuccess }: Redeem
   useEffect(() => {
     const validateStep4 = (): boolean => {
       if (!formData.dataResgate) return false;
-      // Stock EUA/REIT: a cotação do dólar da venda é obrigatória (o servidor recusa sem ela).
-      // Mesma regra de resgateExigeCambio (Step4RedeemInfo), repetida aqui porque os testes do
-      // wizard trocam o módulo do passo 4 por um mock.
+      // Stock EUA/REIT/ETF americano: a cotação do dólar da venda é obrigatória (o servidor recusa
+      // sem ela). Mesma regra de resgateExigeCambio (Step4RedeemInfo), repetida aqui porque os
+      // testes do wizard trocam o módulo do passo 4 por um mock.
       const exigeCambio =
-        formData.moeda === 'USD' && ['acao', 'stock', 'reit'].includes(formData.tipoAtivo);
+        formData.moeda === 'USD' && ['acao', 'stock', 'reit', 'etf'].includes(formData.tipoAtivo);
       if (exigeCambio && !((formData.cotacaoMoeda ?? 0) > 0)) return false;
 
       if (formData.metodoResgate === 'quantidade') {

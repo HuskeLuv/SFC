@@ -61,11 +61,23 @@ afterEach(() => {
 });
 
 describe('resgateExigeCambio', () => {
-  it('Stock EUA (acao + USD) e REIT sim; ação BR e ETF em dólar não', () => {
+  it('Stock EUA (acao + USD), REIT e ETF americano (etf + USD) sim; ação BR e IVVB11 não', () => {
     expect(resgateExigeCambio({ tipoAtivo: 'acao', moeda: 'USD' })).toBe(true);
     expect(resgateExigeCambio({ tipoAtivo: 'reit', moeda: 'USD' })).toBe(true);
+    expect(resgateExigeCambio({ tipoAtivo: 'etf', moeda: 'USD' })).toBe(true);
     expect(resgateExigeCambio({ tipoAtivo: 'acao', moeda: 'BRL' })).toBe(false);
-    expect(resgateExigeCambio({ tipoAtivo: 'etf', moeda: 'USD' })).toBe(false);
+    // ETF da B3 (currency BRL) não pede câmbio, mesmo na seção EUA.
+    expect(resgateExigeCambio({ tipoAtivo: 'etf', moeda: 'BRL' })).toBe(false);
+  });
+
+  it('ETF americano: o passo 4 pede a cotação do dólar; IVVB11 não', async () => {
+    const { unmount } = render(
+      <Harness initial={{ tipoAtivo: 'etf', ativo: 'VOO', moeda: 'USD' }} />,
+    );
+    expect(await screen.findByLabelText(/Cotação do dólar no dia do resgate/)).toBeInTheDocument();
+    unmount();
+    render(<Harness initial={{ tipoAtivo: 'etf', ativo: 'IVVB11', moeda: 'BRL' }} />);
+    expect(screen.queryByLabelText(/Cotação do dólar no dia do resgate/)).not.toBeInTheDocument();
   });
 });
 
