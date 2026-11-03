@@ -21,7 +21,9 @@ import {
 
 /**
  * Esconder valores (Fase 6): um valor antes/depois do diff. Número em 'currency' é dinheiro do
- * usuário e 'number' (ou sem formato) é quantidade: viram pílula com o olho fechado. 'percent' e
+ * usuário e vira pílula com o olho fechado; número de campo de quantidade de ativo
+ * (CAMPOS_QUANTIDADE) vira pílula curta. Os outros números ficam (follow-up de 03/11, decisões 1
+ * e 2): taxa ao mês, prazo em meses, dia do vencimento, parcela nº, idade, ordem. 'percent' e
  * 'date' ficam; texto só esconde trechos com R$/US$. A pílula é a que guarda a largura do valor
  * (.mf-sensivel--reserva): o resumo e os detalhes quebram nas mesmas linhas com o olho aberto ou
  * fechado (decisão 6). Na quantidade ela é "justa" (.mf-sensivel--justa): nunca mais larga que o
@@ -34,22 +36,27 @@ const pareceJson = (value: unknown, texto: string) =>
   (value !== null && typeof value === 'object') ||
   (typeof value === 'string' && /^\s*[[{]/.test(texto) && /\d/.test(texto));
 
-export const ValorAlteracao: React.FC<{ value: unknown; format?: ChangeValueFormat }> = ({
-  value,
-  format,
-}) => {
+/** Campos (labels.ts) cujo número é quantidade de ativo do usuário. */
+const CAMPOS_QUANTIDADE = new Set(['quantity', 'quantidadeBase']);
+
+export const ValorAlteracao: React.FC<{
+  value: unknown;
+  format?: ChangeValueFormat;
+  /** Campo do diff (FieldChange.field): decide se um número sem moeda é quantidade. */
+  field?: string;
+}> = ({ value, format, field }) => {
   const texto = formatChangeValue(value, format);
-  if (typeof value === 'number' && format !== 'percent') {
-    const curto = format !== 'currency';
+  if (typeof value === 'number' && format === 'currency') {
+    return <Sensivel className="mf-sensivel--reserva">{texto}</Sensivel>;
+  }
+  if (typeof value === 'number' && field !== undefined && CAMPOS_QUANTIDADE.has(field)) {
     return (
-      <Sensivel
-        curto={curto}
-        className={curto ? 'mf-sensivel--reserva mf-sensivel--justa' : 'mf-sensivel--reserva'}
-      >
+      <Sensivel curto className="mf-sensivel--reserva mf-sensivel--justa">
         {texto}
       </Sensivel>
     );
   }
+  if (typeof value === 'number') return <>{texto}</>;
   if (pareceJson(value, texto)) return <Sensivel className="mf-sensivel--texto">{texto}</Sensivel>;
   return <TextoSensivel texto={texto} />;
 };
@@ -81,7 +88,7 @@ export const ResumoAlteracao: React.FC<{ partes: ParteResumo[] }> = ({ partes })
         typeof p === 'string' ? (
           <React.Fragment key={i}>{p}</React.Fragment>
         ) : (
-          <ValorAlteracao key={i} value={p.valor} format={p.format} />
+          <ValorAlteracao key={i} value={p.valor} format={p.format} field={p.field} />
         ),
       )}
     </>
@@ -103,11 +110,11 @@ export const ChangesList: React.FC<{
         >
           <span className="font-medium">{change.label}:</span>{' '}
           <span className="line-through text-gray-400 dark:text-gray-500">
-            <ValorAlteracao value={change.before} format={change.format} />
+            <ValorAlteracao value={change.before} format={change.format} field={change.field} />
           </span>{' '}
           <span aria-hidden>→</span>{' '}
           <span>
-            <ValorAlteracao value={change.after} format={change.format} />
+            <ValorAlteracao value={change.after} format={change.format} field={change.field} />
           </span>
         </li>
       ))}

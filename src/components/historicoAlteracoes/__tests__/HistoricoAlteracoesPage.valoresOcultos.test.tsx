@@ -12,8 +12,9 @@ import {
 
 /**
  * Esconder valores (Fase 6, fatia 1): Histórico de alterações com o olho fechado. Antes/depois em
- * dinheiro ('currency') e quantidade ('number') viram pílula no resumo, nos Detalhes e no sheet do
- * Desfazer; percentual, data, texto, nomes e a data da alteração continuam. O Desfazer manda só o
+ * dinheiro ('currency') e quantidade de ativo viram pílula no resumo, nos Detalhes e no sheet do
+ * Desfazer; percentual, data, texto, nomes, a data da alteração e os outros números (taxa ao mês,
+ * prazo, dia do vencimento, parcela nº) continuam. O Desfazer manda só o
  * id. Olho aberto: o mesmo texto de hoje (renderRichDescription) e nenhuma pílula.
  */
 
@@ -173,6 +174,60 @@ describe.each([
     expect(container.textContent).toContain('01/01/2050');
     expect(container.textContent).toContain('Editou o ativo PETR4');
     expect(container.textContent).toContain('Preço médio:');
+  });
+});
+
+describe('Histórico — números que não são dinheiro nem quantidade', () => {
+  beforeEach(() => {
+    mocks.belowLg = false;
+    mocks.historico.entries = [
+      {
+        ...base,
+        id: 'log-divida-numeros',
+        section: 'dividas',
+        action: 'divida.editar',
+        entity: 'divida',
+        entityId: 'd2',
+        entityLabel: 'Consignado',
+        changes: [
+          { field: 'taxaAm', label: 'Taxa ao mês', before: 0.0189, after: 0.0179 },
+          {
+            field: 'prazoMeses',
+            label: 'Prazo (meses)',
+            before: 48,
+            after: 60,
+            format: 'number',
+          },
+          {
+            field: 'diaVencimento',
+            label: 'Dia do vencimento',
+            before: 5,
+            after: 15,
+            format: 'number',
+          },
+          {
+            field: 'parcelaNumero',
+            label: 'Parcela nº',
+            before: 12,
+            after: 13,
+            format: 'number',
+          },
+        ],
+        createdAt: '2026-10-21T10:00:00.000Z',
+        canUndo: false,
+      },
+    ];
+  });
+
+  it('taxa ao mês, prazo, dia do vencimento e parcela nº ficam visíveis', () => {
+    const { container } = renderPagina(true);
+    abrirDetalhesDoAtivo(container);
+    const tudo = container.textContent ?? '';
+    expect(tudo).toContain('Prazo (meses): 48 → 60');
+    expect(tudo).toContain('Dia do vencimento: 5 → 15');
+    expect(tudo).toContain('Parcela nº: 12 → 13');
+    expect(tudo).toMatch(/Taxa ao mês: 0[,.]0189/);
+    expectPilulas(container, 0);
   });
 });
 
