@@ -67,6 +67,12 @@ const ATIVO_KEEP = [
   'valorInicial',
   'cidade',
   'observacoes',
+  // ETF americano em US$ (nov/2026): os campos base da linha já vêm em R$ (a classe ETF é R$);
+  // moedaRegistro 'USD' e os *USD dizem ao modelo que o VOO é dólar e qual o valor nativo.
+  'moedaRegistro',
+  'precoAquisicaoUSD',
+  'cotacaoAtualUSD',
+  'valorAtualizadoUSD',
 ];
 
 /** Chave de `distribuicao` no resumo da carteira → rota de posições. */

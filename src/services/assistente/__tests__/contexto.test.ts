@@ -422,6 +422,58 @@ describe('montarContexto — ativos planejados', () => {
       totalEquivalenteBRL: 1764,
     });
   });
+  it('ETF mista (IVVB11 B3 + VOO em US$): VOO em R$ com moedaRegistro USD, sem moeda na classe', () => {
+    const ctx = montarContexto(
+      {
+        ...base,
+        posicoes: {
+          etf: {
+            secoes: [
+              {
+                nome: 'EUA',
+                totalValorAtualizado: 8800,
+                ativos: [
+                  { ticker: 'IVVB11', precoAquisicao: 300, valorAtualizado: 3300 },
+                  {
+                    ticker: 'VOO',
+                    symbol: 'VOO-1730000000000-ab3cd11',
+                    moedaRegistro: 'USD',
+                    precoAquisicao: 2505,
+                    cotacaoAtual: 2750,
+                    valorAtualizado: 5500,
+                    precoAquisicaoUSD: 500,
+                    cotacaoAtualUSD: 500,
+                    valorAtualizadoUSD: 1000,
+                  },
+                ],
+              },
+            ],
+            cotacaoDolar: 5.5,
+          },
+        },
+      } as unknown as typeof base,
+      new Date('2026-11-03T12:00:00Z'),
+    ) as { carteira: { posicoes: Record<string, Record<string, unknown>> } };
+    const etf = ctx.carteira.posicoes.etf as {
+      moeda?: string;
+      secoes: Array<{ ativos: Array<Record<string, unknown>> }>;
+    };
+    expect(etf).not.toHaveProperty('moeda');
+    const [ivvb, voo] = etf.secoes[0].ativos;
+    expect(voo).toMatchObject({
+      ticker: 'VOO',
+      moedaRegistro: 'USD',
+      precoAquisicao: 2505,
+      valorAtualizado: 5500,
+      precoAquisicaoUSD: 500,
+      cotacaoAtualUSD: 500,
+      valorAtualizadoUSD: 1000,
+    });
+    // O symbol cru (com timestamp) não vai ao modelo.
+    expect(voo).not.toHaveProperty('symbol');
+    expect(ivvb).not.toHaveProperty('moedaRegistro');
+    expect(ivvb).toMatchObject({ ticker: 'IVVB11', precoAquisicao: 300 });
+  });
   it('não leva nome nem e-mail do usuário (promessa de /subprocessadores)', () => {
     const comPerfil = {
       ...base,
