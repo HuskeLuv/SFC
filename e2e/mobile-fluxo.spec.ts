@@ -135,8 +135,8 @@ test('Mais ações: Recolher tudo esconde as linhas e Expandir tudo volta', asyn
 
 test('linha calculada abre a explicação da conta', async ({ page }) => {
   await abrir(page);
-  await page.locator('[data-mf-fluxo-derived="fluxoLivre"]').click();
-  const sheet = page.getByRole('dialog', { name: 'Fluxo de Caixa livre' });
+  await page.locator('[data-mf-fluxo-derived="evolucao"]').click();
+  const sheet = page.getByRole('dialog', { name: 'Evolução do Patrimônio' });
   await expect(sheet).toBeVisible();
   await expect(sheet.getByText('Como é calculado')).toBeVisible();
   await page.keyboard.press('Escape');

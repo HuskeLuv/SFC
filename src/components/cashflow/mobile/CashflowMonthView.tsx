@@ -9,6 +9,7 @@ import { MobileSaveToast } from '@/components/ui/sheet/MobileSaveToast';
 import { QUICK_LAUNCH_ACTIONS } from '@/layout/mobile/quickLaunch';
 import { readMesParam, writeMesParam } from '@/lib/cashflow/monthParam';
 import { emitOpenLancamento, onCashflowFlash } from '@/lib/cashflow/cashflowEvents';
+import { MOSTRAR_BLOCOS_CAIXA_NA_PLANILHA } from '@/lib/cashflow/blocosOcultosPlanilha';
 import {
   allGroupIds,
   buildMonthBlocks,
@@ -427,7 +428,7 @@ export default function CashflowMonthView() {
               entradas={entradas}
               despesas={despesas}
               poupanca={savingsIndex(saldo, entradas)}
-              saldoCcAnterior={saldoCc ?? null}
+              saldoCcAnterior={MOSTRAR_BLOCOS_CAIXA_NA_PLANILHA ? (saldoCc ?? null) : undefined}
             />
             {groupBlocks(blocks).map((entry) =>
               entry.kind === 'group' ? (
