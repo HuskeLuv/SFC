@@ -110,6 +110,7 @@ export const queryKeys = {
   admin: {
     all: ['admin'] as const,
     overview: () => [...queryKeys.admin.all, 'overview'] as const,
+    cs: () => [...queryKeys.admin.all, 'cs'] as const,
   },
   ir: {
     all: ['ir'] as const,
