@@ -9,7 +9,8 @@
  *    sincronizações seguintes só o espelho e o "valor atual" dos ativos
  *    manuais são atualizados;
  *  - ativo listado (ação/FII/ETF/BDR) usa o catálogo por ticker; se o usuário
- *    JÁ tem o ativo, só vincula (não duplica a posição);
+ *    JÁ tem o ativo, só vincula (não duplica a posição). Sem custo (amountOriginal)
+ *    a compra fica marcada "preço médio não informado" (src/lib/precoMedioNaoInformado.ts);
  *  - renda fixa bancária vira Asset 'bond' + FixedIncomeAsset (marcação na
  *    curva pela taxa/indexador contratados, como o wizard);
  *  - debênture (DEBENTURES/CORPORATE_DEBT) entra como a debênture do wizard, na
@@ -52,6 +53,7 @@ import {
   type IndiceEmissores,
 } from '@/services/instituicoes/casarEmissor';
 import { tipoAssetFundoPluggy, tipoFiiImportado } from './secaoImportada';
+import { notesCompraSemPrecoMedio } from '@/lib/precoMedioNaoInformado';
 
 import { NOTA_IMPORTACAO } from './notaImportacao';
 
@@ -522,6 +524,9 @@ export async function importarInvestimento(
       }
       const quantidade = inv.quantity && inv.quantity > 0 ? inv.quantity : 1;
       const preco = Math.round((investido / quantidade) * 1_000_000) / 1_000_000;
+      // Sem amountOriginal o banco não mandou o custo: o "preço" é a cotação da conexão e a
+      // data é a da conexão. Marca a compra para a Carteira pedir o preço médio ao cliente.
+      const semCusto = inv.amountOriginal == null;
       // Sem isso o FII caía na seção default da aba (FOFI).
       const tipoFii =
         asset.type === 'fii' ? await tipoFiiImportado(asset.symbol, asset.name) : undefined;
@@ -536,7 +541,7 @@ export async function importarInvestimento(
             total: investido,
             date: dataPosicao,
             fees: 0,
-            notes: NOTA_IMPORTACAO,
+            notes: semCusto ? notesCompraSemPrecoMedio(NOTA_IMPORTACAO) : NOTA_IMPORTACAO,
           },
         });
         return tx.portfolio.create({

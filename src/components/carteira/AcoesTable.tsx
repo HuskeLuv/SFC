@@ -13,6 +13,7 @@ import {
   metricColorBySign,
 } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
+import { AvisoPrecoMedioLinha } from '@/components/carteira/PrecoMedioNaoInformado';
 
 const SECTION_ORDER = ['value', 'growth', 'risk'] as const;
 const SECTION_NAMES: Record<string, string> = {
@@ -52,6 +53,7 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
       render: (a) => (
         <div>
           <AssetNameLink portfolioId={a.id} ticker={a.ticker} nome={a.nome} />
+          <AvisoPrecoMedioLinha portfolioId={a.id} />
           {a.observacoes && <div className="text-xs mt-1">{a.observacoes}</div>}
         </div>
       ),

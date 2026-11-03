@@ -14,6 +14,7 @@ import {
   metricColorBySign,
 } from '@/components/carteira/shared';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
+import { AvisoPrecoMedioLinha } from '@/components/carteira/PrecoMedioNaoInformado';
 import ComponentCard from '@/components/common/ComponentCard';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { ResumoAportesCards } from '@/components/carteira/shared/AssetCardSections';
@@ -162,6 +163,7 @@ export default function EtfTable({ totalCarteira = 0 }: EtfTableProps) {
           ) : (
             <AssetNameLink portfolioId={a.id} ticker={a.ticker} nome={a.nome} />
           )}
+          <AvisoPrecoMedioLinha portfolioId={a.id} />
           {a.observacoes && (
             <div className="text-xs text-gray-900 dark:text-white mt-1">{a.observacoes}</div>
           )}

@@ -6,6 +6,8 @@ import { ResponsiveCardList, type ResponsiveColumn } from '@/components/ui/table
 import { CardSectionBand } from '@/components/ui/table/CardSectionBand';
 import { TABLE_MOBILE_STYLES } from '@/components/ui/table/tableStyles';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
+import { AvisoPrecoMedioLinha } from '@/components/carteira/PrecoMedioNaoInformado';
+import { usePrecoMedioPendente } from '@/hooks/usePrecoMedioPendente';
 import { useCarteiraLaunch } from '@/components/carteira/CarteiraLaunchContext';
 import PlanejadoNameCell from './PlanejadoNameCell';
 import EmptyState from './EmptyState';
@@ -377,6 +379,8 @@ export default function AssetCardSections<TAtivo, TSecao>({
 }: AssetCardSectionsProps<TAtivo, TSecao>) {
   const baseId = useId();
   const moverCtx = useCarteiraMover();
+  // Open Finance: posição sem preço médio informado pelo banco ganha o aviso no rodapé do cartão.
+  const { porPortfolio: semPrecoMedio } = usePrecoMedioPendente();
   const [sort, setSort] = useState<AssetSortKey>('padrao');
   const launch = useCarteiraLaunch();
   const { formatCurrency, formatPercentage, formatNumber } = formatters;
@@ -627,6 +631,18 @@ export default function AssetCardSections<TAtivo, TSecao>({
   };
 
   const renderCardFooter = (a: TAtivo) => {
+    const footer = renderCardFooterLinha(a);
+    const id = String(rec(a).id);
+    if (isPlanejado(a) || !semPrecoMedio.has(id)) return footer;
+    return (
+      <div className="flex flex-col gap-1">
+        <AvisoPrecoMedioLinha portfolioId={id} className="min-h-11" />
+        {footer}
+      </div>
+    );
+  };
+
+  const renderCardFooterLinha = (a: TAtivo) => {
     const acao = renderCardFooterAcao(a);
     const moverBtn = renderMoverButton(a);
     if (!moverBtn) return acao;

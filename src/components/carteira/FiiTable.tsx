@@ -15,6 +15,7 @@ import {
 } from '@/components/carteira/shared';
 import type { GenericAssetMoverConfig } from '@/components/carteira/shared/GenericAssetTable';
 import AssetNameLink from '@/components/carteira/AssetNameLink';
+import { AvisoPrecoMedioLinha } from '@/components/carteira/PrecoMedioNaoInformado';
 import ComponentCard from '@/components/common/ComponentCard';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { ResumoAportesCards } from '@/components/carteira/shared/AssetCardSections';
@@ -97,6 +98,7 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
       render: (a) => (
         <div>
           <AssetNameLink portfolioId={a.id} ticker={a.ticker} nome={a.nome} />
+          <AvisoPrecoMedioLinha portfolioId={a.id} />
           {a.observacoes && <div className="text-xs mt-1">{a.observacoes}</div>}
         </div>
       ),

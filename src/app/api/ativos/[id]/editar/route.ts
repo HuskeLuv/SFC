@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { ensurePortfolioProventosFromMarket } from '@/lib/ensurePortfolioProventosFromMarket';
 import { isCorporateActionAuditTx } from '@/services/portfolio/corporateActions';
 import { posicaoEmDolar } from '@/lib/ativoEmDolar';
+import { temPrecoMedioNaoInformado } from '@/lib/precoMedioNaoInformado';
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { aceitaEmissor, ehInstituicaoEmissora } from '@/lib/fgc/produtosCobertos';
@@ -134,6 +135,12 @@ export const GET = withErrorHandler(
         }
       : null;
 
+    // Open Finance: compra gravada com a cotação da conexão (o banco não mandou o custo).
+    const semPrecoMedio = transactions.find(
+      (tx) => tx.type === 'compra' && temPrecoMedioNaoInformado(tx.notes),
+    );
+    const compraSemPrecoMedioId = semPrecoMedio?.id ?? null;
+
     const operacoes = transactions.map((tx) => ({
       id: tx.id,
       tipoOperacao: tipoOperacaoMap[tx.type] || tx.type,
@@ -195,6 +202,7 @@ export const GET = withErrorHandler(
           ? { tipo: 'sonho' as const, objetivoId: portfolio.planejamentoObjetivoId }
           : null,
       movimentacaoInicial,
+      compraSemPrecoMedioId,
       operacoes,
       proventos,
       // Carteira EUA em US$: unidade gravada da posição (preço/total das transações em US$;

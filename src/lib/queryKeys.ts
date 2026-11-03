@@ -9,6 +9,8 @@ export const queryKeys = {
     rentabilidade: (startDate?: string) =>
       [...queryKeys.carteira.all, 'rentabilidade', startDate] as const,
     janelas: () => [...queryKeys.carteira.all, 'janelas'] as const,
+    /** Posições do Open Finance sem preço médio (src/lib/precoMedioNaoInformado.ts). */
+    precoMedioPendente: () => [...queryKeys.carteira.all, 'preco-medio-pendente'] as const,
   },
   assets: {
     all: ['assets'] as const,

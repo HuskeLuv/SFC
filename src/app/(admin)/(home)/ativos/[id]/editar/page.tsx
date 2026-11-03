@@ -200,6 +200,8 @@ interface EditarPayload {
     total: number;
     fees: number | null;
   } | null;
+  /** Compra do Open Finance sem custo do banco (preço e data = os da conexão); null = ok. */
+  compraSemPrecoMedioId?: string | null;
   operacoes: OperacaoRow[];
   proventos: ProventoRow[];
   /** Unidade gravada da posição (ausente = R$). */
@@ -653,6 +655,14 @@ const AtivoEditarContent = () => {
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  // Aviso "preço médio não informado" da Carteira: o link (#movimentacao-inicial) chega antes
+  // dos dados; rola até a compra quando ela aparece.
+  const temDados = !!data;
+  useEffect(() => {
+    if (!temDados || window.location.hash !== '#movimentacao-inicial') return;
+    document.getElementById('movimentacao-inicial')?.scrollIntoView({ block: 'start' });
+  }, [temDados]);
 
   const handleUpdateTransacao = useCallback(
     async (transacaoId: string, field: string, value: number | string) => {
@@ -1386,10 +1396,36 @@ const AtivoEditarContent = () => {
                 </p>
               </div>
 
-              <div className="mt-6 border-t border-gray-200 pt-5 dark:border-gray-700">
+              <div
+                id="movimentacao-inicial"
+                className="mt-6 scroll-mt-24 border-t border-gray-200 pt-5 dark:border-gray-700"
+              >
                 <h3 className="mb-4 text-base font-semibold text-gray-900 dark:text-white">
                   Movimentação inicial
                 </h3>
+                {inicial && data.compraSemPrecoMedioId === inicial.id && (
+                  <div
+                    role="note"
+                    data-preco-medio-nao-informado=""
+                    className="mb-4 rounded-lg border border-[#DCE6F2] bg-[#EDF2F8] px-3 py-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-white/5 dark:text-gray-300"
+                  >
+                    <p>
+                      <b className="font-semibold text-gray-900 dark:text-white">
+                        Preço médio não informado pelo banco.
+                      </b>{' '}
+                      O Open Finance mandou só a quantidade e a cotação atual: a cotação e a data
+                      abaixo são as do dia da conexão. Informe o preço médio e a data da compra para
+                      a rentabilidade ficar certa.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void handleUpdateTransacao(inicial.id, 'price', inicial.price)}
+                      className="mt-1 inline-flex min-h-11 items-center font-semibold text-mf-patrimonio hover:underline focus-visible:outline-2 focus-visible:outline-mf-outside dark:text-mf-tranquilidade"
+                    >
+                      O preço já está certo
+                    </button>
+                  </div>
+                )}
                 {emDolar && (
                   <p
                     role="note"

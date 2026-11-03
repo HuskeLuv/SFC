@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components
 import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import { formatBRL } from '@/utils/format';
 import { Sensivel } from '@/components/common/valores/Sensivel';
+import { AvisoPrecoMedioAgregado } from '@/components/carteira/PrecoMedioNaoInformado';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { ResponsiveCardList, type ResponsiveColumn } from '@/components/ui/table/ResponsiveTable';
 import MobileStatusPill, { type MobileStatusTone } from '@/components/ui/mobile/MobileStatusPill';
@@ -310,6 +311,8 @@ export default function CarteiraImportada({
           </Button>
         ) : null}
       </div>
+
+      <AvisoPrecoMedioAgregado className="mb-4" />
 
       {comDestinos && paraRevisar > 0 && onConferirDestinos ? (
         <div

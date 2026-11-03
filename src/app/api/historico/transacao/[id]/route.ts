@@ -18,6 +18,7 @@ import {
 
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { isAtivoEmDolar, lerNotesTransacao, type AtivoMoedaRef } from '@/lib/ativoEmDolar';
+import { semMarcadorPrecoMedio, temPrecoMedioNaoInformado } from '@/lib/precoMedioNaoInformado';
 const EDITABLE_FIELDS = ['quantity', 'price', 'total', 'date', 'fees', 'notes'] as const;
 
 /** Campos do marcador de unidade (Carteira EUA em US$) que a edição nunca troca. */
@@ -141,6 +142,12 @@ export const PATCH = withErrorHandler(
       } else if (!hasTotal) {
         updates.total = nextQuantity * nextPrice;
       }
+    }
+
+    // Compra do Open Finance sem custo do banco: corrigir (ou confirmar) o preço tira o aviso
+    // "preço médio não informado". Só a data não basta — o preço segue o da conexão.
+    if ((hasPrice || hasTotal) && temPrecoMedioNaoInformado(updates.notes ?? transaction.notes)) {
+      updates.notes = semMarcadorPrecoMedio(updates.notes ?? transaction.notes);
     }
 
     // Bug #02: cutoff para invalidar série MWR/TWR é o min(data antiga, data nova).
