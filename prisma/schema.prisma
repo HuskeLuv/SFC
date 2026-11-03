@@ -163,6 +163,8 @@ model User {
   analiseFiltrosSalvos          AnaliseFiltroSalvo[]          @relation("AnaliseFiltroSalvoUser")
   analiseComparacoes            AnaliseComparacao[]           @relation("AnaliseComparacaoUser")
   analiseAlertaEnvios           AnaliseAlertaEnvio[]          @relation("AnaliseAlertaEnvioUser")
+  // Pesquisa de satisfação (CSAT, ClickUp 86e3vmyv7): respostas e "Agora não"
+  csatRespostas                 CsatResposta[]                @relation("CsatRespostaUser")
 }
 
 /**
@@ -3494,4 +3496,31 @@ model CiaFreDireitoAcao {
 
   @@id([cnpj, anoFre, especie, classePn])
   @@map("cia_fre_direito_acao")
+}
+
+/**
+ * Pesquisa de satisfação (CSAT, ClickUp 86e3vmyv7 / KPI 86e3vmyup): "De 1 a 5, o quanto você está
+ * satisfeito com sua experiência com o My Finance?", perguntada no app logado.
+ *
+ * LGPD — finalidade: medir a satisfação dos clientes e orientar o atendimento (Customer Success).
+ * O comentário é texto livre e pode conter dado pessoal: só o admin lê (GET /api/admin/csat), sai no
+ * export do usuário e é APAGADO na exclusão de conta (DELETE /api/profile; o User é anonimizado,
+ * então o onDelete Cascade nunca roda).
+ *
+ * Uma linha por evento: nota 1–5 = resposta; nota NULL = "Agora não" (adiamento de 7 dias, não
+ * entra no KPI).
+ */
+model CsatResposta {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation("CsatRespostaUser", fields: [userId], references: [id], onDelete: Cascade)
+  nota       Int?
+  comentario String?  @db.Text
+  // 'app' = cartão no app logado (futuro: 'email')
+  origem     String   @default("app")
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@map("csat_respostas")
 }

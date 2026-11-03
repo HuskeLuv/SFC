@@ -15,6 +15,7 @@ import { apagarAlvosDoUsuario } from '@/services/analiseAtivos/carteira/alvosAti
 import { apagarSalvosDoUsuario } from '@/services/analiseAtivos/salvos/privacidadeSalvos';
 import { excluirConexoesDoUsuario } from '@/services/pluggy/sync';
 import { getClientIp } from '@/lib/rateLimit';
+import { apagarCsatDoUsuario } from '@/services/csat/csat';
 
 // Perfil é sempre self-edit (ignora impersonation) — o histórico registra
 // payload.id como dono e ator.
@@ -241,6 +242,10 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
   // da pessoa, apagados aqui pelo mesmo motivo (User anonimizado, cascade não roda).
   await prisma.analiseTese.deleteMany({ where: { userId: me.id } });
   await prisma.analiseCenario.deleteMany({ where: { userId: me.id } });
+
+  // Pesquisa de satisfação (CSAT): notas e comentários livres (dado pessoal) — apagados aqui
+  // (User anonimizado, cascade não roda).
+  await apagarCsatDoUsuario(me.id);
 
   // Derruba todas as sessões e limpa o cookie de auth da resposta.
   await bumpSessionVersion(me.id);

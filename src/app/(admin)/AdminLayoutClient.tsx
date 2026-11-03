@@ -11,6 +11,7 @@ import InstallAppCard from '@/components/pwa/InstallAppCard';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import VersionWatcher from '@/components/common/VersionWatcher';
 import AssistentePanel from '@/components/assistente/AssistentePanel';
+import PesquisaSatisfacaoCard from '@/components/csat/PesquisaSatisfacaoCard';
 import React from 'react';
 
 /**
@@ -68,6 +69,8 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
         <VersionWatcher />
         {/* Assistente de IA (só renderiza quando ASSISTENTE_HABILITADO no servidor) */}
         <AssistentePanel />
+        {/* Pesquisa de satisfação (CSAT): cartão discreto; o servidor decide se aparece */}
+        <PesquisaSatisfacaoCard />
       </div>
     </CashflowYearProvider>
   );
