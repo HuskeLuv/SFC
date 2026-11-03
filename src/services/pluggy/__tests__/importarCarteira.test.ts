@@ -43,6 +43,7 @@ import {
   importarEmprestimo,
   importarInvestimento,
   indexadorRendaFixa,
+  liquidezRendaFixaPluggy,
   mapLoan,
   posicaoDesatualizada,
   prazoMesesDivida,
@@ -129,6 +130,17 @@ describe('mapeamentos', () => {
     });
     expect(tipoRendaFixa('DEBENTURES', 'IPCA')).toBe('CDB_HIB');
     expect(tipoRendaFixa('CORPORATE_DEBT', null)).toBe('CDB_PRE');
+  });
+
+  it('liquidez da renda fixa: CDB até 100% do CDI é diária; o resto, pelo vencimento', () => {
+    expect(liquidezRendaFixaPluggy('CDB', 'CDI', 100)).toBe('DAILY');
+    expect(liquidezRendaFixaPluggy('CDB', 'SELIC', 0)).toBe('DAILY');
+    expect(liquidezRendaFixaPluggy('LC', 'CDI', 98)).toBe('DAILY');
+    expect(liquidezRendaFixaPluggy('CDB', 'CDI', 122)).toBeNull();
+    expect(liquidezRendaFixaPluggy('CDB', 'IPCA', 100)).toBeNull();
+    expect(liquidezRendaFixaPluggy('CDB', '', 0)).toBeNull();
+    expect(liquidezRendaFixaPluggy('LCA', 'CDI', 99)).toBeNull();
+    expect(liquidezRendaFixaPluggy('DEBENTURES', 'CDI', 100)).toBeNull();
   });
 
   it('dívida: tipo, taxa a.a.→a.m., prazo e indexador', () => {
@@ -338,6 +350,8 @@ describe('importarInvestimento', () => {
         startDate: new Date('2026-01-10T00:00:00Z'),
         maturityDate: new Date('2028-01-10T00:00:00Z'),
         taxExempt: false,
+        // 150% do CDI: resgate no vencimento
+        liquidityType: null,
         // emissor 'Banco do Pluggy' não está no catálogo: fica para a corretora
         emissorInstitutionId: null,
       }),
@@ -346,6 +360,21 @@ describe('importarInvestimento', () => {
       data: expect.objectContaining({ quantity: 1, avgPrice: 2000, totalInvested: 2000 }),
     });
     expect(mockRecalc).not.toHaveBeenCalled();
+  });
+
+  it('CDB 100% CDI entra com liquidez diária (balanço: até D+360)', async () => {
+    await importarInvestimento({
+      ...base,
+      type: 'FIXED_INCOME',
+      subtype: 'CDB',
+      name: 'CDB - BANCO BTG PACTUAL S.A.',
+      code: 'CDBC252TACK',
+      rate: 100,
+      rateType: 'CDI',
+    });
+    expect(mockPrisma.tx.fixedIncomeAsset.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ liquidityType: 'DAILY' }),
+    });
   });
 
   it('debênture (DEBENTURES) entra sozinha na curva, a partir da data da compra', async () => {

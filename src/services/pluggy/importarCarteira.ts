@@ -13,7 +13,8 @@
  *  - renda fixa bancária vira Asset 'bond' + FixedIncomeAsset (marcação na
  *    curva pela taxa/indexador contratados, como o wizard);
  *  - debênture (DEBENTURES/CORPORATE_DEBT) entra como a debênture do wizard, na
- *    curva a partir da data da compra;
+ *    curva a partir da data da compra; CDB/LC pós até 100% do CDI entra com
+ *    liquidez diária (o Open Finance não manda o prazo de resgate);
  *  - fundo/previdência: pelo CNPJ no catálogo CVM quando existir; senão ativo
  *    manual cujo "valor atual" segue o saldo do banco;
  *  - empréstimo vira Dívida (financiamento) com espelho no fluxo de caixa;
@@ -167,6 +168,26 @@ export function tipoRendaFixa(subtype: string | null, rateType: string | null): 
     subtype && RF_BANCARIA.has(subtype) && !SUBTIPOS_DEBENTURE.has(subtype) ? subtype : 'CDB';
   const hib = rateType === 'IPCA';
   return `${base}_${hib ? 'HIB' : 'PRE'}` as FixedIncomeType;
+}
+
+/**
+ * Liquidez da renda fixa bancária importada. O Open Finance não informa o prazo
+ * de resgate; sem ele, a aplicação ia para "acima de D+360" pelo vencimento,
+ * inclusive o CDB de liquidez diária (ticket 86e3vxd5r). Regra de mercado: CDB/LC/RDB
+ * pós-fixado que paga até 100% do CDI é o de liquidez diária (BTG, Itaú, XP...);
+ * acima disso, ou prefixado/IPCA, o resgate é no vencimento (null = pelo vencimento).
+ */
+const SUBTIPOS_LIQUIDEZ_DIARIA = new Set(['CDB', 'LC', 'RDB']);
+export function liquidezRendaFixaPluggy(
+  subtype: string | null,
+  rateType: string | null,
+  rate: number | null,
+): 'DAILY' | null {
+  if (!subtype || !SUBTIPOS_LIQUIDEZ_DIARIA.has(subtype)) return null;
+  const t = (rateType ?? '').toUpperCase();
+  if (!t.includes('CDI') && !t.includes('SELIC')) return null;
+  const pct = rate && rate > 0 ? rate : 100;
+  return pct <= 100 ? 'DAILY' : null;
 }
 
 export function indexadorRendaFixa(
@@ -667,7 +688,9 @@ export async function importarInvestimento(
             annualRate,
             indexer,
             indexerPercent,
-            liquidityType: null,
+            liquidityType: tesouro
+              ? null
+              : liquidezRendaFixaPluggy(inv.subtype, inv.rateType, inv.rate),
             // Tesouro nunca é isento (tabela regressiva).
             taxExempt: !tesouro && ISENTOS.has(inv.subtype ?? ''),
             tesouroBondType: tesouro?.bondType ?? null,
