@@ -160,13 +160,29 @@ function dataBr(iso: string): string {
   return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 }
 
-function passo(lo: number, hi: number): number {
+/**
+ * Passo da grade do eixo Y. Acima de 800 pontos de amplitude o passo cresce com a escala
+ * (1/2/2,5/5 × 10^k, ~5 linhas): com base 100 num lucro quase zero (CSNA3, LPA 2017 de R$ 0,008)
+ * a série chega a 120 mil, e o passo fixo de 200 desenhava ~600 linhas e rótulos sobrepostos.
+ */
+export function passo(lo: number, hi: number): number {
   const amp = hi - lo;
-  if (amp > 800) return 200;
+  if (amp > 800) {
+    const bruto = amp / 5;
+    const mag = 10 ** Math.floor(Math.log10(bruto));
+    const fator = [1, 2, 2.5, 5, 10].find((f) => f * mag >= bruto) ?? 10;
+    return fator * mag;
+  }
   if (amp > 400) return 100;
   if (amp > 150) return 50;
   if (amp > 60) return 25;
   return 10;
+}
+
+/** Rótulo da grade: '25 mil' a partir de 10 mil (cabe nos 40 px da margem), senão '1.200'. */
+export function rotuloGrade(v: number): string {
+  if (Math.abs(v) >= 10_000) return `${(v / 1000).toLocaleString('pt-BR')} mil`;
+  return v.toLocaleString('pt-BR');
 }
 
 export default function GraficoLucroCotacao({ ticker, classe, grafico }: GraficoLucroCotacaoProps) {
@@ -543,7 +559,7 @@ export default function GraficoLucroCotacao({ ticker, classe, grafico }: Grafico
                       textAnchor="end"
                       className="fill-gray-500 text-[11px] dark:fill-gray-400"
                     >
-                      {v}
+                      {rotuloGrade(v)}
                     </text>
                   </g>
                 ))}

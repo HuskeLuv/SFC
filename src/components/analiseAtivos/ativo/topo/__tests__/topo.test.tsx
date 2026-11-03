@@ -9,7 +9,7 @@ import BlocoEventos from '../BlocoEventos';
 import BlocoKpis from '../BlocoKpis';
 import CabecalhoAtivo from '../CabecalhoAtivo';
 import CardEducacao from '../CardEducacao';
-import GraficoLucroCotacao from '../GraficoLucroCotacao';
+import GraficoLucroCotacao, { passo, rotuloGrade } from '../GraficoLucroCotacao';
 import SeloFrescor from '../SeloFrescor';
 import { ConferenciaPaginaProvider } from '@/components/analiseAtivos/comum/PorQueConferencia';
 import { VisualV2Provider } from '@/components/analiseAtivos/shell/VisualV2';
@@ -149,6 +149,20 @@ describe('BlocoKpis', () => {
     const payout = container.querySelector('[data-kpi="payout"]') as HTMLElement;
     expect(within(payout).getByText('—')).toBeInTheDocument();
     expect(within(payout).getAllByText('proventos em conferência')).toHaveLength(1);
+  });
+});
+
+describe('GraficoLucroCotacao — eixo Y (CSNA3, 24/10)', () => {
+  it('passo cresce com a escala: ~5 linhas mesmo com a série em 120 mil', () => {
+    expect(passo(0, 100)).toBe(25);
+    expect(passo(0, 1000)).toBe(200);
+    expect(passo(0, 120_700)).toBe(25_000);
+    expect(Math.ceil(120_700 / passo(0, 120_700))).toBeLessThanOrEqual(6);
+  });
+  it('rótulo compacto a partir de 10 mil', () => {
+    expect(rotuloGrade(200)).toBe('200');
+    expect(rotuloGrade(1200)).toBe('1.200');
+    expect(rotuloGrade(25_000)).toBe('25 mil');
   });
 });
 
