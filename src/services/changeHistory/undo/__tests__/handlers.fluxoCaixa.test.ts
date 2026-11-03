@@ -395,6 +395,56 @@ describe('valores.editar-recorrente — lançamento recorrente do assistente', (
   });
 });
 
+describe('cor.editar — cor pintada pelo assistente', () => {
+  const handler = FLUXO_CAIXA_UNDO_HANDLERS['cor.editar'];
+  const entry = () =>
+    makeEntry({
+      action: 'cor.editar',
+      entityId: 'item-1',
+      entityLabel: 'Gás · setembro a outubro/2026 (assistente)',
+      changes: [
+        { field: 'color', label: 'set/2026', before: 'sem cor', after: 'Pago' },
+        { field: 'color', label: 'out/2026', before: 'Lançamento Futuro', after: 'Pago' },
+      ] as never,
+      snapshot: {
+        v: 1,
+        kind: 'cashflow-cores',
+        data: {
+          celulas: [
+            { month: 8, before: null, after: '#FF0000', existia: true },
+            { month: 9, before: '#0000FF', after: '#FF0000', existia: true },
+          ],
+        },
+        meta: { itemId: 'item-1', year: 2026 },
+      } as never,
+    });
+
+  it('volta a cor de antes nas células que seguem pintadas e preserva a repintada depois', async () => {
+    mockPrisma.cashflowValue.findFirst.mockImplementation(
+      ({ where }: { where: { month: number } }) =>
+        Promise.resolve(
+          where.month === 8 ? { id: 'v8', color: '#FF0000' } : { id: 'v9', color: '#76933C' },
+        ),
+    );
+    const out = await handler.execute({ auth, request, entry: entry() });
+    expect(mockPrisma.cashflowValue.update).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.cashflowValue.update).toHaveBeenCalledWith({
+      where: { id: 'v8' },
+      data: { color: null },
+    });
+    expect(out.changes).toEqual([
+      { field: 'color', label: 'set/2026', before: 'Pago', after: 'sem cor' },
+    ]);
+  });
+
+  it('nenhuma célula ainda com a cor gravada = conflito', async () => {
+    mockPrisma.cashflowValue.findFirst.mockResolvedValue({ id: 'v', color: '#76933C' });
+    await expect(handler.execute({ auth, request, entry: entry() })).rejects.toMatchObject({
+      status: 409,
+    });
+  });
+});
+
 describe('fluxo.importar-planilha — desfazer importação', () => {
   const importEntry = () =>
     makeEntry({
