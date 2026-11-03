@@ -9,8 +9,10 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { handleCaixaAbaPost } from '@/app/api/carteira/_lib/caixaParaInvestirPost';
 import { round2, distributeRoundedPercents } from '@/utils/alocacaoPercents';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
-import { getIndicator } from '@/services/market/marketIndicatorService';
+import { getCotacaoDolarHoje } from '@/services/market/cambioUsdBrl';
 import { valuatePortfolioItem } from '@/services/portfolio/itemValuation';
+import { isAtivoEmDolar, posicaoEmDolar } from '@/lib/ativoEmDolar';
+import { valoresLinhaEua } from '@/app/api/carteira/_lib/linhaEua';
 import { rentabilidadeAgregada } from '@/utils/rentabilidadeAgregada';
 import {
   aplicarProventosNosAtivos,
@@ -31,6 +33,27 @@ function getAtivoColor(ticker: string): string {
   const index = ticker.charCodeAt(0) % colors.length;
   return colors[index];
 }
+
+/** Ticker de exibição do symbol manual ('VOO-1730000000000-ab3cd11' → 'VOO'). */
+const extrairTicker = (symbol: string): string => {
+  const parte = symbol.split('-')[0];
+  return parte && /^[A-Za-z]/.test(parte) ? parte : symbol;
+};
+
+/**
+ * Campos da linha de ETF americano em US$ (nov/2026). A moeda é da LINHA (posicaoEmDolar),
+ * nunca da região: IVVB11 na seção EUA continua em R$ e sem nenhum destes campos.
+ */
+type CamposLinhaUsd = {
+  symbol: string;
+  moedaRegistro: 'USD';
+  precoAquisicaoUSD: number;
+  valorTotalUSD: number;
+  cotacaoAtualUSD: number;
+  valorAtualizadoUSD: number;
+  proventosUSD: number;
+  semCambio: boolean;
+};
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const { targetUserId } = await requireAuthWithActing(request);
@@ -78,11 +101,12 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     ...portfolio.map((item) => item.asset?.symbol),
     ...planejados.map((r) => r.asset.symbol),
   ].filter((s): s is string => Boolean(s));
-  const [quotes, dolarIndicator] = await Promise.all([
+  // Câmbio do dia = o mesmo do resumo e das abas Stocks/REIT's (getCotacaoDolarHoje).
+  const [quotes, cotacaoHoje] = await Promise.all([
     getAssetPrices(symbols, { useBrapiFallback: true }),
-    getIndicator('USD-BRL', { useBrapiFallback: true }).catch(() => null),
+    getCotacaoDolarHoje().catch(() => null),
   ]);
-  const cotacaoDolar = dolarIndicator?.price ?? null;
+  const cotacaoDolar = cotacaoHoje?.taxa ?? null;
 
   // Converter portfolio para formato esperado
   const etfPosicoes = portfolio
@@ -100,17 +124,49 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
       });
       const valorAtualizado = valuation.valorAtualBRL;
       const cotacaoAtual = item.quantity > 0 ? valorAtualizado / item.quantity : item.avgPrice;
+      // ETF americano (posição gravada em US$): TODOS os campos base em R$ (valuation: q ×
+      // cotação US$ × câmbio do dia; aplicado = totalInvestedBrl) e os US$ só nos *USD.
+      // Sem câmbio a linha fica zerada em R$ (fora das somas) e marcada semCambio.
+      const emDolar = posicaoEmDolar(item, item.asset);
+      const usd: CamposLinhaUsd | null = emDolar
+        ? (() => {
+            const eua = valoresLinhaEua({
+              item,
+              asset: item.asset,
+              quote: quotes.get(item.asset!.symbol),
+              cotacaoDolar,
+            });
+            return {
+              symbol: item.asset!.symbol,
+              moedaRegistro: 'USD' as const,
+              precoAquisicaoUSD: eua.precoAquisicao,
+              valorTotalUSD: eua.valorTotal,
+              cotacaoAtualUSD: eua.cotacaoAtual,
+              valorAtualizadoUSD: eua.valorAtualizado,
+              proventosUSD: 0, // preenchido depois dos proventos
+              semCambio: valuation.semCambio === true,
+            };
+          })()
+        : null;
+      const valorAplicado = emDolar ? valuation.valorAplicadoBRL : item.totalInvested;
+      const precoAquisicao = emDolar
+        ? item.quantity > 0
+          ? valorAplicado / item.quantity
+          : 0
+        : item.avgPrice;
       return {
         id: item.id,
+        // Linha USD: ticker = symbol cru até os proventos serem aplicados (chave da busca);
+        // vira o ticker de exibição (extrairTicker) depois.
         ticker: item.asset!.symbol,
         nome: item.asset!.name,
         regiao,
         indiceRastreado: 'outros' as const,
         categoria: '',
         quantidade: item.quantity,
-        precoAquisicao: item.avgPrice,
-        valorTotal: item.totalInvested,
-        cotacaoAtual,
+        precoAquisicao,
+        valorTotal: valorAplicado,
+        cotacaoAtual: emDolar && item.quantity <= 0 ? 0 : cotacaoAtual,
         valorAtualizado,
         riscoPorAtivo: 0, // Calcular depois
         percentualCarteira: 0, // Calcular depois
@@ -119,22 +175,25 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         necessidadeAporte: 0, // Calcular depois
         proventos: 0, // preenchido por aplicarProventosNosAtivos
         rentabilidade:
-          item.totalInvested > 0
-            ? round2(((valorAtualizado - item.totalInvested) / item.totalInvested) * 100)
-            : 0,
+          valorAplicado > 0 ? round2(((valorAtualizado - valorAplicado) / valorAplicado) * 100) : 0,
         observacoes: undefined,
         dataUltimaAtualizacao: item.lastUpdate,
+        // Só na linha USD (a linha BRL sai idêntica à de antes, sem estes campos).
+        ...(usd ?? {}),
       };
     });
 
   // Posições + planejados (linha zerada, `planejado: true`).
   const etfAtivos: Array<
-    Omit<(typeof etfPosicoes)[number], 'observacoes'> & {
-      planejado?: boolean;
-      observacoes?: string;
-    }
+    Omit<(typeof etfPosicoes)[number], 'observacoes' | keyof CamposLinhaUsd> &
+      Partial<CamposLinhaUsd> & {
+        planejado?: boolean;
+        observacoes?: string;
+      }
   > = [...etfPosicoes];
   for (const r of planejados) {
+    // Planejado de ETF americano (manual, sem cotação): linha zerada com o selo US$.
+    const usdPlanejado = isAtivoEmDolar(r.asset);
     etfAtivos.push({
       ...linhaPlanejadaBase(r, quotes.get(r.asset.symbol) ?? 0),
       regiao: (r.secao === 'estados_unidos' || r.secao === 'brasil'
@@ -144,8 +203,21 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
           : 'brasil') as 'brasil' | 'estados_unidos',
       indiceRastreado: 'outros',
       categoria: '',
+      ...(usdPlanejado
+        ? {
+            symbol: r.asset.symbol,
+            moedaRegistro: 'USD' as const,
+            precoAquisicaoUSD: 0,
+            valorTotalUSD: 0,
+            cotacaoAtualUSD: quotes.get(r.asset.symbol) ?? 0,
+            valorAtualizadoUSD: 0,
+            proventosUSD: 0,
+            semCambio: false,
+          }
+        : {}),
     });
   }
+  const temLinhaUsd = etfAtivos.some((a) => a.moedaRegistro === 'USD');
 
   aplicarCamposMovido(
     etfAtivos,
@@ -155,8 +227,23 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   // Calcular totais gerais
   const totalQuantidade = etfAtivos.reduce((sum, ativo) => sum + ativo.quantidade, 0);
   // Auditoria 25/08/2026 (B1): proventos recebidos entram na rentabilidade da linha.
+  // Pela chave Asset.symbol CRU (o ETF manual é 'VOO-<ts>-<rnd>'), ANTES de o ticker virar o
+  // de exibição — senão os proventos somem em silêncio.
   const proventosPorSymbol = await proventosRecebidosPorSymbol(targetUserId);
-  aplicarProventosNosAtivos(etfAtivos, proventosPorSymbol);
+  aplicarProventosNosAtivos(etfAtivos, proventosPorSymbol, (a) => a.symbol ?? a.ticker);
+  // Linha USD: provento nativo em US$ → R$ pelo câmbio do dia; rentabilidade em R$ refeita com
+  // ele. Sem câmbio: fora das somas (0 em R$). Por último, o ticker de exibição.
+  for (const a of etfAtivos) {
+    if (a.moedaRegistro !== 'USD') continue;
+    const proventosUSD = a.proventos ?? 0;
+    a.proventosUSD = proventosUSD;
+    a.proventos = a.semCambio || cotacaoDolar == null ? 0 : proventosUSD * cotacaoDolar;
+    a.rentabilidade =
+      a.valorTotal > 0
+        ? ((a.valorAtualizado + a.proventos - a.valorTotal) / a.valorTotal) * 100
+        : 0;
+    a.ticker = extrairTicker(a.symbol ?? a.ticker);
+  }
   const totalProventos = etfAtivos.reduce((sum, ativo) => sum + (ativo.proventos ?? 0), 0);
   const totalValorAplicado = etfAtivos.reduce((sum, ativo) => sum + ativo.valorTotal, 0);
   const totalValorAtualizado = etfAtivos.reduce((sum, ativo) => sum + ativo.valorAtualizado, 0);
@@ -280,6 +367,15 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }));
 
   const data = {
+    // Câmbio da aba (faixa "US$ 1 = R$ x") só quando há linha USD: carteira só com ETF da B3
+    // (inclusive IVVB11 na seção EUA) recebe a mesma resposta de antes.
+    ...(temLinhaUsd
+      ? {
+          cotacaoDolar,
+          taxaData: cotacaoHoje?.data.toISOString().slice(0, 10) ?? null,
+          posicoesSemCambio: etfAtivos.filter((a) => a.semCambio).length,
+        }
+      : {}),
     resumo,
     secoes,
     totalGeral: {
