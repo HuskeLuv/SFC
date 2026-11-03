@@ -8,6 +8,13 @@
  *  - o que ENTRA (provento na data de pagamento) avisa NO DIA.
  * Decisão do plano da Agenda (11/09/2026).
  *
+ * Proventos recebidos (ticket 86e3yeay4): os proventos que caem hoje viram UMA
+ * notificação própria por usuário e dia (`PROVENTO_RECEBIDO_TYPE`, categoria de
+ * push 'proventos') — "Você recebeu proventos de ITSA4" com 1 ativo, um resumo
+ * com vários. O valor em R$ fica só na `message` do sino (mascarada pelos
+ * valores ocultos); o título, que vai no push, nunca leva R$ — a preferência de
+ * valores ocultos é do navegador e o servidor não a enxerga.
+ *
  * Uma notificação por evento, com dedup por (usuário, id do evento, data)
  * guardado em `Notification.metadata` — rodar o cron duas vezes no mesmo dia
  * não duplica nada. Quem desligou os lembretes no perfil fica de fora.
@@ -24,6 +31,23 @@ import { hojeCivil, somarDias } from './datas';
 import type { EventoAgenda, TipoEvento } from './types';
 
 export const AGENDA_LEMBRETE_TYPE = 'agenda_lembrete';
+
+/** Proventos que caíram hoje na carteira: no máximo uma notificação por usuário e dia. */
+export const PROVENTO_RECEBIDO_TYPE = 'provento_recebido';
+
+/** Quantos proventos o resumo lista por nome antes do "e mais N". */
+export const MAX_PROVENTOS_LISTADOS = 5;
+
+/** Destino do resumo com vários ativos: Carteira › Análises (sub-aba Proventos). */
+export const HREF_PROVENTOS = '/carteira?aba=analise';
+
+export interface ProventoRecebidoMetadata {
+  /** Data civil do pagamento — a chave do "um por dia". */
+  data: string;
+  eventoIds: string[];
+  symbols: string[];
+  href: string;
+}
 
 /** Fontes que geram lembrete (planejamento e mercado não são "a fazer"). */
 const TIPOS_LEMBRETE: TipoEvento[] = ['divida', 'rf', 'provento', 'ir', 'manual'];
@@ -95,18 +119,97 @@ export function textoDoLembrete(
   };
 }
 
-/** Lembretes já enviados nos últimos dias, para não repetir. */
-async function jaAvisados(userId: string, desde: Date): Promise<Set<string>> {
+const symbolDoProvento = (e: EventoAgenda): string =>
+  typeof e.detalhe.symbol === 'string' && e.detalhe.symbol
+    ? e.detalhe.symbol
+    : e.titulo.split(' · ')[0];
+
+const rotuloDoProvento = (e: EventoAgenda): string => {
+  const tipo = typeof e.detalhe.tipoProvento === 'string' ? e.detalhe.tipoProvento : null;
+  return tipo ? `${symbolDoProvento(e)} (${tipo})` : symbolDoProvento(e);
+};
+
+const listaHumana = (itens: string[]): string =>
+  itens.length <= 1 ? (itens[0] ?? '') : `${itens.slice(0, -1).join(', ')} e ${itens.at(-1)}`;
+
+/**
+ * Texto da notificação de proventos do dia. O título vai no push e NUNCA leva
+ * R$ (contrato do push); o valor fica na `message`, só no sino.
+ */
+export function textoProventosRecebidos(eventos: EventoAgenda[]): {
+  title: string;
+  message: string;
+} {
+  const symbols = [...new Set(eventos.map(symbolDoProvento))];
+  const title =
+    symbols.length <= 3
+      ? `Você recebeu proventos de ${listaHumana(symbols)}`
+      : `Você recebeu proventos de ${symbols.length} ativos`;
+
+  if (eventos.length === 1) {
+    const [e] = eventos;
+    return {
+      title,
+      message:
+        e.valor != null
+          ? `Você recebeu ${brl(e.valor)} de ${rotuloDoProvento(e)} hoje.`
+          : `${rotuloDoProvento(e)} tem pagamento hoje.`,
+    };
+  }
+
+  const listados = eventos
+    .slice(0, MAX_PROVENTOS_LISTADOS)
+    .map((e) => (e.valor != null ? `${rotuloDoProvento(e)} ${brl(e.valor)}` : rotuloDoProvento(e)));
+  const resto = eventos.length - listados.length;
+  const lista = resto > 0 ? `${listados.join(', ')} e mais ${resto}` : listaHumana(listados);
+  const todosComValor = eventos.every((e) => e.valor != null);
+  const total = eventos.reduce((acc, e) => acc + (e.valor ?? 0), 0);
+  return {
+    title,
+    message: todosComValor
+      ? `Você recebeu ${brl(total)} em ${eventos.length} proventos hoje: ${lista}.`
+      : `${eventos.length} proventos com pagamento hoje: ${lista}.`,
+  };
+}
+
+/** Destino do toque: o ativo, se for um só; senão a aba de Proventos da carteira. */
+const hrefDosProventos = (eventos: EventoAgenda[]): string => {
+  const symbols = new Set(eventos.map(symbolDoProvento));
+  const link = eventos[0]?.link;
+  return symbols.size === 1 && link && link.startsWith('/') && !link.startsWith('//')
+    ? link
+    : HREF_PROVENTOS;
+};
+
+interface JaAvisados {
+  /** `${eventoId}|${data}` dos lembretes da agenda (inclui provento do formato antigo). */
+  chaves: Set<string>;
+  /** Datas em que o usuário já recebeu a notificação de proventos (uma por dia). */
+  diasProventos: Set<string>;
+}
+
+/** Lembretes e avisos de proventos já enviados nos últimos dias, para não repetir. */
+async function jaAvisados(userId: string, desde: Date): Promise<JaAvisados> {
   const existentes = await prisma.notification.findMany({
-    where: { userId, type: AGENDA_LEMBRETE_TYPE, createdAt: { gte: desde } },
-    select: { metadata: true },
+    where: {
+      userId,
+      type: { in: [AGENDA_LEMBRETE_TYPE, PROVENTO_RECEBIDO_TYPE] },
+      createdAt: { gte: desde },
+    },
+    select: { type: true, metadata: true },
   });
   const chaves = new Set<string>();
+  const diasProventos = new Set<string>();
   for (const n of existentes) {
+    if (n.type === PROVENTO_RECEBIDO_TYPE) {
+      const meta = n.metadata as Partial<ProventoRecebidoMetadata> | null;
+      if (meta?.data) diasProventos.add(meta.data);
+      continue;
+    }
     const meta = n.metadata as Partial<LembreteMetadata> | null;
     if (meta?.eventoId && meta.data) chaves.add(`${meta.eventoId}|${meta.data}`);
   }
-  return chaves;
+  return { chaves, diasProventos };
 }
 
 export interface ResultadoLembretes {
@@ -140,9 +243,38 @@ export async function runAgendaLembretesJob(agora: Date = new Date()): Promise<R
       const escolhidos = selecionarLembretes(eventos, hoje, amanha);
       if (escolhidos.length === 0) continue;
 
-      const enviados = await jaAvisados(userId, desde);
-      const novos = escolhidos
-        .filter(({ evento }) => !enviados.has(`${evento.id}|${evento.data}`))
+      const { chaves: enviados, diasProventos } = await jaAvisados(userId, desde);
+      const naoEnviados = escolhidos.filter(
+        ({ evento }) => !enviados.has(`${evento.id}|${evento.data}`),
+      );
+
+      // Proventos de hoje: um aviso só por dia (resumo se forem vários). O dia
+      // já avisado não reenvia, nem se o cron rodar de novo.
+      const proventosHoje = naoEnviados
+        .filter(({ evento }) => evento.tipo === 'provento')
+        .map(({ evento }) => evento);
+      if (proventosHoje.length > 0 && !diasProventos.has(hoje)) {
+        const { title, message } = textoProventosRecebidos(proventosHoje);
+        const notificacao = await prisma.notification.create({
+          data: {
+            userId,
+            title,
+            message,
+            type: PROVENTO_RECEBIDO_TYPE,
+            metadata: {
+              data: hoje,
+              eventoIds: proventosHoje.map((e) => e.id),
+              symbols: [...new Set(proventosHoje.map(symbolDoProvento))],
+              href: hrefDosProventos(proventosHoje),
+            } satisfies ProventoRecebidoMetadata,
+          },
+        });
+        void enviarPushDaNotificacao(notificacao);
+        notificacoes += 1;
+      }
+
+      const novos = naoEnviados
+        .filter(({ evento }) => evento.tipo !== 'provento')
         .slice(0, MAX_LEMBRETES_POR_USUARIO);
 
       for (const { evento, quando } of novos) {
