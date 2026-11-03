@@ -306,3 +306,18 @@ export function simularIrpfAnual(
     },
   };
 }
+
+export type TipoPlanoPrevidencia = 'pgbl' | 'vgbl' | null;
+
+/**
+ * Palpite de PGBL × VGBL pelo nome do plano. A carteira não grava o tipo (o fundo de previdência
+ * do catálogo CVM serve aos dois), então null = o usuário confirma na tela.
+ */
+export function sugerirTipoPlanoPrevidencia(nome: string): TipoPlanoPrevidencia {
+  const n = nome.toUpperCase();
+  const pgbl = /\bPGBL\b/.test(n);
+  const vgbl = /\bVGBL\b/.test(n);
+  if (pgbl && !vgbl) return 'pgbl';
+  if (vgbl && !pgbl) return 'vgbl';
+  return null;
+}
