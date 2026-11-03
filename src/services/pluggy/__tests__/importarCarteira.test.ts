@@ -128,6 +128,12 @@ describe('mapeamentos', () => {
       indexerPercent: null,
       annualRate: 12,
     });
+    // prefixado do banco: rate = 0 e a taxa em fixedAnnualRate (CDB Pine 14,85%)
+    expect(indexadorRendaFixa('', 0, 14.85)).toEqual({
+      indexer: 'PRE',
+      indexerPercent: null,
+      annualRate: 14.85,
+    });
     expect(tipoRendaFixa('DEBENTURES', 'IPCA')).toBe('CDB_HIB');
     expect(tipoRendaFixa('CORPORATE_DEBT', null)).toBe('CDB_PRE');
   });
@@ -409,6 +415,29 @@ describe('importarInvestimento', () => {
         taxExempt: false,
         // a corretora (BTG) não é emissora da debênture
         emissorInstitutionId: null,
+      }),
+    });
+  });
+
+  it('debênture sem data da compra usa a emissão', async () => {
+    await importarInvestimento({
+      ...base,
+      type: 'FIXED_INCOME',
+      subtype: 'DEBENTURES',
+      name: 'DEBENTURES - BANCO BTG PACTUAL S.A.',
+      code: 'BTGL32',
+      rate: 0,
+      rateType: null,
+      fixedAnnualRate: 13.99,
+      issueDate: new Date('2026-07-15T03:00:00Z'),
+      dueDate: new Date('2036-07-15T03:00:00Z'),
+    });
+    expect(mockPrisma.tx.fixedIncomeAsset.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: 'CDB_PRE',
+        indexer: 'PRE',
+        annualRate: 13.99,
+        startDate: new Date('2026-07-15T03:00:00Z'),
       }),
     });
   });

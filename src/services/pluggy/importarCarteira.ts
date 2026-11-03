@@ -201,7 +201,10 @@ export function indexadorRendaFixa(
   if (t.includes('CDI') || t.includes('SELIC')) {
     return { indexer: 'CDI', indexerPercent: rate && rate > 0 ? rate : 100, annualRate: 0 };
   }
-  return { indexer: 'PRE', indexerPercent: null, annualRate: rate ?? fixedAnnualRate ?? 0 };
+  // Prefixado: o banco manda a taxa em fixedAnnualRate e rate = 0 (CDB Pine 14,85% entrava
+  // rendendo 0%).
+  const taxa = fixedAnnualRate && fixedAnnualRate > 0 ? fixedAnnualRate : rate;
+  return { indexer: 'PRE', indexerPercent: null, annualRate: taxa ?? 0 };
 }
 
 /**
