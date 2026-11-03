@@ -57,26 +57,6 @@ export default function AcoesTable({ totalCarteira = 0 }: AcoesTableProps) {
       ),
     },
     {
-      key: 'setor',
-      header: 'Setor',
-      align: 'center',
-      render: (a) => (
-        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
-          {a.setor || '—'}
-        </span>
-      ),
-      renderSectionTotal: () => '-',
-      renderGrandTotal: () => '-',
-    },
-    {
-      key: 'subsetor',
-      header: 'Subsetor',
-      align: 'center',
-      render: (a) => a.subsetor || '—',
-      renderSectionTotal: () => '-',
-      renderGrandTotal: () => '-',
-    },
-    {
       key: 'quantidade',
       valor: 'sensivel-curto',
       header: 'Quantidade',

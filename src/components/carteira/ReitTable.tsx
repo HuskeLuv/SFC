@@ -90,18 +90,6 @@ export default function ReitTable({ totalCarteira = 0 }: ReitTableProps) {
       ),
     },
     {
-      key: 'setor',
-      header: 'Setor',
-      align: 'center',
-      render: (a) => (
-        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
-          {a.setor.charAt(0).toUpperCase() + a.setor.slice(1).replace('_', ' ')}
-        </span>
-      ),
-      renderSectionTotal: () => '-',
-      renderGrandTotal: () => '-',
-    },
-    {
       key: 'quantidade',
       valor: 'sensivel-curto',
       header: 'Quantidade',

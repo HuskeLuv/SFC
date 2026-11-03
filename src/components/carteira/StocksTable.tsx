@@ -92,28 +92,6 @@ export default function StocksTable({ totalCarteira = 0 }: StocksTableProps) {
       ),
     },
     {
-      key: 'sector',
-      header: 'Sector',
-      align: 'center',
-      render: (a) => (
-        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
-          {a.sector
-            ? a.sector.charAt(0).toUpperCase() + a.sector.slice(1).replace('_', ' ')
-            : 'Outros'}
-        </span>
-      ),
-      renderSectionTotal: () => '-',
-      renderGrandTotal: () => '-',
-    },
-    {
-      key: 'industryCategory',
-      header: 'Industry Category',
-      align: 'center',
-      render: (a) => a.industryCategory,
-      renderSectionTotal: () => '-',
-      renderGrandTotal: () => '-',
-    },
-    {
       key: 'quantidade',
       valor: 'sensivel-curto',
       header: 'Quantidade',
