@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('@/lib/prisma', () => ({ prisma: {}, default: {} }));
 
 import { ORCAMENTO_ALERTA_TYPE } from '@/services/cashflow/orcamentoAlertas';
-import { AGENDA_LEMBRETE_TYPE } from '@/services/calendario/lembretes';
+import { AGENDA_LEMBRETE_TYPE, PROVENTO_RECEBIDO_TYPE } from '@/services/calendario/lembretes';
 import {
   COMUNIDADE_COMENTARIO_TYPE,
   COMUNIDADE_MODERACAO_TYPE,
@@ -29,6 +29,7 @@ describe('CATEGORIA_POR_TYPE', () => {
   it('mapeia os types das constantes reais dos serviços', () => {
     expect(categoriaDaNotificacao(ORCAMENTO_ALERTA_TYPE)).toBe('orcamento');
     expect(categoriaDaNotificacao(AGENDA_LEMBRETE_TYPE)).toBe('agenda');
+    expect(categoriaDaNotificacao(PROVENTO_RECEBIDO_TYPE)).toBe('proventos');
     expect(categoriaDaNotificacao(COMUNIDADE_COMENTARIO_TYPE)).toBe('comunidade');
     expect(categoriaDaNotificacao(COMUNIDADE_MODERACAO_TYPE)).toBe('comunidade');
     expect(categoriaDaNotificacao(CONSULTANT_INVITE_TYPE)).toBe('conta');
@@ -57,7 +58,14 @@ describe('TTL_SEGUNDOS_POR_CATEGORIA', () => {
 
 describe('corpoGenerico', () => {
   it('nunca embute valores (sem R$) em nenhuma categoria', () => {
-    const categorias: CategoriaPush[] = ['orcamento', 'agenda', 'comunidade', 'conta', 'analise'];
+    const categorias: CategoriaPush[] = [
+      'orcamento',
+      'agenda',
+      'proventos',
+      'comunidade',
+      'conta',
+      'analise',
+    ];
     for (const categoria of categorias) {
       const corpo = corpoGenerico(categoria);
       expect(corpo.length).toBeGreaterThan(0);
@@ -105,6 +113,13 @@ describe('deepLinkDaNotificacao', () => {
       '/fluxodecaixa?modo=orcamento',
     );
     expect(deepLinkDaNotificacao(AGENDA_LEMBRETE_TYPE, { eventoId: 'ev1' })).toBe('/calendario');
+  });
+
+  it('proventos recebidos abrem o href do metadata (ativo ou aba de proventos)', () => {
+    expect(deepLinkDaNotificacao(PROVENTO_RECEBIDO_TYPE, { href: '/ativos/p1' })).toBe(
+      '/ativos/p1',
+    );
+    expect(deepLinkDaNotificacao(PROVENTO_RECEBIDO_TYPE, null)).toBe('/');
   });
 
   it('usa metadata.href relativo (comunidade)', () => {

@@ -32,13 +32,13 @@
  *
  * GET /api/push/preferencias
  *   → { habilitado: boolean, vapidPublicKey: string | null,
- *       categorias: { orcamento, agenda, comunidade, conta, analise }: boolean,
+ *       categorias: { orcamento, agenda, proventos, comunidade, conta, analise }: boolean,
  *       comunidadeVisivel: boolean, analiseVisivel: boolean }. Sem registro = tudo
  *   ligado. analiseVisivel = recurso 'alertas' liberado para o usuário da sessão. A chave
  *   pública VAPID viaja aqui (envs sem NEXT_PUBLIC: o build roda sem secrets).
  *
  * PATCH /api/push/preferencias
- *   body parcial { orcamento?, agenda?, comunidade?, conta?, analise?: boolean } → 204.
+ *   body parcial { orcamento?, agenda?, proventos?, comunidade?, conta?, analise?: boolean } → 204.
  *   Linha criada sob demanda, no molde da AgendaPreferencia.
  *
  * Todas as rotas usam a SESSÃO (`requireSession`), nunca
@@ -46,13 +46,19 @@
  * cliente. Mutações exigem CSRF (`csrfFetch`).
  */
 import { ORCAMENTO_ALERTA_TYPE } from '@/services/cashflow/orcamentoAlertas';
-import { AGENDA_LEMBRETE_TYPE } from '@/services/calendario/lembretes';
+import { AGENDA_LEMBRETE_TYPE, PROVENTO_RECEBIDO_TYPE } from '@/services/calendario/lembretes';
 import {
   COMUNIDADE_COMENTARIO_TYPE,
   COMUNIDADE_MODERACAO_TYPE,
 } from '@/services/comunidade/notificacoes';
 
-export type CategoriaPush = 'orcamento' | 'agenda' | 'comunidade' | 'conta' | 'analise';
+export type CategoriaPush =
+  | 'orcamento'
+  | 'agenda'
+  | 'proventos'
+  | 'comunidade'
+  | 'conta'
+  | 'analise';
 
 /** Types de Notification dos convites de consultoria (strings literais nas rotas). */
 export const CONSULTANT_INVITE_TYPE = 'consultant_invite';
@@ -81,6 +87,7 @@ export const ANALISE_SALVOS_ALERTA_PUSH_TYPE = 'analise_ativos_salvos_alerta';
 export const CATEGORIA_POR_TYPE: Readonly<Record<string, CategoriaPush>> = {
   [ORCAMENTO_ALERTA_TYPE]: 'orcamento',
   [AGENDA_LEMBRETE_TYPE]: 'agenda',
+  [PROVENTO_RECEBIDO_TYPE]: 'proventos',
   [COMUNIDADE_COMENTARIO_TYPE]: 'comunidade',
   [COMUNIDADE_MODERACAO_TYPE]: 'comunidade',
   [CONSULTANT_INVITE_TYPE]: 'conta',
@@ -120,6 +127,8 @@ export interface PushPayloadV1 {
 export const TTL_SEGUNDOS_POR_CATEGORIA: Readonly<Record<CategoriaPush, number>> = {
   orcamento: 86400,
   agenda: 43200,
+  // provento do dia: depois de 1 dia o sino basta
+  proventos: 86400,
   comunidade: 86400,
   conta: 604800,
   // aviso diário (resultado/provento/critérios): depois de 1 dia o sino e a aba Alertas bastam
@@ -133,6 +142,8 @@ export function corpoGenerico(categoria: CategoriaPush): string {
       return 'Toque para ver os detalhes na agenda.';
     case 'comunidade':
       return 'Toque para ver os detalhes na comunidade.';
+    case 'proventos':
+      return 'Toque para ver os detalhes na carteira.';
     case 'analise':
       // = TEXTOS_ALERTAS.push.corpoGenerico (literal copiado; o teste confere)
       return 'Toque para ver os detalhes na Análise de Ativos.';
