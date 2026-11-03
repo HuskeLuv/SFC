@@ -10,6 +10,7 @@ import { buildCaixaMovimentoSnapshot } from '@/services/changeHistory/snapshots'
 import { NextRequest, NextResponse } from 'next/server';
 import {
   absorverPlanejadoNaCompra,
+  assertTickerNaoEhEtfB3,
   encontrarPlanejadoManual,
 } from '@/services/portfolio/ativosPlanejados';
 import { requireAuthWithActing } from '@/utils/auth';
@@ -49,6 +50,7 @@ import {
 import { syncSonhoRealizadoBestEffort } from '@/services/planejamento/carteiraToSonhoRealizado';
 import { aplicarVinculoPlanejamento, vinculoPlanejamentoFields } from '@/utils/planejamentoVinculo';
 import {
+  ETF_MANUAL_ASSET_ID,
   isAtivoEmDolar,
   marcadorOperacaoUsd,
   MOEDA_REGISTRO_USD,
@@ -298,7 +300,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     tipoDebenture,
     tipoFundo: _tipoFundo,
     estrategiaReit,
-    regiaoEtf,
+    regiaoEtf: regiaoEtfInformada,
     tesouroDestino,
     fundoDestino,
     fundoRendaFixaTipo,
@@ -360,6 +362,12 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const isFundoManual = tipoAtivo === 'fundo' && assetId === 'FUNDO-MANUAL';
   const isReitManual = tipoAtivo === 'reit' && assetId === 'REIT-MANUAL';
   const isStockManual = tipoAtivo === 'stock' && assetId === 'STOCK-MANUAL';
+  // ETF americano (nov/2026): sem catálogo, Asset etf/USD criado aqui (docs/carteira-eua-dolar/
+  // etf/desenho.json). O ETF da B3 continua pelo catálogo, em R$.
+  const isEtfManual = tipoAtivo === 'etf' && assetId === ETF_MANUAL_ASSET_ID;
+  // ETF americano fica sempre na seção EUA. A região NUNCA decide moeda: o IVVB11 do catálogo
+  // na seção EUA continua em R$.
+  const regiaoEtf: string | undefined = isEtfManual ? 'estados_unidos' : regiaoEtfInformada;
   // Fluxo "Previdência e Seguros": previdência agora é FUNDO (catálogo CVM ou
   // fundo manual com destino previdencia-seguros); a entrada manual deste
   // fluxo é o SEGURO (Asset.type='insurance').
@@ -838,6 +846,24 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         { status: 400 },
       );
     }
+  } else if (isEtfManual) {
+    if (!carteiraEuaDolarHabilitado()) {
+      return NextResponse.json({ error: 'ETF americano indisponível' }, { status: 400 });
+    }
+    if (!dataCompra || !quantidade || !cotacaoUnitaria || !cotacaoMoeda) {
+      return NextResponse.json(
+        {
+          error:
+            'Campos obrigatórios para ETF americano: dataCompra, quantidade, cotacaoUnitaria (US$), cotacaoMoeda (cotação do dólar no dia da compra)',
+        },
+        { status: 400 },
+      );
+    }
+    if (!(requestBody.ativo || '').trim()) {
+      return NextResponse.json({ error: 'Ticker do ETF é obrigatório' }, { status: 400 });
+    }
+    // Ticker da B3 digitado à mão (IVVB11, 'ivvb11.sa'): 400, tem de vir da busca em R$.
+    await assertTickerNaoEhEtfB3(prisma, requestBody.ativo);
   } else if (tipoAtivo === 'etf') {
     if (!dataCompra || !quantidade || !cotacaoUnitaria || !regiaoEtf) {
       return NextResponse.json(
@@ -944,6 +970,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       {
         error: 'Quantidade e cotação unitária devem ser maiores que zero',
       },
+      { status: 400 },
+    );
+  }
+
+  if (isEtfManual && !(cotacaoMoeda > 0)) {
+    return NextResponse.json(
+      { error: 'Quantidade, preço por cota (US$) e cotação do dólar devem ser maiores que zero' },
       { status: 400 },
     );
   }
@@ -1546,6 +1579,43 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
           source: 'manual',
         },
       }));
+  } else if (isEtfManual) {
+    // ETF americano: mesmo formato do STOCK-MANUAL (symbol 'TICKER-<ts>-<rnd>', nome em US$).
+    // Recompra cria outro Asset/linha, como no Stock EUA (consolidar por ticker é follow-up).
+    const tickerEtf = (requestBody.ativo || '').trim().toUpperCase();
+    const valorTotalEtf = quantidade > 0 && cotacaoUnitaria > 0 ? quantidade * cotacaoUnitaria : 0;
+    const timestamp = Date.now();
+    const uniqueId = Math.random().toString(36).substring(2, 9);
+    const safeSymbol =
+      tickerEtf
+        .replace(/[^a-zA-Z0-9]/g, '')
+        .substring(0, 10)
+        .toUpperCase() || 'ETF';
+    const assetSymbol = `${safeSymbol}-${timestamp}-${uniqueId}`;
+    const dataFormatada = new Date(dataCompra || new Date()).toLocaleDateString('pt-BR');
+    const valorFormatado = valorTotalEtf
+      ? new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: 'USD',
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        }).format(valorTotalEtf)
+      : '';
+    const assetName = `${tickerEtf}${valorFormatado ? ` - ${valorFormatado}` : ''} - ${dataFormatada}`;
+
+    // ETF americano PLANEJADO com o mesmo ticker: reaproveita o Asset do planejamento.
+    const etfPlanejado = await encontrarPlanejadoManual(targetUserId, 'etf', tickerEtf);
+    asset =
+      etfPlanejado?.asset ??
+      (await prisma.asset.create({
+        data: {
+          symbol: assetSymbol,
+          name: assetName,
+          type: 'etf',
+          currency: 'USD',
+          source: 'manual',
+        },
+      }));
   } else if (tipoAtivo === 'previdencia' && assetId === 'SEGURO-MANUAL') {
     // Seguro manual (o único caminho manual do fluxo Previdência e Seguros —
     // previdência entra como fundo). Aceita aporte por valor OU por cotas.
@@ -1739,9 +1809,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
     // Stocks/REITs (Análise de Ativos EUA, fatia D): a recompra pela Análise manda o id do Asset
     // MANUAL que o usuário já tem ('AAPL-<ts>-<rnd>'), para não criar um 2º Asset. Asset manual não
-    // tem dono na tabela: só passa se o usuário tiver Portfolio ou linha planejada com ele.
+    // tem dono na tabela: só passa se o usuário tiver Portfolio ou linha planejada com ele. O ETF
+    // americano manual (etf/USD) segue a mesma regra.
     if (
-      (tipoAtivo === 'stock' || tipoAtivo === 'reit') &&
+      (tipoAtivo === 'stock' || tipoAtivo === 'reit' || tipoAtivo === 'etf') &&
       asset.source === 'manual' &&
       !(await usuarioTemAssetManual(prisma, targetUserId, asset.id))
     ) {
@@ -1769,9 +1840,18 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       { status: 400 },
     );
   }
+  // Toda compra/aporte de ativo em dólar precisa do câmbio do dia: sem ele não há como gravar o
+  // marcador nem debitar o caixa em R$. Cobre a recompra por assetId real (ETF americano incluso).
+  if (isAtivoEmDolar(asset) && !(typeof cotacaoMoeda === 'number' && cotacaoMoeda > 0)) {
+    return NextResponse.json(
+      { error: 'Informe a cotação do dólar (cotacaoMoeda) para ativo em dólar' },
+      { status: 400 },
+    );
+  }
 
   // Unidade da compra de ativo em dólar: a posição existente manda (moedaRegistro; null = R$ no
-  // stock legado, US$ no REIT). Posição nova: REIT sempre US$; stock pela chave
+  // stock legado, US$ no REIT/ETF). Posição nova: REIT e ETF americano sempre US$ (também quando
+  // a compra absorve um planejado: ele vive em watchlists, não em Portfolio); stock pela chave
   // CARTEIRA_EUA_DOLAR_HABILITADO (desligada = R$ legado, como antes). O mesmo Asset nunca
   // mistura unidades.
   let unidadeCompra: UnidadeValor = 'BRL';
@@ -1784,7 +1864,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       ? posicaoEmDolar(posicaoAtual, asset)
         ? 'USD'
         : 'BRL'
-      : asset!.type === 'reit' || carteiraEuaDolarHabilitado()
+      : asset!.type === 'reit' || asset!.type === 'etf' || carteiraEuaDolarHabilitado()
         ? 'USD'
         : 'BRL';
   }
@@ -1935,6 +2015,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     valorCalculado = quantidade * cotacaoUnitaria + (taxaCorretagem || 0);
     quantidadeFinal = quantidade;
     precoFinal = cotacaoUnitaria;
+  } else if (tipoAtivo === 'etf' && compraEmDolar) {
+    // ETF americano em US$: price e total em US$, SEM corretagem (fees fica em R$ à parte).
+    valorCalculado = quantidade * cotacaoUnitaria;
+    quantidadeFinal = quantidade;
+    precoFinal = cotacaoUnitaria;
   } else if (tipoAtivo === 'etf') {
     valorCalculado = quantidade * cotacaoUnitaria + (taxaCorretagem || 0);
     quantidadeFinal = quantidade;
@@ -2010,7 +2095,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     if (estrategiaReit) metadata.estrategiaReit = estrategiaReit;
     metadata.cotacaoMoeda = cotacaoMoeda || null;
   }
-  if (tipoAtivo === 'stock') {
+  if (tipoAtivo === 'stock' || (tipoAtivo === 'etf' && compraEmDolar)) {
     metadata.cotacaoMoeda = cotacaoMoeda || null;
   }
   if (tipoAtivo === 'opcoes') {
@@ -2360,7 +2445,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   // desconta a compra da reserva da aba e depois do caixa livre. Não vale para
   // reinvestimento (dinheiro que já estava investido). Reservas, conta
   // corrente, imóveis e personalizados não têm reserva própria → só o livre.
-  // Compra em US$ (REIT e stock novo): o caixa continua em R$ = total US$ × câmbio informado
+  // Compra em US$ (REIT, ETF americano e stock novo): o caixa continua em R$ = total US$ × câmbio informado
   // + corretagem (R$); sem cotação não há como descontar. Stock legado já está em R$.
   const valorCompraBRL = compraEmDolar
     ? typeof cotacaoMoeda === 'number' && cotacaoMoeda > 0
