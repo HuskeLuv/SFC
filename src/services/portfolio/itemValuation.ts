@@ -52,7 +52,7 @@ export type PortfolioItemLike = {
   categoriaOverride?: string | null;
   /**
    * Unidade da posição (Carteira EUA em US$): 'USD' = avgPrice/totalInvested em US$. null em
-   * REIT também é US$; null em stock é R$ legado (ver posicaoEmDolar).
+   * REIT e ETF (etf/USD) também é US$; null em stock é R$ legado (ver posicaoEmDolar).
    */
   moedaRegistro?: string | null;
   /** Custo em R$ pelo câmbio de cada compra (posição em US$); null = ainda não calculado. */
@@ -294,8 +294,9 @@ export const CATEGORIA_ASSET_TYPE_FILTERS: Record<CategoriaCarteira, readonly st
  *      edição manual → calculado)
  *   2. Reserva → edição manual (avgPrice×qty) → totalInvested → qty×avgPrice
  *   3. Imóvel/personalizado → totalInvested → qty×avgPrice (fora do saldo)
- *   4. Posição gravada em US$ (posicaoEmDolar: REIT, stock com moedaRegistro 'USD') →
- *      qty × (quote ?? avgPrice) × câmbio do dia; aplicado = totalInvestedBrl ?? totalInvested
+ *   4. Posição gravada em US$ (posicaoEmDolar: REIT, ETF americano etf/USD, stock com
+ *      moedaRegistro 'USD') → qty × (quote ?? avgPrice) × câmbio do dia (o ETF manual não tem
+ *      quote: cotação congelada no preço médio em US$); aplicado = totalInvestedBrl ?? totalInvested
  *      × câmbio. Sem câmbio: 'semCambio', fora da soma. Não depende da chave
  *      CARTEIRA_EUA_DOLAR_HABILITADO: decide pela unidade gravada.
  *   5. Cotação live → qty×quote (+USD→BRL, exceto tipos já em BRL)

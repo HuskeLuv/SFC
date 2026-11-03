@@ -200,8 +200,9 @@ export const isReinvestimentoTransaction = (notes: string | null | undefined): b
  *
  * Carteira EUA em US$ (out/2026): decide pela UNIDADE GRAVADA da transação
  * (`unidadeDaTransacao`), nunca só pelo tipo do ativo:
- *  - 'BRL' (ações BR, stock legado em R$, ETF, crypto…): total + fees, como sempre;
- *  - 'USD' (stock EUA marcado e REIT): total × câmbio da tx + fees (fees já é R$).
+ *  - 'BRL' (ações BR, stock legado em R$, ETF da B3, crypto…): total + fees, como sempre;
+ *  - 'USD' (stock EUA marcado, REIT e ETF americano etf/USD): total × câmbio da tx + fees
+ *    (fees já é R$).
  * Câmbio da tx = cotação gravada nas notes; sem ela (vendas antigas), a série USD-BRL
  * na data; sem série, o último câmbio conhecido do mesmo ativo (compra anterior, em
  * ordem cronológica). Sem nenhum: 0 — fica fora da soma (nunca soma US$ como R$).
