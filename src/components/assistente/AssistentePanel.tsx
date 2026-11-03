@@ -59,6 +59,24 @@ interface EventoProposta {
   expiraEm: number;
 }
 
+/** Ajuste no fluxo (comentário, cor ou orçado): cada cartão confirma sozinho. */
+interface AjusteProposta {
+  token: string;
+  tipo: 'comentario' | 'cor' | 'orcamento';
+  titulo: string;
+  linha: string;
+  grupo: string;
+  periodo: string;
+  detalhes: string[];
+  corCss?: string | null;
+  expiraEm: number;
+}
+
+interface ItemAjuste extends AjusteProposta {
+  estado: 'pendente' | 'registrado' | 'falhou' | 'cancelado';
+  erro?: string;
+}
+
 interface Uso {
   usadas: number;
   limite: number;
@@ -87,6 +105,8 @@ interface Mensagem {
   propostaEstado?: 'pendente' | 'confirmada' | 'cancelada';
   /** Compromissos da Agenda: cada um confirma sozinho. */
   eventos?: ItemEvento[];
+  /** Comentário, cor ou orçado: cada um confirma sozinho. */
+  ajustes?: ItemAjuste[];
 }
 
 interface ItemConfirmado {
@@ -177,6 +197,7 @@ export default function AssistentePanel() {
           proposta?: Proposta;
           propostas?: Proposta[];
           eventos?: EventoProposta[];
+          ajustes?: AjusteProposta[];
           uso?: Uso;
           error?: string;
         };
@@ -190,6 +211,7 @@ export default function AssistentePanel() {
         }
         const lista = data.propostas ?? (data.proposta ? [data.proposta] : []);
         const eventos = data.eventos ?? [];
+        const ajustes = data.ajustes ?? [];
         adicionar({
           role: 'assistant',
           content: data.resposta ?? '',
@@ -201,6 +223,10 @@ export default function AssistentePanel() {
           eventos:
             eventos.length > 0
               ? eventos.map((e) => ({ ...e, estado: 'pendente' as const }))
+              : undefined,
+          ajustes:
+            ajustes.length > 0
+              ? ajustes.map((a) => ({ ...a, estado: 'pendente' as const }))
               : undefined,
         });
       } catch {
@@ -337,6 +363,59 @@ export default function AssistentePanel() {
       adicionar({ role: 'assistant', content: 'Certo, não marquei nada.' });
     },
     [adicionar],
+  );
+
+  const marcarAjuste = useCallback(
+    (m: Mensagem, token: string, estado: ItemAjuste['estado'], erro?: string) =>
+      setMensagens((prev) =>
+        prev.map((x) =>
+          x.id === m.id
+            ? {
+                ...x,
+                ajustes: x.ajustes?.map((a) => (a.token === token ? { ...a, estado, erro } : a)),
+              }
+            : x,
+        ),
+      ),
+    [],
+  );
+
+  /** Grava o comentário, a cor ou o orçado. Cada cartão de ajuste confirma sozinho. */
+  const confirmarAjuste = useCallback(
+    async (m: Mensagem, item: ItemAjuste) => {
+      if (confirmandoEvento !== null) return;
+      setConfirmandoEvento(item.token);
+      try {
+        const res = await csrfFetch('/api/assistente/confirmar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tokenAjuste: item.token }),
+        });
+        const data = (await res.json().catch(() => ({}))) as { resumo?: string; error?: string };
+        if (!res.ok) {
+          marcarAjuste(m, item.token, 'falhou', data.error);
+          adicionar({ role: 'assistant', content: data.error ?? 'Não consegui gravar.' });
+          return;
+        }
+        marcarAjuste(m, item.token, 'registrado');
+        adicionar({ role: 'assistant', content: data.resumo ?? 'Feito.' });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.all });
+      } catch {
+        marcarAjuste(m, item.token, 'falhou');
+        adicionar({ role: 'assistant', content: 'Falha de conexão ao gravar. Tente de novo.' });
+      } finally {
+        setConfirmandoEvento(null);
+      }
+    },
+    [adicionar, confirmandoEvento, csrfFetch, marcarAjuste, queryClient],
+  );
+
+  const descartarAjuste = useCallback(
+    (m: Mensagem, token: string) => {
+      marcarAjuste(m, token, 'cancelado');
+      adicionar({ role: 'assistant', content: 'Certo, não mudei nada.' });
+    },
+    [adicionar, marcarAjuste],
   );
 
   /** Tira um item da lista antes de confirmar; se não sobrar nenhum, é cancelamento. */
@@ -531,6 +610,16 @@ export default function AssistentePanel() {
                       registrando={confirmandoEvento === e.token}
                       onConfirmar={() => confirmarEvento(m, e.token)}
                       onCancelar={() => descartarEvento(m, e.token)}
+                    />
+                  ))}
+                  {m.ajustes?.map((a) => (
+                    <CartaoAjuste
+                      key={a.token}
+                      item={a}
+                      ocupado={confirmandoEvento !== null}
+                      registrando={confirmandoEvento === a.token}
+                      onConfirmar={() => confirmarAjuste(m, a)}
+                      onCancelar={() => descartarAjuste(m, a.token)}
                     />
                   ))}
                 </div>
@@ -817,6 +906,65 @@ function CartaoEvento({
             : item.estado === 'cancelado'
               ? 'Não marcado'
               : `Não consegui marcar${item.erro ? `: ${item.erro}` : ''}`}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Cartão de comentário, cor ou orçado: antes → depois e um botão de confirmar. */
+function CartaoAjuste({
+  item,
+  ocupado,
+  registrando,
+  onConfirmar,
+  onCancelar,
+}: {
+  item: ItemAjuste;
+  ocupado: boolean;
+  registrando: boolean;
+  onConfirmar: () => void;
+  onCancelar: () => void;
+}) {
+  return (
+    <div className="mt-2 rounded-lg border border-gray-300 bg-white p-3 text-xs dark:border-gray-700 dark:bg-gray-900">
+      <p className="flex items-center gap-1.5 font-semibold text-gray-900 dark:text-gray-100">
+        {item.tipo === 'cor' && (
+          <span
+            aria-hidden="true"
+            className="inline-block h-2.5 w-2.5 rounded-full border border-gray-300"
+            style={{ backgroundColor: item.corCss ?? 'transparent' }}
+          />
+        )}
+        {item.titulo}
+      </p>
+      <p className="mt-0.5 text-gray-700 dark:text-gray-200">
+        {item.tipo === 'orcamento' ? 'Subcategoria' : 'Linha'}: {item.linha} ({item.grupo})
+        <br />
+        {item.periodo}
+      </p>
+      {item.detalhes.length > 0 && (
+        <ul className="mt-1 text-[11px] break-words whitespace-pre-wrap text-gray-600 dark:text-gray-400">
+          {item.detalhes.map((d, i) => (
+            <li key={i}>{d}</li>
+          ))}
+        </ul>
+      )}
+      {item.estado === 'pendente' ? (
+        <BotoesCartao
+          rotulo="Confirmar"
+          ocupado={ocupado}
+          registrando={registrando}
+          onConfirmar={onConfirmar}
+          onCancelar={onCancelar}
+        />
+      ) : (
+        <p className="mt-2 text-gray-500 dark:text-gray-400">
+          {item.estado === 'registrado'
+            ? '✓ Feito'
+            : item.estado === 'cancelado'
+              ? 'Cancelado'
+              : `Não consegui gravar${item.erro ? `: ${item.erro}` : ''}`}
         </p>
       )}
     </div>
