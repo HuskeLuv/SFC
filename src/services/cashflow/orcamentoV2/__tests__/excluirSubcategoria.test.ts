@@ -318,6 +318,42 @@ describe('planejarFusaoCelulas (puro)', () => {
   });
 });
 
+describe('planejarFusaoCelulas — destino apagar (86e3vxd5r)', () => {
+  it('só digitada some; com banco: só o valorBanco segue (soma ou reduz), sem fórmula', () => {
+    const r = planejarFusaoCelulas(
+      'Condomínio',
+      [
+        cel(2026, 0, 2900),
+        cel(2026, 1, 300, { valorBanco: 120, formula: '=180+120', comment: 'pix' }),
+        cel(2026, 2, 500, { valorBanco: 500 }),
+      ],
+      [cel(2026, 1, 40, { comment: 'g' })],
+      'apagar',
+    );
+    expect(r.apagar.map((c) => c.mes)).toEqual([0]);
+    expect(r.mover).toEqual([]);
+    expect(r.somar).toHaveLength(1);
+    expect(r.somar[0].sub.value).toBe(300); // a original fica para o undo
+    expect(r.somar[0].depois).toEqual({
+      value: 160,
+      valorBanco: 120,
+      formula: null,
+      comment: 'g\nCondomínio: pix\nSomado de Condomínio ao excluir (só o lançado pelo banco)',
+      color: null,
+    });
+    expect(r.reduzir).toHaveLength(1);
+    expect(r.reduzir[0].sub.mes).toBe(2);
+    expect(r.reduzir[0].depois).toMatchObject({ value: 500, valorBanco: 500, formula: null });
+  });
+
+  it('destino padrão continua sendo a fusão de sempre', () => {
+    const r = planejarFusaoCelulas('Pet', [cel(2026, 0, 100)], []);
+    expect(r.mover.map((c) => c.mes)).toEqual([0]);
+    expect(r.apagar).toEqual([]);
+    expect(r.reduzir).toEqual([]);
+  });
+});
+
 describe('planejarFusaoOrcados (puro)', () => {
   it('fechados somados (pct pela receita do mês), corrente e futuros só apagados', () => {
     const r = planejarFusaoOrcados(
@@ -646,6 +682,57 @@ describe('Planilha × Orçamento (D11)', () => {
     expect(pelaPlanilha).toEqual(pelaTelaOrcamento);
     expect(mockRecordChange.mock.calls[1][0].action).toBe(acaoOrcamento);
     expect(acaoOrcamento).toBe(ACAO_EXCLUIR_SUBCATEGORIA);
+  });
+});
+
+describe('executarExclusaoSubcategoria — destino apagar (86e3vxd5r)', () => {
+  it('a parte digitada some, a do banco vai para a Geral com as transações; o undo volta tudo', async () => {
+    itemProprio('cond', 'tpl-hab', 'Condomínio Antigo');
+    const geral = geralDe('tpl-hab');
+    celula('cond', ANO, 0, 2900, { color: VERMELHO });
+    celula('cond', ANO, 1, 300, { valorBanco: 120 });
+    celula(geral, ANO, 1, 40);
+    celula('cond', ANO, 2, 500, { valorBanco: 500 });
+    banco.inserir('bankTransaction', { id: 't1', userId: U, cashflowItemId: 'cond' });
+    const antes = estado();
+
+    const r = await executarExclusaoSubcategoria(U, 'cond', {
+      agora: AGORA,
+      contexto,
+      destino: 'apagar',
+    });
+
+    expect(r).toMatchObject({ celulasApagadas: 1, celulasSomadas: 2, transacoesMovidas: 1 });
+    expect(celulasDo(geral).map((c) => [c.month, c.value, c.valorBanco])).toEqual([
+      [1, 160, 120],
+      [2, 500, 500],
+    ]);
+    expect(celulasDo('cond')).toHaveLength(0);
+    expect(banco.dados.bankTransaction[0].cashflowItemId).toBe(geral);
+
+    await desfazer(entradaGravada());
+    expect(estado()).toEqual(antes);
+  });
+
+  it('pela Planilha (delegação) com destino apagar dá o mesmo resultado', async () => {
+    itemProprio('cond', 'tpl-hab', 'Condomínio Antigo');
+    const geral = geralDe('tpl-hab');
+    celula('cond', ANO, 0, 2900);
+    await delegarExclusaoItem(U, 'cond', contexto, 'apagar');
+    expect(celulasDo(geral)).toHaveLength(0);
+    expect(banco.dados.cashflowItem.find((i) => i.id === 'cond')).toBeUndefined();
+  });
+
+  it('undo com a Geral mexida depois na célula reduzida → 409 e nada muda', async () => {
+    itemProprio('cond', 'tpl-hab', 'Condomínio Antigo');
+    const geral = geralDe('tpl-hab');
+    celula('cond', ANO, 2, 500, { valorBanco: 500 });
+    await executarExclusaoSubcategoria(U, 'cond', { agora: AGORA, contexto, destino: 'apagar' });
+    const reduzida = celulasDo(geral)[0];
+    reduzida.value = 999;
+    const depois = estado();
+    await expect(desfazer(entradaGravada())).rejects.toMatchObject({ status: 409 });
+    expect(estado()).toEqual(depois);
   });
 });
 

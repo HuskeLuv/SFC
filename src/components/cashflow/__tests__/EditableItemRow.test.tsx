@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { EditableItemRow } from '@/components/cashflow/EditableItemRow';
 import type { CashflowItem, CashflowGroup } from '@/types/cashflow';
@@ -99,5 +99,58 @@ describe('EditableItemRow — linha de dívida (💳)', () => {
     expect(screen.queryByLabelText(/remover|excluir|delete/i)).not.toBeInTheDocument();
     expect(screen.getByTitle('Gerida em Dívidas')).toBeInTheDocument();
     expect(screen.getByText('Financiamento')).toBeInTheDocument();
+  });
+});
+
+describe('EditableItemRow — excluir em categoria com Geral (86e3vxd5r)', () => {
+  const comValores = () =>
+    buildItem({
+      id: 'cond',
+      name: 'Condomínio antigo',
+      values: [
+        { id: 'v1', itemId: 'cond', userId: 'u1', year: 2026, month: 0, value: 2900 },
+        {
+          id: 'v2',
+          itemId: 'cond',
+          userId: 'u1',
+          year: 2026,
+          month: 1,
+          value: 300,
+          valorBanco: 120,
+        },
+      ] as CashflowItem['values'],
+    });
+
+  it('pergunta e manda o destino escolhido', () => {
+    const onDeleteItem = vi.fn();
+    renderRow({ item: comValores(), temGeralNaCategoria: true, onDeleteItem, currentYear: 2026 });
+    fireEvent.click(screen.getByRole('button', { name: 'Deletar item' }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('Excluir “Condomínio antigo”?');
+    expect(dialog).toHaveTextContent('2 meses');
+    expect(dialog).toHaveTextContent('vieram do banco (Open Finance)');
+    expect(onDeleteItem).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Apagar os valores' }));
+    expect(onDeleteItem).toHaveBeenCalledWith('cond', 'apagar');
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('Cancelar não exclui; Mover para Geral manda geral', () => {
+    const onDeleteItem = vi.fn();
+    renderRow({ item: comValores(), temGeralNaCategoria: true, onDeleteItem, currentYear: 2026 });
+    fireEvent.click(screen.getByRole('button', { name: 'Deletar item' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(onDeleteItem).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Deletar item' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mover para Geral' }));
+    expect(onDeleteItem).toHaveBeenCalledWith('cond', 'geral');
+  });
+
+  it('sem Geral na categoria ou sem valores: exclui direto, como antes', () => {
+    const onDeleteItem = vi.fn();
+    renderRow({ item: comValores(), onDeleteItem });
+    fireEvent.click(screen.getByRole('button', { name: 'Deletar item' }));
+    expect(onDeleteItem).toHaveBeenCalledWith('cond');
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

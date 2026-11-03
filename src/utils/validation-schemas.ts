@@ -180,6 +180,9 @@ export const cashflowBatchUpdateSchema = z.object({
     )
     .optional(),
   deletes: z.array(z.string()).optional(),
+  // Orçamento v2 (ticket 86e3vxd5r): por item excluído, para onde vão os valores. Ausente =
+  // 'geral' (fusão de sempre); 'apagar' = só a parte lançada pelo banco vai para a Geral.
+  destinoExclusao: z.record(zString(255), z.enum(['geral', 'apagar'])).optional(),
 });
 
 export const cashflowOrcamentoUpdateSchema = z.object({

@@ -114,6 +114,17 @@ const GROUPS: CashflowGroup[] = [
         items: [item('financiamento', 'dividas', { dividaId: 'd1' })],
       }),
       group({
+        id: 'saude',
+        name: 'Saúde',
+        items: [
+          item('farmacia', 'saude', {
+            values: [value('farmacia', 6, { value: 200, valorBanco: 50 })],
+          }),
+          item('consulta', 'saude'),
+          item('geral-saude', 'saude', { name: 'Geral', isGeral: true }),
+        ],
+      }),
+      group({
         id: 'planejamento',
         name: 'Planejamento Financeiro',
         items: [
@@ -350,6 +361,44 @@ describe('CashflowEditSheets', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Excluir linha' }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith('Linha excluída'));
     expect(mocks.saveItemChanges).toHaveBeenCalledWith({ groupId: 'lazer', deletes: ['clube'] });
+  });
+
+  it('categoria com Geral: pergunta Mover para Geral ou Apagar e manda o destino', async () => {
+    render(<Harness initial={cell('farmacia', 'saude')} />);
+    fireEvent.click(screen.getByRole('button', { name: /Excluir linha/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Excluir linha' });
+    expect(dialog).toHaveTextContent('vieram do banco (Open Finance) e vão para Geral');
+    expect(dialog).not.toHaveTextContent('Não dá para desfazer');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Apagar os valores' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith('Linha excluída'));
+    expect(mocks.saveItemChanges).toHaveBeenCalledWith({
+      groupId: 'saude',
+      deletes: ['farmacia'],
+      destinoExclusao: { farmacia: 'apagar' },
+    });
+  });
+
+  it('categoria com Geral: Mover para Geral manda destino geral', async () => {
+    render(<Harness initial={cell('farmacia', 'saude')} />);
+    fireEvent.click(screen.getByRole('button', { name: /Excluir linha/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Excluir linha' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Mover para Geral' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith('Linha excluída'));
+    expect(mocks.saveItemChanges).toHaveBeenCalledWith({
+      groupId: 'saude',
+      deletes: ['farmacia'],
+      destinoExclusao: { farmacia: 'geral' },
+    });
+  });
+
+  it('categoria com Geral, linha sem valores: exclui direto como antes', async () => {
+    render(<Harness initial={cell('consulta', 'saude')} />);
+    fireEvent.click(screen.getByRole('button', { name: /Excluir linha/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Excluir linha' });
+    expect(within(dialog).queryByRole('button', { name: 'Apagar os valores' })).toBeNull();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Excluir linha' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith('Linha excluída'));
+    expect(mocks.saveItemChanges).toHaveBeenCalledWith({ groupId: 'saude', deletes: ['consulta'] });
   });
 
   it('sonho: excluir avisa que o objetivo sai do Planejamento e manda deletes', async () => {

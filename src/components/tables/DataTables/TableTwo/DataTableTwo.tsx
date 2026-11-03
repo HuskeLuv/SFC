@@ -29,6 +29,7 @@ import { CashflowToolbar } from '@/components/cashflow/CashflowToolbar';
 import { TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import { CANONICAL_GROUPS, isCanonical } from '@/services/cashflow/groupMatchers';
 import { EditableItemRow } from '@/components/cashflow/EditableItemRow';
+import { linhaTemGeralNaCategoria } from '@/lib/cashflow/geralDaCategoria';
 import { CashflowItem, CashflowGroup } from '@/types/cashflow';
 import { useCommentModal } from '@/hooks/useCommentModal';
 import { useGroupEditMode } from '@/hooks/useGroupEditMode';
@@ -300,6 +301,7 @@ export default function DataTableTwo({
           groupId: group.id,
           updates: changes.updates,
           deletes: changes.deletes,
+          destinoExclusao: changes.destinoExclusao,
         });
 
         // Desktop: 2xx = sucesso (linhas recusadas pelo servidor seguem como sempre).
@@ -369,6 +371,7 @@ export default function DataTableTwo({
             isEditing={true}
             onUpdateField={updateItemField}
             onDeleteItem={deleteItem}
+            temGeralNaCategoria={linhaTemGeralNaCategoria(data ?? [], item.id)}
             onApplyColor={applyColorToCell}
             isColorModeActive={selectedColor !== null}
             isCommentModeActive={isCommentModeActive}
@@ -406,6 +409,7 @@ export default function DataTableTwo({
       isCommentModeActive,
       currentYear,
       isYearGrid,
+      data,
     ],
   );
 

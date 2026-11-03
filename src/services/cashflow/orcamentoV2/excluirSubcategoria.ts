@@ -153,6 +153,13 @@ export interface SomaOrcadoGeral {
  *  item-template; `apagado` = linha só do usuário apagada. */
 export type ModoRemocao = 'ocultado' | 'lapide' | 'apagado';
 
+/**
+ * Para onde vão os valores da linha excluída (ticket 86e3vxd5r, 03/11/2026): 'geral' = fusão de
+ * sempre (tudo somado na Geral); 'apagar' = a parte digitada some e só a parte lançada pelo banco
+ * (valorBanco, Open Finance) vai para a Geral, junto com as transações. Padrão: 'geral'.
+ */
+export type DestinoValoresExclusao = 'geral' | 'apagar';
+
 export interface DadosSnapshotExclusao {
   item: {
     id: string;
@@ -180,6 +187,21 @@ export interface DadosSnapshotExclusao {
   transacoes: string[];
   orcadosSub: OrcadoLinha[];
   orcadosGeral: SomaOrcadoGeral[];
+  /** Ausente em exclusões antigas = 'geral'. */
+  destino?: DestinoValoresExclusao;
+  /** Modo 'apagar': células só digitadas, apagadas (o undo as recria). */
+  celulasApagadas?: { ano: number; mes: number; sub: CelulaEstado }[];
+  /**
+   * Modo 'apagar': células com parte do banco, sem célula da Geral no mês, que passaram para a
+   * Geral (mesmo id) só com o valor do banco. O undo as devolve se ainda estiverem como `depois`.
+   */
+  celulasReduzidas?: {
+    id: string;
+    ano: number;
+    mes: number;
+    antes: CelulaEstado;
+    depois: CelulaEstado;
+  }[];
 }
 
 export interface ResultadoExclusao {
@@ -188,6 +210,7 @@ export interface ResultadoExclusao {
   geralId: string;
   celulasMovidas: number;
   celulasSomadas: number;
+  celulasApagadas: number;
   transacoesMovidas: number;
   orcadosSomados: number;
   orcadosApagados: number;
@@ -207,26 +230,60 @@ const vazia = (c: CelulaEstado) => c.value === 0 && c.valorBanco === 0;
  */
 export function planejarFusaoCelulas(
   nomeSub: string,
-  sub: Celula[],
+  subOriginal: Celula[],
   geral: Celula[],
+  destino: DestinoValoresExclusao = 'geral',
 ): {
   mover: Celula[];
   somar: { sub: Celula; geral: Celula; depois: CelulaEstado }[];
   coresDivergentes: MesAno[];
+  /** Só em 'apagar': células sem parte do banco, apagadas. */
+  apagar: Celula[];
+  /** Só em 'apagar': células com parte do banco e sem célula da Geral no mês (vão reduzidas). */
+  reduzir: { sub: Celula; depois: CelulaEstado }[];
 } {
   const daGeral = new Map(geral.map((c) => [`${c.ano}|${c.mes}`, c]));
   const mover: Celula[] = [];
   const somar: { sub: Celula; geral: Celula; depois: CelulaEstado }[] = [];
   const coresDivergentes: MesAno[] = [];
+  const apagar: Celula[] = [];
+  const reduzir: { sub: Celula; depois: CelulaEstado }[] = [];
+  // 'apagar': só a parte do banco segue (valor = valorBanco, sem fórmula). A célula original fica
+  // guardada para o undo; o comentário avisa o que sobrou.
+  const original = new Map(subOriginal.map((c) => [c.id, c]));
+  const sub: Celula[] = [];
+  for (const c of subOriginal) {
+    if (destino === 'geral') {
+      sub.push(c);
+    } else if (c.valorBanco === 0) {
+      apagar.push(c);
+    } else {
+      sub.push({ ...c, value: c.valorBanco, formula: null });
+    }
+  }
+  const sufixo = destino === 'apagar' ? ' (só o lançado pelo banco)' : '';
   for (const s of sub) {
     const g = daGeral.get(`${s.ano}|${s.mes}`);
     if (!g) {
-      mover.push(s);
+      if (destino === 'geral') mover.push(s);
+      else
+        reduzir.push({
+          sub: original.get(s.id)!,
+          depois: {
+            value: s.value,
+            valorBanco: s.valorBanco,
+            formula: null,
+            comment: [s.comment, `Somado de ${nomeSub} ao excluir${sufixo}`]
+              .filter((c): c is string => Boolean(c && c.trim()))
+              .join('\n'),
+            color: s.color,
+          },
+        });
       continue;
     }
     // Sub zerada, sem comentário nem fórmula: nada a somar; só some com a linha.
     if (vazia(s) && !s.comment && !s.formula) {
-      somar.push({ sub: s, geral: g, depois: estadoDe(g) });
+      somar.push({ sub: original.get(s.id)!, geral: g, depois: estadoDe(g) });
       continue;
     }
     let color: string | null;
@@ -239,10 +296,10 @@ export function planejarFusaoCelulas(
     const comentarios = [
       g.comment,
       s.comment ? `${nomeSub}: ${s.comment}` : null,
-      `Somado de ${nomeSub} ao excluir`,
+      `Somado de ${nomeSub} ao excluir${sufixo}`,
     ].filter((c): c is string => Boolean(c && c.trim()));
     somar.push({
-      sub: s,
+      sub: original.get(s.id)!,
       geral: g,
       depois: {
         value: arred2(g.value + s.value),
@@ -254,7 +311,7 @@ export function planejarFusaoCelulas(
     });
   }
   coresDivergentes.sort((a, b) => a.ano - b.ano || a.mes - b.mes);
-  return { mover, somar, coresDivergentes };
+  return { mover, somar, coresDivergentes, apagar, reduzir };
 }
 
 /**
@@ -480,6 +537,7 @@ export async function excluirSubcategoria(
   userId: string,
   itemId: string,
   hojeSP: HojeSP,
+  destino: DestinoValoresExclusao = 'geral',
 ): Promise<ResultadoExclusao> {
   // Serializa as exclusões do usuário (duplo clique, Planilha × Orçamento): sem a trava, uma
   // segunda transação que já resolveu o alvo somaria de novo na Geral (no modo lápide/ocultado o
@@ -498,9 +556,25 @@ export async function excluirSubcategoria(
     celulasDo(tx, linha.id, userId),
     celulasDo(tx, geral.id, userId),
   ]);
-  const fusao = planejarFusaoCelulas(linha.name, sub, daGeral);
+  const fusao = planejarFusaoCelulas(linha.name, sub, daGeral, destino);
   if (fusao.coresDivergentes.length > 0) {
     throw new ErroExclusaoSubcategoria('cores_divergentes', fusao.coresDivergentes);
+  }
+  if (fusao.apagar.length > 0) {
+    await tx.cashflowValue.deleteMany({ where: { id: { in: fusao.apagar.map((c) => c.id) } } });
+  }
+  for (const { sub: c, depois } of fusao.reduzir) {
+    await tx.cashflowValue.update({
+      where: { id: c.id },
+      data: {
+        itemId: geral.id,
+        value: depois.value,
+        valorBanco: depois.valorBanco,
+        formula: depois.formula,
+        comment: depois.comment,
+        color: depois.color,
+      },
+    });
   }
   if (fusao.mover.length > 0) {
     await tx.cashflowValue.updateMany({
@@ -581,6 +655,15 @@ export async function excluirSubcategoria(
     transacoes,
     orcadosSub: orc.orcadosSub,
     orcadosGeral: orc.somar,
+    destino,
+    celulasApagadas: fusao.apagar.map((c) => ({ ano: c.ano, mes: c.mes, sub: estadoDe(c) })),
+    celulasReduzidas: fusao.reduzir.map(({ sub: c, depois }) => ({
+      id: c.id,
+      ano: c.ano,
+      mes: c.mes,
+      antes: estadoDe(c),
+      depois: estadoDe(depois),
+    })),
   };
 
   return {
@@ -588,7 +671,8 @@ export async function excluirSubcategoria(
     nome: linha.name,
     geralId: geral.id,
     celulasMovidas: fusao.mover.length,
-    celulasSomadas: fusao.somar.length,
+    celulasSomadas: fusao.somar.length + fusao.reduzir.length,
+    celulasApagadas: fusao.apagar.length,
     transacoesMovidas: transacoes.length,
     orcadosSomados: orc.somar.length,
     orcadosApagados: orc.apagados,
@@ -635,6 +719,8 @@ export interface OpcoesExecucao {
    * a rota segue o caminho de hoje) em vez de lançar.
    */
   delegacao?: boolean;
+  /** Para onde vão os valores (padrão 'geral'). */
+  destino?: DestinoValoresExclusao;
 }
 
 const NAO_APLICA_NA_DELEGACAO = new Set<CodigoRecusaExclusao>([
@@ -674,7 +760,7 @@ export async function executarExclusaoSubcategoria(
   }
 
   const resultado = await prisma.$transaction(
-    (tx) => excluirSubcategoria(tx, userId, itemId, hojeSP),
+    (tx) => excluirSubcategoria(tx, userId, itemId, hojeSP, opts.destino ?? 'geral'),
     { timeout: TIMEOUT_TX_MS },
   );
 

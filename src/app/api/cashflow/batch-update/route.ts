@@ -66,7 +66,7 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
   if (!parsed.success) {
     return validationError(parsed);
   }
-  const { groupId: _groupId, updates, deletes, year } = parsed.data;
+  const { groupId: _groupId, updates, deletes, year, destinoExclusao } = parsed.data;
 
   const targetYear = year ?? new Date().getFullYear();
   const results: Array<{ itemId: string; success: boolean; error?: string }> = [];
@@ -127,7 +127,12 @@ export const PUT = withErrorHandler(async (request: NextRequest) => {
       for (const itemId of deletes) {
         if (handled.has(itemId) || (!v2 && !temOrcado.has(itemId))) continue;
         try {
-          const r = await delegarExclusaoItem(targetUserId, itemId, { request, auth });
+          const r = await delegarExclusaoItem(
+            targetUserId,
+            itemId,
+            { request, auth },
+            destinoExclusao?.[itemId] ?? 'geral',
+          );
           if (r === 'fundido') {
             handled.add(itemId);
             results.push({ itemId, success: true });

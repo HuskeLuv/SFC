@@ -225,6 +225,30 @@ describe('PUT /api/cashflow/batch-update — usuário sem Orçamento v2 (como an
     });
   });
 
+  it('destinoExclusao por item chega à fusão (ausente = geral)', async () => {
+    mockPrisma.cashflowItem.findMany.mockResolvedValue([
+      ownedRow('cond', { _count: { orcamentoItens: 1 } }),
+      ownedRow('gas', { _count: { orcamentoItens: 1 } }),
+    ]);
+    mockExecutarExclusao.mockResolvedValue({ itemId: 'x' });
+    await PUT(req({ updates: [], deletes: ['cond', 'gas'], destinoExclusao: { cond: 'apagar' } }));
+    expect(mockExecutarExclusao).toHaveBeenCalledWith(
+      'user-1',
+      'cond',
+      expect.objectContaining({ destino: 'apagar' }),
+    );
+    expect(mockExecutarExclusao).toHaveBeenCalledWith(
+      'user-1',
+      'gas',
+      expect.objectContaining({ destino: 'geral' }),
+    );
+  });
+
+  it('destinoExclusao inválido → 400', async () => {
+    const res = await PUT(req({ updates: [], deletes: ['cond'], destinoExclusao: { cond: 'x' } }));
+    expect(res.status).toBe(400);
+  });
+
   it('renomeia sem validar nome e só carrega a árvore da resposta', async () => {
     const res = await PUT(req({ updates: [{ itemId: 'aluguel', name: '  energia ' }] }));
     expect((await res.json()).results).toEqual([{ itemId: 'aluguel', success: true }]);
