@@ -31,6 +31,10 @@ export const proventosRecebidosPorSymbol = async (userId: string): Promise<Map<s
  * Aplica os proventos recebidos nas linhas de uma aba: preenche `proventos`
  * e recalcula `rentabilidade` = (atual + proventos − aplicado) / aplicado.
  * Linha sem base (aplicado ≤ 0) mantém a rentabilidade original.
+ *
+ * `chave` (opcional, padrão `a.ticker`): de onde sai o symbol da busca. Linha cujo ticker de
+ * exibição difere do Asset.symbol (ativo manual 'VOO-<ts>-<rnd>') passa o symbol cru aqui —
+ * senão os proventos somem em silêncio.
  */
 export const aplicarProventosNosAtivos = <
   T extends {
@@ -43,9 +47,10 @@ export const aplicarProventosNosAtivos = <
 >(
   ativos: T[],
   proventosPorSymbol: Map<string, number>,
+  chave: (a: T) => string = (a) => a.ticker,
 ): void => {
   for (const a of ativos) {
-    const proventos = proventosPorSymbol.get(a.ticker) ?? 0;
+    const proventos = proventosPorSymbol.get(chave(a)) ?? 0;
     a.proventos = proventos;
     if (a.valorTotal > 0) {
       a.rentabilidade = ((a.valorAtualizado + proventos - a.valorTotal) / a.valorTotal) * 100;
