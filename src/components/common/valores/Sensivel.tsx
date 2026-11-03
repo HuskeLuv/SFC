@@ -59,15 +59,20 @@ export function ValorVisivel({ children }: { children?: ReactNode }) {
   return <span data-mf-valor-visivel="">{children}</span>;
 }
 
-/** Texto livre: só os valores em R$/US$ viram pílula; o resto (%, nomes, datas) fica. */
-export function TextoSensivel({ texto }: { texto: string }) {
+/**
+ * Texto livre: só os valores em R$/US$ viram pílula; o resto (%, nomes, datas) fica. `className`
+ * vai para cada pílula (ex.: 'mf-sensivel--reserva' para o texto não refluir).
+ */
+export function TextoSensivel({ texto, className }: { texto: string; className?: string }) {
   const { ativo } = useValoresOcultos();
   if (!ativo || !contemValorMonetario(texto)) return <>{texto}</>;
   return (
     <>
       {dividirPorValores(texto).map((trecho, i) =>
         trecho.sensivel ? (
-          <Sensivel key={i}>{trecho.texto}</Sensivel>
+          <Sensivel key={i} className={className}>
+            {trecho.texto}
+          </Sensivel>
         ) : (
           <React.Fragment key={i}>{trecho.texto}</React.Fragment>
         ),

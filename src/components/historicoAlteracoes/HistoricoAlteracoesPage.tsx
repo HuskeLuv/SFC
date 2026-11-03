@@ -16,12 +16,18 @@ import {
 import { useUndoAlteracao } from '@/hooks/useUndoAlteracao';
 import { CHANGE_SECTIONS, type ChangeSection } from '@/services/changeHistory/types';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import MobileTabRail from '@/components/ui/tabs/MobileTabRail';
 import MobilePageState from '@/components/ui/mobile/MobilePageState';
 import MobileSaveToast from '@/components/ui/sheet/MobileSaveToast';
 import { useResponsiveConfirm } from '@/components/ui/sheet/useResponsiveConfirm';
 import { SECTION_LABELS, renderRichDescription } from './renderChange';
-import { HistoricoEntryRow, HistoricoEntryCard, ValorAlteracao } from './HistoricoEntryRow';
+import {
+  HistoricoEntryRow,
+  HistoricoEntryCard,
+  TituloAlteracao,
+  ValorAlteracao,
+} from './HistoricoEntryRow';
 
 const TODAS = 'todas';
 
@@ -38,7 +44,7 @@ const UndoConfirmMessage: React.FC<{ entry: HistoricoAlteracaoEntry; title: stri
   return (
     <div className="space-y-2">
       <p className="font-medium text-gray-800 [overflow-wrap:anywhere] dark:text-white/90">
-        {title}
+        <TituloAlteracao title={title} />
       </p>
       {shown.length > 0 ? (
         <ul className="space-y-0.5 [overflow-wrap:anywhere]">
@@ -112,6 +118,7 @@ export default function HistoricoAlteracoesPage() {
   const undoMutation = useUndoAlteracao();
   const isBelowLg = useIsBelowLg();
   const { confirmAndRun, confirmSheet } = useResponsiveConfirm();
+  const { mascarar } = useValoresOcultos();
 
   const handleSectionChange = (next: ChangeSection | undefined) => {
     setSection(next);
@@ -127,7 +134,7 @@ export default function HistoricoAlteracoesPage() {
     try {
       const ok = await confirmAndRun(
         {
-          desktopMessage: `Desfazer esta alteração?\n\n${title}`,
+          desktopMessage: `Desfazer esta alteração?\n\n${mascarar(title)}`,
           title: 'Desfazer esta alteração?',
           message: <UndoConfirmMessage entry={entry} title={title} />,
           confirmLabel: 'Desfazer',

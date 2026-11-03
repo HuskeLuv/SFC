@@ -247,6 +247,40 @@ html[data-valores-ocultos] .mf-sensivel--reserva::before {
   background-color: var(--mf-pilula);
   animation: mf-pilula-entra 160ms ease-out;
 }
+/*
+  Variante "justa" da reserva: a pílula nunca passa da largura do próprio valor (sem o mínimo de
+  3,5em). Para quantidades curtas no meio de uma frase ("Quantidade: 1 · +5 outros campos"): a
+  pílula curta, mais larga que o número, empurrava o resto para outra linha (decisão 6).
+*/
+html[data-valores-ocultos] .mf-sensivel--justa::before {
+  min-inline-size: 0;
+}
+/*
+  Texto longo que é todo sensível (o JSON técnico das Observações no Histórico): o texto fica no
+  lugar, invisível, e cada pedaço de linha ganha a faixa da pílula (background por fragmento, com
+  box-decoration-break). O texto quebra nas mesmas linhas com o olho aberto ou fechado
+  (decisão 6), sem a pílula única de 5,5em que encolhia o bloco.
+*/
+html[data-valores-ocultos] .mf-sensivel--texto {
+  display: inline;
+  inline-size: auto;
+  max-inline-size: none;
+  block-size: auto;
+  vertical-align: baseline;
+  background: linear-gradient(
+    transparent calc(50% - 0.36em),
+    var(--mf-pilula) calc(50% - 0.36em),
+    var(--mf-pilula) calc(50% + 0.36em),
+    transparent calc(50% + 0.36em)
+  );
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  animation: none;
+}
+html[data-valores-ocultos] .mf-sensivel--texto > .mf-sensivel__valor {
+  display: inline;
+  visibility: hidden;
+}
 /* "valor oculto" só para leitor de tela (sr-only). */
 .mf-sensivel__sr {
   position: absolute;

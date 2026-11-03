@@ -24,10 +24,15 @@ import {
  * usuário e 'number' (ou sem formato) é quantidade: viram pílula com o olho fechado. 'percent' e
  * 'date' ficam; texto só esconde trechos com R$/US$. A pílula é a que guarda a largura do valor
  * (.mf-sensivel--reserva): o resumo e os detalhes quebram nas mesmas linhas com o olho aberto ou
- * fechado (decisão 6). Olho aberto: a mesma string de formatChangeValue.
+ * fechado (decisão 6). Na quantidade ela é "justa" (.mf-sensivel--justa): nunca mais larga que o
+ * número ("Quantidade: 1" não empurra o resto da frase para outra linha nem cobre o rótulo).
+ * O JSON técnico da operação (Observações de operacao/aporte/resgate/transação: quantity, price,
+ * total…) fica todo escondido, no lugar (.mf-sensivel--texto: faixa da pílula em cada linha, mesma
+ * quebra de linha). Olho aberto: a mesma string de formatChangeValue.
  */
-/** A partir de 7 caracteres o número já é tão largo quanto a pílula curta (3,5em). */
-const MIN_CARACTERES_RESERVA = 7;
+const pareceJson = (value: unknown, texto: string) =>
+  (value !== null && typeof value === 'object') ||
+  (typeof value === 'string' && /^\s*[[{]/.test(texto) && /\d/.test(texto));
 
 export const ValorAlteracao: React.FC<{ value: unknown; format?: ChangeValueFormat }> = ({
   value,
@@ -36,16 +41,33 @@ export const ValorAlteracao: React.FC<{ value: unknown; format?: ChangeValueForm
   const texto = formatChangeValue(value, format);
   if (typeof value === 'number' && format !== 'percent') {
     const curto = format !== 'currency';
-    // Quantidade curta ("137,25") é mais estreita que a pílula mínima da reserva (3,5em), que
-    // cobriria o rótulo ao lado: usa a pílula curta comum, de largura parecida com o número.
-    const reserva = !curto || texto.length >= MIN_CARACTERES_RESERVA;
     return (
-      <Sensivel curto={curto} className={reserva ? 'mf-sensivel--reserva' : undefined}>
+      <Sensivel
+        curto={curto}
+        className={curto ? 'mf-sensivel--reserva mf-sensivel--justa' : 'mf-sensivel--reserva'}
+      >
         {texto}
       </Sensivel>
     );
   }
+  if (pareceJson(value, texto)) return <Sensivel className="mf-sensivel--texto">{texto}</Sensivel>;
   return <TextoSensivel texto={texto} />;
+};
+
+/**
+ * Título da alteração: o nome de ativo manual traz o valor ("CDB X - R$ 1.000 - 13/10/2026"), que
+ * vira pílula como na carteira (AssetNameLink). Olho fechado: um span só, porque na linha do
+ * desktop o título é item de um inline-flex com gap (os pedaços virariam itens separados). Olho
+ * aberto: o texto cru de sempre.
+ */
+export const TituloAlteracao: React.FC<{ title: string }> = ({ title }) => {
+  const { ativo } = useValoresOcultos();
+  if (!ativo) return <>{title}</>;
+  return (
+    <span>
+      <TextoSensivel texto={title} className="mf-sensivel--reserva" />
+    </span>
+  );
 };
 
 /** Resumo "Rótulo: a → b · …" com a pílula só nos valores. */
@@ -150,7 +172,7 @@ export const HistoricoEntryRow: React.FC<RowProps> = ({
         </StandardTableBodyCell>
         <StandardTableBodyCell>
           <span className={`inline-flex items-center gap-2 ${isUndone ? 'opacity-60' : ''}`}>
-            {title}
+            <TituloAlteracao title={title} />
             {entry.viaConsultant && <ViaConsultorBadge />}
             {isUndone && <DesfeitaBadge />}
           </span>
@@ -234,7 +256,7 @@ export const HistoricoEntryCard: React.FC<CardProps> = ({
         id={titleId}
         className={`text-sm font-medium text-gray-800 max-lg:[overflow-wrap:anywhere] dark:text-gray-200 ${isUndone ? 'opacity-60' : ''}`}
       >
-        {title}
+        <TituloAlteracao title={title} />
       </p>
       {entry.viaConsultant || isUndone ? (
         <p className="flex flex-wrap gap-3">
