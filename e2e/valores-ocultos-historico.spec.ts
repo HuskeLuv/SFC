@@ -6,7 +6,12 @@ import {
   expectNumerosAusentes,
   tamanhoDoDocumento,
 } from './helpers/valoresOcultos';
-import { ID_HISTORICO, mockarHistorico, SENTINELAS_HISTORICO } from './helpers/historico';
+import {
+  ID_HISTORICO,
+  mockarHistorico,
+  OPERACAO_MANUAL_HISTORICO,
+  SENTINELAS_HISTORICO,
+} from './helpers/historico';
 
 /**
  * Esconder valores — Fase 6, fatia 1: Histórico de alterações (/historico-alteracoes). Antes →
@@ -49,8 +54,12 @@ const S = SENTINELAS_HISTORICO;
 const brl = (v: number) =>
   v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-/** Os 8 números do resumo (2 campos por alteração; 142,5 tem uma casa e o regex não pega). */
+/**
+ * Os 8 números do resumo (2 campos por alteração; 142,5 tem uma casa e o regex não pega) + o valor
+ * no nome do ativo manual ("… - R$ 3.456 - 13/10/2026"; a quantidade 1 o regex não pega).
+ */
 const NUMEROS_RESUMO = [
+  '3.456',
   brl(S.quantidadeAntes),
   brl(S.precoAntes),
   brl(S.precoDepois),
@@ -83,6 +92,21 @@ async function atributosComValor(page: Page, escopo: string): Promise<string[]> 
     }
     return valores;
   }, escopo);
+}
+
+/** innerText do conteúdo sem o valor escondido dentro das pílulas. */
+async function textoVisivelDoConteudo(page: Page): Promise<string> {
+  return page.evaluate((escopo) => {
+    const raiz = document.querySelector<HTMLElement>(escopo) ?? document.body;
+    const clone = raiz.cloneNode(true) as HTMLElement;
+    clone.querySelectorAll('.mf-sensivel__valor').forEach((el) => el.remove());
+    clone.style.position = 'absolute';
+    clone.style.left = '-99999px';
+    document.body.appendChild(clone);
+    const texto = clone.innerText;
+    clone.remove();
+    return texto;
+  }, CONTEUDO);
 }
 
 async function alturas(page: Page, seletor: string): Promise<number[]> {
@@ -165,13 +189,25 @@ test.describe('esconder valores — Histórico de alterações (computador 1280)
     const { escritas } = await abrir(page);
     const linhas = `${CONTEUDO} table tbody tr`;
     await conferirOlhoFechado(page, linhas, NUMEROS_RESUMO, 'historico-1280');
-    expect(await coletarNumerosDaPosicao(page, CONTEUDO, OPCOES)).toHaveLength(8);
+    expect(await coletarNumerosDaPosicao(page, CONTEUDO, OPCOES)).toHaveLength(9);
 
     // Detalhes (lista completa): quantidade e total investido também.
     const tabela = page.locator(`${CONTEUDO} table`);
     await tabela.getByRole('button', { name: 'Detalhes' }).first().click();
     await expect(tabela.getByText('Total investido:')).toBeVisible();
     await conferirOlhoFechado(page, linhas, [brl(S.totalAntes), brl(S.totalDepois)]);
+
+    // Detalhes da operação de ativo manual: o JSON das Observações não pode sobrar.
+    const operacao = tabela.locator('tr', { hasText: 'Registrou operação de CDB E2E' });
+    await operacao.getByRole('button', { name: 'Detalhes' }).click();
+    await expect(tabela.getByText('Observações:')).toBeVisible();
+    expect(await textoVisivelDoConteudo(page)).toContain(
+      `"price":${OPERACAO_MANUAL_HISTORICO.preco}`,
+    );
+    await conferirOlhoFechado(page, linhas, []);
+    await alternarOlho(page, true);
+    expect(await textoVisivelDoConteudo(page)).not.toMatch(/"(?:price|total|quantity)"/);
+    await alternarOlho(page, false);
 
     // Desfazer com o olho fechado: o confirm do navegador e o POST só com o id.
     await alternarOlho(page, true);

@@ -42,7 +42,20 @@ export const ID_HISTORICO = {
   divida: 'e2e-hist-0000-4000-8000-000000000003',
   planejamento: 'e2e-hist-0000-4000-8000-000000000004',
   perfil: 'e2e-hist-0000-4000-8000-000000000005',
+  operacaoManual: 'e2e-hist-0000-4000-8000-000000000006',
 } as const;
+
+/**
+ * Operação de ativo manual como a API grava: o nome leva o valor aplicado ("<nome> - R$ N -
+ * data", carteira/operacao) e Observações guarda o JSON técnico da operação (quantity, price,
+ * total…). A quantidade é 1: a pílula curta empurrava "+N outros campos" para outra linha.
+ */
+export const OPERACAO_MANUAL_HISTORICO = {
+  nome: 'CDB E2E Banco Teste - R$ 3.456 - 13/10/2026',
+  preco: 3456.78,
+  total: 3456.78,
+} as const;
+const OP = OPERACAO_MANUAL_HISTORICO;
 
 const base = {
   userId: 'e2e-user',
@@ -173,6 +186,35 @@ export const HISTORICO_FIXTURE: HistoricoAlteracaoEntry[] = [
       },
     ],
     createdAt: '2026-10-01T08:00:00.000Z',
+    canUndo: false,
+  },
+  {
+    ...base,
+    id: ID_HISTORICO.operacaoManual,
+    section: 'carteira',
+    action: 'operacao.registrar',
+    entity: 'stock-transaction',
+    entityId: 'e2e-tx-1',
+    entityLabel: OP.nome,
+    changes: [
+      { field: 'type', label: 'Tipo', before: null, after: 'compra' },
+      { field: 'quantity', label: 'Quantidade', before: null, after: 1, format: 'number' },
+      { field: 'price', label: 'Preço', before: null, after: OP.preco, format: 'currency' },
+      { field: 'total', label: 'Total', before: null, after: OP.total, format: 'currency' },
+      {
+        field: 'notes',
+        label: 'Observações',
+        before: null,
+        after: JSON.stringify({
+          name: OP.nome,
+          quantity: 1,
+          price: OP.preco,
+          total: OP.total,
+          fees: 0,
+        }),
+      },
+    ],
+    createdAt: '2026-09-30T14:49:00.000Z',
     canUndo: false,
   },
 ];
