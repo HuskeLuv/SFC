@@ -4,6 +4,7 @@ import Label from '@/components/form/Label';
 import { useCarteiraResumoContextOptional } from '@/context/CarteiraResumoContext';
 import { CAIXA_ABAS, planejarDebito, type CaixaAbaKey } from '@/lib/caixaParaInvestirPlano';
 import { formatBRL } from '@/utils/format';
+import { TextoSensivel } from '@/components/common/valores/Sensivel';
 
 interface UsarCaixaFieldProps {
   /** Valor da compra/aporte em R$. */
@@ -88,16 +89,17 @@ export default function UsarCaixaField({
             Descontar do Caixa para Investir
           </Label>
           <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-300">
-            {ligado
-              ? origem.length > 0
-                ? // eslint-disable-next-line mf/valor-sem-sensivel -- apoio do formulário de lançamento/aporte fica visível (decisão 3)
-                  `Sai ${origem.join(' e ')}. O caixa total fica em ${formatBRL(totalDepois)}.`
-                : 'Nada será descontado.'
-              : // eslint-disable-next-line mf/valor-sem-sensivel -- apoio do formulário de lançamento/aporte fica visível (decisão 3)
-                `O caixa não será alterado (hoje: ${formatBRL(caixa.total)}` +
-                // eslint-disable-next-line mf/valor-sem-sensivel -- apoio do formulário de lançamento/aporte fica visível (decisão 3)
-                (abaLabel ? `, reserva de ${abaLabel} ${formatBRL(plano.reservaAba)}` : '') +
-                ').'}
+            <TextoSensivel
+              texto={
+                ligado
+                  ? origem.length > 0
+                    ? `Sai ${origem.join(' e ')}. O caixa total fica em ${formatBRL(totalDepois)}.`
+                    : 'Nada será descontado.'
+                  : `O caixa não será alterado (hoje: ${formatBRL(caixa.total)}` +
+                    (abaLabel ? `, reserva de ${abaLabel} ${formatBRL(plano.reservaAba)}` : '') +
+                    ').'
+              }
+            />
           </p>
           {!abaLabel && ligado && (
             <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-300">
