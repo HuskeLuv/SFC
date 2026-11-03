@@ -33,6 +33,23 @@ interface Step3SearchWithManualFallbackProps {
   manualTitle: string;
   manualPrefix: string;
   manualPlaceholder: string;
+  /**
+   * Textos do modo manual (ETF americano, nov/2026). Sem eles, ficam os genéricos de sempre
+   * ("Entrada manual", "Nome do ativo *").
+   */
+  manualTextos?: {
+    titulo?: string;
+    descricao?: string;
+    rotulo?: string;
+    /** Instruções do modo busca (substitui o "Como buscar" genérico). */
+    comoBuscar?: string;
+  };
+  /** Ticker em maiúsculas no modo manual. */
+  manualToUpperCase?: boolean;
+  /** Aviso (não bloqueia) mostrado abaixo do campo manual. */
+  manualAviso?: string | null;
+  /** Abre já no modo manual (ex.: voltar ao passo 3 com o ativo manual preenchido). */
+  iniciarNoManual?: boolean;
 }
 
 export default function Step3SearchWithManualFallback({
@@ -45,13 +62,17 @@ export default function Step3SearchWithManualFallback({
   manualTitle,
   manualPrefix,
   manualPlaceholder,
+  manualTextos,
+  manualToUpperCase = false,
+  manualAviso = null,
+  iniciarNoManual = false,
 }: Step3SearchWithManualFallbackProps) {
   const [assetOptions, setAssetOptions] = useState<AutocompleteOption[]>([]);
   const [assetsById, setAssetsById] = useState<Map<string, Asset & { currentPrice?: number }>>(
     new Map(),
   );
   const [loading, setLoading] = useState(false);
-  const [showManual, setShowManual] = useState(false);
+  const [showManual, setShowManual] = useState(iniciarNoManual);
   const [searchPerformed, setSearchPerformed] = useState(false);
   const [fundoSubtipoFiltro, setFundoSubtipoFiltro] = useState<string>('');
 
@@ -138,7 +159,7 @@ export default function Step3SearchWithManualFallback({
   };
 
   const handleManualChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+    const value = manualToUpperCase ? e.target.value.toUpperCase() : e.target.value;
     const trimmed = value.trim();
     onFormDataChange({
       ativo: value,
@@ -167,15 +188,17 @@ export default function Step3SearchWithManualFallback({
       <div className="space-y-6">
         <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
           <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-2">
-            Entrada manual
+            {manualTextos?.titulo ?? 'Entrada manual'}
           </h4>
           <p className="text-sm text-amber-700 dark:text-amber-300">
-            Digite o nome manualmente. O ativo será criado sem vínculo automático com dados de
-            mercado.
+            {manualTextos?.descricao ??
+              'Digite o nome manualmente. O ativo será criado sem vínculo automático com dados de mercado.'}
           </p>
         </div>
         <div>
-          <Label htmlFor={`${manualPrefix.toLowerCase()}-manual`}>Nome do ativo *</Label>
+          <Label htmlFor={`${manualPrefix.toLowerCase()}-manual`}>
+            {manualTextos?.rotulo ?? 'Nome do ativo *'}
+          </Label>
           <Input
             id={`${manualPrefix.toLowerCase()}-manual`}
             type="text"
@@ -184,7 +207,17 @@ export default function Step3SearchWithManualFallback({
             onChange={handleManualChange}
             error={!!errors.ativo}
             hint={errors.ativo}
+            {...(manualToUpperCase && { autoCapitalize: 'characters' })}
           />
+          {manualAviso && (
+            <p
+              data-manual-aviso=""
+              className="mt-1 text-xs text-amber-700 dark:text-amber-400"
+              role="status"
+            >
+              {manualAviso}
+            </p>
+          )}
         </div>
         {formData.ativo && formData.assetId && (
           <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
@@ -249,8 +282,8 @@ export default function Step3SearchWithManualFallback({
       <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
         <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Como buscar</h4>
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          Digite pelo menos 2 caracteres para buscar na base de dados. Selecione o ativo desejado na
-          lista de resultados.
+          {manualTextos?.comoBuscar ??
+            'Digite pelo menos 2 caracteres para buscar na base de dados. Selecione o ativo desejado na lista de resultados.'}
         </p>
       </div>
 
