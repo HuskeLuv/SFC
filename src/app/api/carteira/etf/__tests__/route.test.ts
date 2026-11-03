@@ -272,14 +272,16 @@ describe('/api/carteira/etf', () => {
         {
           "alocacaoAtivo": [
             {
-              "color": "#F59E0B",
-              "name": "BOVA11",
-              "value": 6000,
+              "cor": "#F59E0B",
+              "percentual": 64.51612903225806,
+              "ticker": "BOVA11",
+              "valor": 6000,
             },
             {
-              "color": "#10B981",
-              "name": "IVVB11",
-              "value": 3300,
+              "cor": "#10B981",
+              "percentual": 35.483870967741936,
+              "ticker": "IVVB11",
+              "valor": 3300,
             },
           ],
           "resumo": {
@@ -496,7 +498,7 @@ describe('/api/carteira/etf', () => {
       expect(data.totalGeral.valorAtualizado).toBeCloseTo(6000 + 3300 + 5500, 6);
       const v = linha(data, 'p-voo');
       expect(v.percentualCarteira).toBeCloseTo((5500 / (6000 + 3300 + 5500)) * 100, 1);
-      expect(data.alocacaoAtivo.map((a: { name: string }) => a.name)).toContain('VOO');
+      expect(data.alocacaoAtivo.map((a: { ticker: string }) => a.ticker)).toContain('VOO');
     });
 
     it('ETF americano movido para a seção Brasil continua em US$ e os totais em R$', async () => {

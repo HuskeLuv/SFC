@@ -342,13 +342,16 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
         : 0,
   };
 
-  // Calcular alocação por ativo
+  // Calcular alocação por ativo — contrato EtfAlocacaoAtivo (ticker/valor/cor), o que o
+  // PieChartEtfAtivo lê. Saía {name, value, color} e o gráfico quebrava com qualquer ETF.
   const alocacaoAtivo = etfAtivos
     .filter((a) => !a.planejado)
     .map((ativo) => ({
-      name: ativo.ticker,
-      value: ativo.valorAtualizado,
-      color: getAtivoColor(ativo.ticker),
+      ticker: ativo.ticker,
+      valor: ativo.valorAtualizado,
+      percentual:
+        totalValorAtualizado > 0 ? (ativo.valorAtualizado / totalValorAtualizado) * 100 : 0,
+      cor: getAtivoColor(ativo.ticker),
     }));
 
   // Tabela auxiliar (dados adicionais)
