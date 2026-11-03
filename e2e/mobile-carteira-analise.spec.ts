@@ -102,7 +102,7 @@ for (const width of [390, 320] as const) {
           await openCarteiraTab(page, 'Consolidado');
         }
         if (sub === 'Imposto de Renda') {
-          for (const ir of ['Mensal — RV BR', 'Stocks US', 'Cripto', 'Come-cotas']) {
+          for (const ir of ['Mensal — RV BR', 'Stocks US', 'Cripto', 'Come-cotas', 'PGBL Novo']) {
             await openCarteiraTab(page, ir);
             await expectFitsWithoutClip(page, `IR/${ir} @${width}`, { width });
           }

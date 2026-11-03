@@ -8,7 +8,7 @@ import { openCarteiraTab, waitCarteiraReady, waitForIdle } from './helpers/mobil
 
 /**
  * Esconder valores — Carteira › Análise (fatia 3): Rentabilidade, Proventos (Consolidado e
- * Agenda, com o tooltip do gráfico de histórico), Risco x Retorno, Cobertura FGC e as 5 telas de
+ * Agenda, com o tooltip do gráfico de histórico), Risco x Retorno, Cobertura FGC e as 6 telas de
  * IR. Exige o app com VALORES_OCULTOS_HABILITADO=true (job e2e do CI).
  *
  * Em cada tela: lê com o olho ABERTO os números da posição (o sentinela do e2e — o banco do seed
@@ -136,6 +136,8 @@ const TELAS: Array<{ nome: string; abas: string[]; semValores?: boolean }> = [
   { nome: 'ir-stocks-us', abas: ['Imposto de Renda', 'Stocks US'] },
   { nome: 'ir-cripto', abas: ['Imposto de Renda', 'Cripto'] },
   { nome: 'ir-come-cotas', abas: ['Imposto de Renda', 'Come-cotas'] },
+  // Aba PGBL (nov/2026): o nome acessível inclui a pílula "Novo".
+  { nome: 'ir-pgbl', abas: ['Imposto de Renda', 'PGBL Novo'] },
 ];
 
 for (const variante of VARIANTES) {
