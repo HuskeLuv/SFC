@@ -79,3 +79,43 @@ describe('Step5Confirmation — Stock EUA / REIT', () => {
     expect(document.querySelector('[data-equivale-brl]')!.textContent).toMatch(/R\$\s2\.376,00/);
   });
 });
+
+describe('Step5Confirmation — ETF americano manual (ETF-MANUAL)', () => {
+  const voo = compra({
+    tipoAtivo: 'etf',
+    assetId: 'ETF-MANUAL',
+    ativo: 'VOO',
+    regiaoEtf: 'estados_unidos',
+    quantidade: 4,
+    cotacaoUnitaria: 480,
+    cotacaoMoeda: 5.2,
+    taxaCorretagem: 10,
+  });
+
+  it('total em US$, corretagem em R$ e "Equivale a" R$ (q × p × câmbio + corretagem)', () => {
+    render(<Step5Confirmation formData={voo} onSubmit={vi.fn()} loading={false} />);
+    expect(screen.getByText('USD · Dólar americano')).toBeInTheDocument();
+    expect(screen.getByText(/Preço por Cota \(US\$\)/)).toBeInTheDocument();
+    expect(document.querySelector('[data-total-usd]')!.textContent).toMatch(/US\$\s1\.920,00/);
+    // 1.920 × 5,20 + 10 = 9.994,00
+    expect(document.querySelector('[data-equivale-brl]')!.textContent).toMatch(/R\$\s9\.994,00/);
+    expect(document.querySelector('[data-equivale-brl]')!.textContent).toMatch(/Equivale a/);
+    // O caixa é debitado pelo mesmo valor.
+    expect(valorDaCompraBRL(voo)).toBeCloseTo(9994, 6);
+  });
+
+  it('ETF da B3 (catálogo) continua em R$, mesmo na seção EUA', () => {
+    render(
+      <Step5Confirmation
+        formData={{ ...voo, assetId: 'uuid-ivvb11', ativo: 'IVVB11', cotacaoUnitaria: 300 }}
+        onSubmit={vi.fn()}
+        loading={false}
+      />,
+    );
+    expect(document.querySelector('[data-total-usd]')).toBeNull();
+    expect(document.querySelector('[data-equivale-brl]')).toBeNull();
+    expect(screen.queryByText('USD · Dólar americano')).not.toBeInTheDocument();
+    // 4 × 300 + 10
+    expect(screen.getByText(/R\$\s1\.210,00/)).toBeInTheDocument();
+  });
+});
