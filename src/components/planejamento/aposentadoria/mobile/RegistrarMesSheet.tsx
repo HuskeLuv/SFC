@@ -115,6 +115,10 @@ export interface RegistrarMesSheetProps {
   /** Sugestão da carteira para o mês (só quando não há registro). */
   sugestao: { aporteReal: number; patFinal: number | null } | null;
   editingExists: boolean;
+  /** Remover só faz sentido em mês digitado (o automático voltaria sozinho). Padrão: editingExists. */
+  podeExcluir?: boolean;
+  /** Aviso de origem do registro (automático/parcial/digitado), sem valores. */
+  avisoOrigem?: string | null;
   saving: boolean;
   /** O MESMO fluxo de salvar do desktop — awaitable: o sheet só fecha quando a API responde. */
   onSave: () => void | Promise<void>;
@@ -141,6 +145,8 @@ export default function RegistrarMesSheet({
   preview,
   sugestao,
   editingExists,
+  podeExcluir = editingExists,
+  avisoOrigem = null,
   saving,
   onSave,
   onDelete,
@@ -200,7 +206,7 @@ export default function RegistrarMesSheet({
               </p>
             ) : null}
             <div className="flex gap-2">
-              {editingExists ? (
+              {podeExcluir ? (
                 <button
                   type="button"
                   onClick={onDelete}
@@ -269,6 +275,15 @@ export default function RegistrarMesSheet({
               <TextoSensivel texto={`Necessário: ${formatBRL(preview.patrimonioNecessario)}`} />
             }
           />
+
+          {avisoOrigem ? (
+            <p
+              data-registrar-mes-origem=""
+              className="px-1 text-xs text-gray-500 dark:text-gray-400"
+            >
+              {avisoOrigem}
+            </p>
+          ) : null}
 
           {sugestao && !editingExists ? (
             <div className="rounded-xl border border-gray-200 p-3 text-sm dark:border-gray-800">

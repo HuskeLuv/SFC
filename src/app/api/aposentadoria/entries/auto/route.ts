@@ -3,19 +3,24 @@
  *
  * GET  /api/aposentadoria/entries/auto
  *   Preview dos valores derivados (aporte líquido + patrimônio de snapshot) por
- *   mês já iniciado. Usado para sugerir valores no form sem digitação.
+ *   mês já iniciado. `fillable` = meses que o automático ainda gravaria/atualizaria.
  *
  * POST /api/aposentadoria/entries/auto
- *   Preenche os meses que ainda NÃO têm registro com os valores derivados
- *   (só meses com snapshot). Não sobrescreve registros manuais existentes —
- *   coerente com o modelo híbrido (manual vence auto). Retorna o plano atualizado.
+ *   Força a gravação do acompanhamento automático (o mesmo que acontece sozinho
+ *   ao ler o plano em GET /api/aposentadoria): cria os meses sem registro e
+ *   atualiza os registros 'auto'. Registros digitados ('manual') nunca são
+ *   sobrescritos. Retorna o plano atualizado.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
-import { deriveAcompanhamentoEntries } from '@/services/planejamento/acompanhamentoAuto';
+import {
+  deriveAcompanhamentoEntries,
+  planejarSync,
+  sincronizarAcompanhamentoAuto,
+} from '@/services/planejamento/acompanhamentoAuto';
 import { recordChange } from '@/services/changeHistory';
 import { serializePlano } from '../../_lib/serializer';
 
@@ -28,7 +33,17 @@ async function loadPlanoTrack(userId: string) {
       trackStartYear: true,
       idade: true,
       apos: true,
-      entries: { select: { off: true } },
+      entries: {
+        select: {
+          id: true,
+          off: true,
+          year: true,
+          month: true,
+          aporteReal: true,
+          patFinal: true,
+          origem: true,
+        },
+      },
     },
   });
 }
@@ -42,8 +57,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   }
 
   const derived = await deriveAcompanhamentoEntries(targetUserId, plano);
-  const existing = new Set(plano.entries.map((e) => e.off));
-  const fillable = derived.filter((d) => d.hasData && !existing.has(d.off)).length;
+  const { criar, atualizar } = planejarSync(derived, plano.entries);
+  const fillable = criar.length + atualizar.length;
 
   return NextResponse.json({ asOf: new Date().toISOString(), derived, fillable });
 });
@@ -60,22 +75,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     );
   }
 
-  const derived = await deriveAcompanhamentoEntries(targetUserId, plano);
-  const existing = new Set(plano.entries.map((e) => e.off));
-  const toCreate = derived
-    .filter((d) => d.hasData && !existing.has(d.off))
-    .map((d) => ({
-      planoId: plano.id,
-      off: d.off,
-      year: d.year,
-      month: d.month,
-      aporteReal: d.aporteReal,
-      patFinal: d.patFinal as number,
-    }));
+  const r = await sincronizarAcompanhamentoAuto(targetUserId, plano);
+  const filled = r.criados + r.atualizados;
 
-  if (toCreate.length > 0) {
-    await prisma.aposentadoriaPlanoEntry.createMany({ data: toCreate, skipDuplicates: true });
-
+  if (filled > 0) {
     await recordChange({
       request,
       auth,
@@ -91,5 +94,5 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     include: { entries: true },
   });
 
-  return NextResponse.json({ plano: serializePlano(updated), filled: toCreate.length });
+  return NextResponse.json({ plano: serializePlano(updated), filled });
 });

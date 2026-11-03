@@ -53,7 +53,9 @@ import {
 } from '@/services/instituicoes/casarEmissor';
 import { tipoAssetFundoPluggy, tipoFiiImportado } from './secaoImportada';
 
-export const NOTA_IMPORTACAO = 'Importado do banco (Open Finance)';
+import { NOTA_IMPORTACAO } from './notaImportacao';
+
+export { NOTA_IMPORTACAO };
 
 const num = (v: unknown): number | null => {
   if (v == null) return null;

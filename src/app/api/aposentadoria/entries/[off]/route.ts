@@ -4,6 +4,8 @@
  * DELETE /api/aposentadoria/entries/:off
  *   Remove o entry do offset informado. Idempotente: 404 se o plano não
  *   existe; silenciosamente OK se o entry já não estava lá.
+ *   Depois de remover, o acompanhamento automático é regravado: excluir um mês
+ *   digitado faz ele voltar ao valor calculado da carteira (se houver base).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -16,6 +18,8 @@ import {
   APOSENTADORIA_ENTRY_FIELD_LABELS,
 } from '@/services/changeHistory';
 import { serializePlano } from '../../_lib/serializer';
+import { sincronizarAcompanhamentoAuto } from '@/services/planejamento/acompanhamentoAuto';
+import { logger } from '@/lib/logger';
 
 const MESES_ABREV = [
   'jan',
@@ -44,7 +48,7 @@ export const DELETE = withErrorHandler(
 
     const plano = await prisma.aposentadoriaPlano.findUnique({
       where: { userId: targetUserId },
-      select: { id: true },
+      select: { id: true, trackStartMonth: true, trackStartYear: true, idade: true, apos: true },
     });
     if (!plano) {
       return NextResponse.json({ error: 'Plano não encontrado' }, { status: 404 });
@@ -85,8 +89,17 @@ export const DELETE = withErrorHandler(
             month: entryBefore.month,
             aporteReal: Number(entryBefore.aporteReal),
             patFinal: Number(entryBefore.patFinal),
+            origem: entryBefore.origem,
           },
         },
+      });
+    }
+
+    try {
+      await sincronizarAcompanhamentoAuto(targetUserId, plano);
+    } catch (error: unknown) {
+      logger.warn('Aposentadoria: falha ao regravar acompanhamento automático', {
+        error: error instanceof Error ? error.message : String(error),
       });
     }
 
