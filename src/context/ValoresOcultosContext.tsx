@@ -10,9 +10,7 @@ import React, {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { usePathname } from 'next/navigation';
 import { useCsrf } from '@/hooks/useCsrf';
-import { rotaCobreValoresOcultos } from '@/components/common/valores/rotasCobertas';
 import {
   COOKIE_VALORES_OCULTOS,
   MAX_AGE_VALORES_OCULTOS,
@@ -30,8 +28,8 @@ import {
  *   segundo plano (o Set-Cookie do servidor vale 1 ano, inclusive no Safari/ITP), BroadcastChannel
  *   para as outras abas e anúncio para leitor de tela. Se o POST falhar (PWA offline), tenta de
  *   novo no evento 'online' ou no próximo clique — sem toast.
- * - `ativo` = flag ligada + olho fechado + tela coberta (rotasCobertas ou <ValoresOcultosCobertura>).
- *   É ele que <Sensivel> e o hook dos gráficos consultam: fora das telas cobertas nada vira pílula.
+ * - `ativo` = flag ligada + olho fechado. É ele que <Sensivel> e o hook dos gráficos consultam;
+ *   desde o fechamento da Fase 6 vale no app logado inteiro (não há mais rotas "não cobertas").
  */
 
 const ROTA_PREFERENCIA = '/api/preferencias/valores-ocultos';
@@ -42,14 +40,12 @@ interface ValoresOcultosBase {
   habilitado: boolean;
   /** Preferência do aparelho: olho fechado. */
   ocultos: boolean;
-  /** A rota atual já está coberta (src/components/common/valores/rotasCobertas.ts). */
-  rotaCoberta: boolean;
   alternar: () => void;
   definir: (ocultos: boolean) => void;
 }
 
 export interface ValoresOcultosValor extends ValoresOcultosBase {
-  /** Valores devem virar pílula AQUI (flag + olho fechado + tela coberta). */
+  /** Valores devem virar pílula (flag + olho fechado). */
   ativo: boolean;
   /** `mascararTexto` quando ativo; identidade fora disso. */
   mascarar: (texto: string) => string;
@@ -61,15 +57,11 @@ const identidade = (texto: string) => texto;
 const PADRAO: ValoresOcultosBase = {
   habilitado: false,
   ocultos: false,
-  rotaCoberta: false,
   alternar: noop,
   definir: noop,
 };
 
 const ValoresOcultosContext = createContext<ValoresOcultosBase>(PADRAO);
-
-/** Cobertura local: `true` força o trecho como coberto (ex.: painel do sino, testes). */
-const CoberturaContext = createContext<boolean | null>(null);
 
 function gravarCookieOtimista(ocultos: boolean) {
   try {
@@ -91,7 +83,6 @@ export function ValoresOcultosProvider({
   inicial: boolean;
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
   const { csrfFetch } = useCsrf();
   const [ocultos, setOcultos] = useState(habilitado && inicial);
   const [anuncio, setAnuncio] = useState('');
@@ -168,10 +159,9 @@ export function ValoresOcultosProvider({
 
   const alternar = useCallback(() => definir(!ocultos), [definir, ocultos]);
 
-  const rotaCoberta = rotaCobreValoresOcultos(pathname);
   const valor = useMemo<ValoresOcultosBase>(
-    () => ({ habilitado, ocultos: habilitado && ocultos, rotaCoberta, alternar, definir }),
-    [habilitado, ocultos, rotaCoberta, alternar, definir],
+    () => ({ habilitado, ocultos: habilitado && ocultos, alternar, definir }),
+    [habilitado, ocultos, alternar, definir],
   );
 
   return (
@@ -189,25 +179,10 @@ export function ValoresOcultosProvider({
   );
 }
 
-/**
- * Marca um trecho como coberto fora das rotas cobertas (ex.: notificações do sino, que aparecem
- * em qualquer tela) — ou, com `cobre={false}`, tira um trecho da cobertura.
- */
-export function ValoresOcultosCobertura({
-  cobre = true,
-  children,
-}: {
-  cobre?: boolean;
-  children: React.ReactNode;
-}) {
-  return <CoberturaContext.Provider value={cobre}>{children}</CoberturaContext.Provider>;
-}
-
 /** Estado do olho. Fora do provider devolve o padrão inerte (nada esconde, não lança erro). */
 export function useValoresOcultos(): ValoresOcultosValor {
   const base = useContext(ValoresOcultosContext);
-  const cobertura = useContext(CoberturaContext);
-  const ativo = base.habilitado && base.ocultos && (cobertura ?? base.rotaCoberta);
+  const ativo = base.habilitado && base.ocultos;
   return useMemo(
     () => ({ ...base, ativo, mascarar: ativo ? mascararTexto : identidade }),
     [base, ativo],

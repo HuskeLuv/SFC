@@ -3,7 +3,7 @@ import { alternarOlho, coletarValoresExpostos } from './helpers/valoresOcultos';
 import { gotoPlanejar, mockarPlanejar } from './helpers/planejar';
 
 /**
- * Esconder valores — Fase 3 (Planejar), preparo: o /planejamento-financeiro é tela coberta e as
+ * Esconder valores — Fase 3 (Planejar), preparo: o /planejamento-financeiro mostra as
  * fixtures de helpers/planejar.ts chegam à tela. Exige o app com VALORES_OCULTOS_HABILITADO=true
  * (job e2e do CI). Só leitura: as APIs do Planejar são respondidas por `mockarPlanejar` e nenhuma
  * escrita chega ao banco. As fatias medem as pílulas nas specs próprias.
@@ -37,7 +37,7 @@ test.describe('esconder valores — Planejar (preparo da Fase 3)', () => {
     await gotoPlanejar(page, 'sonhos');
 
     await expect(page.getByText('Viagem ao Japão').first()).toBeVisible();
-    await expect(page.locator('[data-mf-content][data-mf-cobre-ocultos]')).toBeAttached();
+    await expect(page.locator('[data-mf-content]')).toBeAttached();
     // Os cartões usam o formato compacto (meta 87.654,32 → "R$ 88 K"): quem pega é o
     // coletarValoresExpostos (R$), não o coletarNumerosDaPosicao (só milhar/centavos).
     const expostos = (await coletarValoresExpostos(page)).map((v) => v.trim());

@@ -6,8 +6,8 @@ import {
 } from './helpers/valoresOcultos';
 
 /**
- * Esconder valores — casca (fatia 0): olho, preferência por aparelho e faixa das telas não
- * cobertas. Exige o app com VALORES_OCULTOS_HABILITADO=true (job e2e do CI). Só leitura no banco:
+ * Esconder valores — casca (fatia 0): olho e preferência por aparelho (a faixa das telas não
+ * cobertas saiu no fechamento da Fase 6: o olho vale no app logado inteiro). Exige o app com VALORES_OCULTOS_HABILITADO=true (job e2e do CI). Só leitura no banco:
  * a preferência é um cookie do contexto do navegador (cada teste começa sem ele).
  *
  * Roda no projeto `chromium` nas duas larguras: 1280 (olho no rodapé da sidebar) e 390 com
@@ -97,18 +97,14 @@ for (const variante of VARIANTES) {
       await page.reload({ waitUntil: 'domcontentloaded' });
       await expect(olhoValores(page)).toHaveAttribute('aria-pressed', 'true', { timeout: 60_000 });
 
-      // Tela não coberta: faixa + olho para abrir de novo.
-      await page.goto('/historico-alteracoes', { waitUntil: 'domcontentloaded' });
-      const faixa = page
-        .getByRole('note')
-        .filter({ hasText: 'Nesta tela os valores ainda aparecem.' });
-      await expect(faixa).toBeVisible({ timeout: 60_000 });
-      await expect(olhoValores(page)).toHaveAttribute('aria-pressed', 'true');
+      // Outra tela (antes "não coberta"): olho fechado e sem a faixa "ainda aparecem".
+      await page.goto('/educacao', { waitUntil: 'domcontentloaded' });
+      await expect(olhoValores(page)).toHaveAttribute('aria-pressed', 'true', { timeout: 60_000 });
+      await expect(page.getByText('Nesta tela os valores ainda aparecem.')).toHaveCount(0);
 
-      // Desliga: atributo, faixa e cookie somem.
+      // Desliga: atributo e cookie somem.
       await alternarEsperandoPost(page, false);
       await expect(html(page)).not.toHaveAttribute('data-valores-ocultos');
-      await expect(faixa).toBeHidden();
       const cookie = (await context.cookies()).find((c) => c.name === COOKIE_VALORES_OCULTOS);
       expect(cookie?.value ?? '').toBe('');
     });

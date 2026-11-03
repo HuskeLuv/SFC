@@ -28,6 +28,7 @@ import { useResponsiveConfirm } from '@/components/ui/sheet/useResponsiveConfirm
 import PushInviteSheet, { deveConvidarParaPush } from '@/components/pwa/PushInviteSheet';
 import { useIsBelowLg, useMediaQuery } from '@/hooks/useMediaQuery';
 import { formatBRL } from '@/utils/format';
+import { TextoSensivel } from '@/components/common/valores/Sensivel';
 import {
   TIPOS_DISPONIVEIS,
   TIPOS_META,
@@ -238,9 +239,11 @@ export default function Calendar() {
               id="agenda-resumo-periodo"
               title="Resumo do período"
               summary={
-                resumoMobile && resumoMobile.aPagar.itens > 0
-                  ? `${formatBRL(resumoMobile.aPagar.total)} a pagar`
-                  : 'nada a pagar'
+                resumoMobile && resumoMobile.aPagar.itens > 0 ? (
+                  <TextoSensivel texto={`${formatBRL(resumoMobile.aPagar.total)} a pagar`} />
+                ) : (
+                  'nada a pagar'
+                )
               }
             >
               <CardResumo eventos={eventos} tipos={tipos} theme={theme} semTitulo />

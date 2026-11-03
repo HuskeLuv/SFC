@@ -2,6 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { formatBRL } from '@/utils/format';
+import { Sensivel, TextoSensivel } from '@/components/common/valores/Sensivel';
 import { useAgenda, type EventoAgenda, type TipoEvento } from '@/hooks/useAgenda';
 import { corDoTipo, formatarDataCivil } from './agendaTipos';
 import { periodoProximosDias, proximosEventos, resumoDoPeriodo } from './agendaResumo';
@@ -65,8 +66,10 @@ export function CardResumo({
                 <span className="shrink-0 text-xs text-gray-400">({l.itens})</span>
               </span>
               <span className="shrink-0 font-medium text-gray-800 tabular-nums dark:text-white/90">
-                {l.sinal}
-                {formatBRL(l.total)}
+                <Sensivel>
+                  {l.sinal}
+                  {formatBRL(l.total)}
+                </Sensivel>
               </span>
             </li>
           ))}
@@ -123,7 +126,7 @@ function CardProximos({
                   </span>
                   <span className="text-xs text-gray-400">
                     {formatarDataCivil(e.data)}
-                    {e.valor != null ? ` · ${formatBRL(e.valor)}` : ''}
+                    {e.valor != null ? <TextoSensivel texto={` · ${formatBRL(e.valor)}`} /> : ''}
                   </span>
                 </span>
               </button>

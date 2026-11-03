@@ -3,7 +3,7 @@ import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
-vi.mock('next/navigation', () => ({ usePathname: () => '/historico-alteracoes' }));
+vi.mock('next/navigation', () => ({ usePathname: () => '/educacao' }));
 
 import {
   ConteudoSensivel,
@@ -45,14 +45,14 @@ describe('<Sensivel> no modo visível (DOM e nome acessível idênticos aos de h
     expect(container.innerHTML).toBe(semProvider);
   });
 
-  it('olho fechado numa rota NÃO coberta (sem cobertura local): nada muda', () => {
+  it('olho fechado em qualquer rota (ex.: /educacao) vira pílula: não há mais rota não coberta', () => {
     const { container } = render(
-      <ComValoresOcultosSemCobertura>
+      <ValoresOcultosProvider habilitado inicial>
         <Botao />
-      </ComValoresOcultosSemCobertura>,
+      </ValoresOcultosProvider>,
     );
-    expect(container.querySelector('.mf-sensivel')).toBeNull();
-    expect(container.textContent).toBe(`Saldo ${SALDO}`);
+    expectPilulas(container, 1);
+    expectSemValoresExpostos(container);
   });
 });
 
@@ -149,12 +149,3 @@ describe('expectSemValoresExpostos (o próprio helper)', () => {
     expect(() => expectSemValoresExpostos(titulo)).toThrow();
   });
 });
-
-/** Olho fechado, mas sem cobertura local (a rota mockada, /historico-alteracoes, não é coberta). */
-function ComValoresOcultosSemCobertura({ children }: { children: React.ReactNode }) {
-  return (
-    <ValoresOcultosProvider habilitado inicial>
-      {children}
-    </ValoresOcultosProvider>
-  );
-}

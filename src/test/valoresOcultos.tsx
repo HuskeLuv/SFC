@@ -1,14 +1,14 @@
 import React from 'react';
 import { render, type RenderOptions } from '@testing-library/react';
 import { expect } from 'vitest';
-import { ValoresOcultosCobertura, ValoresOcultosProvider } from '@/context/ValoresOcultosContext';
+import { ValoresOcultosProvider } from '@/context/ValoresOcultosContext';
 import { REGEX_VALOR_MONETARIO } from '@/utils/valoresOcultos';
 
 /**
  * Helpers de teste do "esconder valores" (fatia 0).
  *
  * - <ComValoresOcultos>: provider com a flag ligada, o olho FECHADO (ou aberto com
- *   `ocultos={false}`) e o trecho coberto (independe da rota).
+ *   `ocultos={false}`). Desde o fechamento da Fase 6 o olho vale em qualquer rota.
  * - SENTINELAS: valores improváveis para pôr nas fixtures. Com o olho fechado, nenhuma
  *   representação deles pode aparecer — pega também quantidade e valor sem "R$".
  * - expectSemValoresExpostos(container): nenhum R$/US$ nem sentinela no texto visível nem em
@@ -25,7 +25,7 @@ export function ComValoresOcultos({
 }) {
   return (
     <ValoresOcultosProvider habilitado inicial={ocultos}>
-      <ValoresOcultosCobertura>{children}</ValoresOcultosCobertura>
+      {children}
     </ValoresOcultosProvider>
   );
 }

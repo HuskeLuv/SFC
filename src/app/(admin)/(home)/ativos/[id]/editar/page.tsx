@@ -946,11 +946,13 @@ const AtivoEditarContent = () => {
           <td className={`${TABLE_STYLES.td} text-center capitalize`}>
             {p.precificarPor === 'quantidade' ? 'Quantidade' : 'Valor'}
           </td>
+          {/* eslint-disable-next-line mf/valor-sem-sensivel -- formulário /ativos/[id]/editar fica visível (decisão 3) */}
           <td className={`${TABLE_STYLES.td} text-right`}>{formatCurrency(p.valorTotal)}</td>
           <td className={`${TABLE_STYLES.td} text-right`}>
             {p.quantidadeBase.toLocaleString('pt-BR')}
           </td>
           <td className={`${TABLE_STYLES.td} text-right`}>
+            {/* eslint-disable-next-line mf/valor-sem-sensivel -- formulário /ativos/[id]/editar fica visível (decisão 3) */}
             {p.impostoRenda != null ? formatBRL(p.impostoRenda) : '—'}
           </td>
           <td className={`${TABLE_STYLES.td} text-right`}>
@@ -1090,6 +1092,7 @@ const AtivoEditarContent = () => {
             Pago em {formatDate(p.dataPagamento)} · com {formatDate(p.dataCom)}
           </p>
         </div>
+        {/* eslint-disable-next-line mf/valor-sem-sensivel -- formulário /ativos/[id]/editar fica visível (decisão 3) */}
         <p className={TABLE_MOBILE_STYLES.valuePrimary}>{formatCurrency(p.valorTotal)}</p>
       </div>
       <dl className={`mt-2 ${TABLE_MOBILE_STYLES.cardDetailGrid}`}>
@@ -1108,6 +1111,7 @@ const AtivoEditarContent = () => {
         <div className="min-w-0">
           <dt className={TABLE_MOBILE_STYLES.cardDetailLabel}>IR</dt>
           <dd className={TABLE_MOBILE_STYLES.cardDetailValue}>
+            {/* eslint-disable-next-line mf/valor-sem-sensivel -- formulário /ativos/[id]/editar fica visível (decisão 3) */}
             {p.impostoRenda != null ? formatBRL(p.impostoRenda) : '—'}
           </dd>
         </div>

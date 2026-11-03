@@ -5,14 +5,88 @@ import Badge from '@/components/ui/badge/Badge';
 import { StandardTableBodyCell, StandardTableRow } from '@/components/ui/table/StandardTable';
 import { TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import MobileStatusPill from '@/components/ui/mobile/MobileStatusPill';
+import { Sensivel, TextoSensivel } from '@/components/common/valores/Sensivel';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import type { HistoricoAlteracaoEntry } from '@/hooks/useHistoricoAlteracoes';
+import type { ChangeValueFormat } from '@/services/changeHistory/types';
 import {
   SECTION_LABELS,
   SECTION_BADGE_COLORS,
-  renderRichDescription,
+  renderRichDescriptionPartes,
   formatChangeValue,
   formatEntryDate,
+  textoDasPartes,
+  type ParteResumo,
 } from './renderChange';
+
+/**
+ * Esconder valores (Fase 6): um valor antes/depois do diff. Número em 'currency' é dinheiro do
+ * usuário e 'number' (ou sem formato) é quantidade: viram pílula com o olho fechado. 'percent' e
+ * 'date' ficam; texto só esconde trechos com R$/US$. A pílula é a que guarda a largura do valor
+ * (.mf-sensivel--reserva): o resumo e os detalhes quebram nas mesmas linhas com o olho aberto ou
+ * fechado (decisão 6). Na quantidade ela é "justa" (.mf-sensivel--justa): nunca mais larga que o
+ * número ("Quantidade: 1" não empurra o resto da frase para outra linha nem cobre o rótulo).
+ * O JSON técnico da operação (Observações de operacao/aporte/resgate/transação: quantity, price,
+ * total…) fica todo escondido, no lugar (.mf-sensivel--texto: faixa da pílula em cada linha, mesma
+ * quebra de linha). Olho aberto: a mesma string de formatChangeValue.
+ */
+const pareceJson = (value: unknown, texto: string) =>
+  (value !== null && typeof value === 'object') ||
+  (typeof value === 'string' && /^\s*[[{]/.test(texto) && /\d/.test(texto));
+
+export const ValorAlteracao: React.FC<{ value: unknown; format?: ChangeValueFormat }> = ({
+  value,
+  format,
+}) => {
+  const texto = formatChangeValue(value, format);
+  if (typeof value === 'number' && format !== 'percent') {
+    const curto = format !== 'currency';
+    return (
+      <Sensivel
+        curto={curto}
+        className={curto ? 'mf-sensivel--reserva mf-sensivel--justa' : 'mf-sensivel--reserva'}
+      >
+        {texto}
+      </Sensivel>
+    );
+  }
+  if (pareceJson(value, texto)) return <Sensivel className="mf-sensivel--texto">{texto}</Sensivel>;
+  return <TextoSensivel texto={texto} />;
+};
+
+/**
+ * Título da alteração: o nome de ativo manual traz o valor ("CDB X - R$ 1.000 - 13/10/2026"), que
+ * vira pílula como na carteira (AssetNameLink). Olho fechado: um span só, porque na linha do
+ * desktop o título é item de um inline-flex com gap (os pedaços virariam itens separados). Olho
+ * aberto: o texto cru de sempre.
+ */
+export const TituloAlteracao: React.FC<{ title: string }> = ({ title }) => {
+  const { ativo } = useValoresOcultos();
+  if (!ativo) return <>{title}</>;
+  return (
+    <span>
+      <TextoSensivel texto={title} className="mf-sensivel--reserva" />
+    </span>
+  );
+};
+
+/** Resumo "Rótulo: a → b · …" com a pílula só nos valores. */
+export const ResumoAlteracao: React.FC<{ partes: ParteResumo[] }> = ({ partes }) => {
+  const { ativo } = useValoresOcultos();
+  // Olho aberto: a string única de sempre (mesmo DOM de hoje).
+  if (!ativo) return <>{textoDasPartes(partes)}</>;
+  return (
+    <>
+      {partes.map((p, i) =>
+        typeof p === 'string' ? (
+          <React.Fragment key={i}>{p}</React.Fragment>
+        ) : (
+          <ValorAlteracao key={i} value={p.valor} format={p.format} />
+        ),
+      )}
+    </>
+  );
+};
 
 export const ChangesList: React.FC<{
   entry: HistoricoAlteracaoEntry;
@@ -29,9 +103,12 @@ export const ChangesList: React.FC<{
         >
           <span className="font-medium">{change.label}:</span>{' '}
           <span className="line-through text-gray-400 dark:text-gray-500">
-            {formatChangeValue(change.before, change.format)}
+            <ValorAlteracao value={change.before} format={change.format} />
           </span>{' '}
-          <span aria-hidden>→</span> <span>{formatChangeValue(change.after, change.format)}</span>
+          <span aria-hidden>→</span>{' '}
+          <span>
+            <ValorAlteracao value={change.after} format={change.format} />
+          </span>
         </li>
       ))}
     </ul>
@@ -80,7 +157,7 @@ export const HistoricoEntryRow: React.FC<RowProps> = ({
 }) => {
   const hasChanges = Boolean(entry.changes && entry.changes.length > 0);
   const isUndone = Boolean(entry.undoneAt);
-  const { title, summary } = renderRichDescription(entry);
+  const { title, resumo } = renderRichDescriptionPartes(entry);
 
   return (
     <>
@@ -95,15 +172,15 @@ export const HistoricoEntryRow: React.FC<RowProps> = ({
         </StandardTableBodyCell>
         <StandardTableBodyCell>
           <span className={`inline-flex items-center gap-2 ${isUndone ? 'opacity-60' : ''}`}>
-            {title}
+            <TituloAlteracao title={title} />
             {entry.viaConsultant && <ViaConsultorBadge />}
             {isUndone && <DesfeitaBadge />}
           </span>
-          {summary && (
+          {resumo && (
             <p
               className={`mt-0.5 text-xs text-gray-500 dark:text-gray-400 ${isUndone ? 'opacity-60' : ''}`}
             >
-              {summary}
+              <ResumoAlteracao partes={resumo} />
             </p>
           )}
         </StandardTableBodyCell>
@@ -158,7 +235,7 @@ export const HistoricoEntryCard: React.FC<CardProps> = ({
 }) => {
   const isUndone = Boolean(entry.undoneAt);
   const hasChanges = Boolean(entry.changes && entry.changes.length > 0);
-  const { title, summary } = renderRichDescription(entry);
+  const { title, resumo } = renderRichDescriptionPartes(entry);
   const titleId = `historico-${entry.id}`;
   const detailsId = `historico-detalhes-${entry.id}`;
   return (
@@ -179,7 +256,7 @@ export const HistoricoEntryCard: React.FC<CardProps> = ({
         id={titleId}
         className={`text-sm font-medium text-gray-800 max-lg:[overflow-wrap:anywhere] dark:text-gray-200 ${isUndone ? 'opacity-60' : ''}`}
       >
-        {title}
+        <TituloAlteracao title={title} />
       </p>
       {entry.viaConsultant || isUndone ? (
         <p className="flex flex-wrap gap-3">
@@ -187,9 +264,9 @@ export const HistoricoEntryCard: React.FC<CardProps> = ({
           {isUndone && <MobileStatusPill tone="neutro">Desfeita</MobileStatusPill>}
         </p>
       ) : null}
-      {summary && (
+      {resumo && (
         <p className={`text-xs text-gray-500 dark:text-gray-400 ${isUndone ? 'opacity-60' : ''}`}>
-          {summary}
+          <ResumoAlteracao partes={resumo} />
         </p>
       )}
       {expanded && hasChanges ? (

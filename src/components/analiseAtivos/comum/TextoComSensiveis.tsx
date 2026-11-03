@@ -12,7 +12,7 @@
  * - 'visivel': `<ValorVisivel>` (cotação de mercado ao lado de valores do usuário).
  * Placeholder sem modo fica como texto (%, nomes, datas).
  *
- * Olho aberto (ou chave desligada/tela não coberta): a MESMA string de `formatarTexto` — DOM
+ * Olho aberto (ou chave desligada): a MESMA string de `formatarTexto` — DOM
  * idêntico ao de hoje.
  */
 import { Fragment } from 'react';

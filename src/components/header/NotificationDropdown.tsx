@@ -6,7 +6,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Dropdown } from '../ui/dropdown/Dropdown';
 import { TextoSensivel } from '@/components/common/valores/Sensivel';
-import { ValoresOcultosCobertura, useValoresOcultos } from '@/context/ValoresOcultosContext';
 import {
   useNotifications,
   type InviteStatus,
@@ -70,7 +69,6 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ placement =
     respondInvite,
   } = useNotifications();
   const error = actionError ?? loadError;
-  const { habilitado: valoresOcultosHabilitado } = useValoresOcultos();
 
   useEffect(() => {
     if (!isOpen) {
@@ -236,57 +234,51 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ placement =
             Você está em dia! Nenhuma notificação no momento.
           </div>
         ) : (
-          // Esconder valores (decisão 13): as notificações aparecem em qualquer tela, então o
-          // painel é coberto por conta própria — R$/US$ do título e da mensagem viram pílula.
-          <ValoresOcultosCobertura>
-            <ul
-              className="custom-scrollbar flex flex-1 flex-col gap-2 overflow-y-auto"
-              data-mf-cobre-ocultos={valoresOcultosHabilitado ? '' : undefined}
-            >
-              {notifications.map((notification) => (
-                <li
-                  key={notification.id}
-                  className="rounded-xl border border-gray-100 bg-white px-4 py-3 shadow-sm transition hover:border-gray-200 dark:border-gray-800 dark:bg-white/[0.03] dark:hover:border-gray-700"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex flex-col gap-1">
-                      {hrefDaNotificacao(notification) ? (
-                        <Link
-                          href={hrefDaNotificacao(notification)!}
-                          onClick={() => setIsOpen(false)}
-                          className="text-sm font-semibold text-gray-800 hover:text-brand-500 hover:underline dark:text-white/90"
-                        >
-                          <TextoSensivel texto={notification.title} />
-                        </Link>
-                      ) : (
-                        <p className="text-sm font-semibold text-gray-800 dark:text-white/90">
-                          <TextoSensivel texto={notification.title} />
-                        </p>
-                      )}
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        <TextoSensivel texto={notification.message} />
+          // Esconder valores (decisão 13): R$/US$ do título e da mensagem viram pílula.
+          <ul className="custom-scrollbar flex flex-1 flex-col gap-2 overflow-y-auto">
+            {notifications.map((notification) => (
+              <li
+                key={notification.id}
+                className="rounded-xl border border-gray-100 bg-white px-4 py-3 shadow-sm transition hover:border-gray-200 dark:border-gray-800 dark:bg-white/[0.03] dark:hover:border-gray-700"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex flex-col gap-1">
+                    {hrefDaNotificacao(notification) ? (
+                      <Link
+                        href={hrefDaNotificacao(notification)!}
+                        onClick={() => setIsOpen(false)}
+                        className="text-sm font-semibold text-gray-800 hover:text-brand-500 hover:underline dark:text-white/90"
+                      >
+                        <TextoSensivel texto={notification.title} />
+                      </Link>
+                    ) : (
+                      <p className="text-sm font-semibold text-gray-800 dark:text-white/90">
+                        <TextoSensivel texto={notification.title} />
                       </p>
-                    </div>
-                    {!notification.readAt ? (
-                      <span
-                        className="mt-1 inline-flex h-2 w-2 rounded-full bg-brand-500"
-                        aria-hidden="true"
-                      />
-                    ) : null}
+                    )}
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <TextoSensivel texto={notification.message} />
+                    </p>
                   </div>
-                  <div className="mt-2 flex items-center justify-between text-[11px] uppercase tracking-wide text-gray-400 dark:text-gray-500">
-                    <span>{formatDateTime(notification.createdAt)}</span>
-                    {notification.invite ? (
-                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-600 dark:bg-white/10 dark:text-gray-300">
-                        {getInviteStatusLabel(notification.invite.status)}
-                      </span>
-                    ) : null}
-                  </div>
-                  {renderInviteActions(notification)}
-                </li>
-              ))}
-            </ul>
-          </ValoresOcultosCobertura>
+                  {!notification.readAt ? (
+                    <span
+                      className="mt-1 inline-flex h-2 w-2 rounded-full bg-brand-500"
+                      aria-hidden="true"
+                    />
+                  ) : null}
+                </div>
+                <div className="mt-2 flex items-center justify-between text-[11px] uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                  <span>{formatDateTime(notification.createdAt)}</span>
+                  {notification.invite ? (
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-600 dark:bg-white/10 dark:text-gray-300">
+                      {getInviteStatusLabel(notification.invite.status)}
+                    </span>
+                  ) : null}
+                </div>
+                {renderInviteActions(notification)}
+              </li>
+            ))}
+          </ul>
         )}
       </Dropdown>
     </div>

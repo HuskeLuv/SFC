@@ -16,16 +16,22 @@ import {
 import { useUndoAlteracao } from '@/hooks/useUndoAlteracao';
 import { CHANGE_SECTIONS, type ChangeSection } from '@/services/changeHistory/types';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { useValoresOcultos } from '@/context/ValoresOcultosContext';
 import MobileTabRail from '@/components/ui/tabs/MobileTabRail';
 import MobilePageState from '@/components/ui/mobile/MobilePageState';
 import MobileSaveToast from '@/components/ui/sheet/MobileSaveToast';
 import { useResponsiveConfirm } from '@/components/ui/sheet/useResponsiveConfirm';
-import { SECTION_LABELS, formatChangeValue, renderRichDescription } from './renderChange';
-import { HistoricoEntryRow, HistoricoEntryCard } from './HistoricoEntryRow';
+import { SECTION_LABELS, renderRichDescription } from './renderChange';
+import {
+  HistoricoEntryRow,
+  HistoricoEntryCard,
+  TituloAlteracao,
+  ValorAlteracao,
+} from './HistoricoEntryRow';
 
 const TODAS = 'todas';
 
-/** Até 4 campos no sheet do Desfazer: "Valor volta para R$ 10,00". */
+/** Até 4 campos no sheet do Desfazer: "Valor volta para R$ 10,00" (o valor vira pílula). */
 const MAX_CAMPOS_CONFIRM = 4;
 
 /** O que volta ao desfazer (sheet do celular): título + campos com o valor de antes. */
@@ -38,13 +44,13 @@ const UndoConfirmMessage: React.FC<{ entry: HistoricoAlteracaoEntry; title: stri
   return (
     <div className="space-y-2">
       <p className="font-medium text-gray-800 [overflow-wrap:anywhere] dark:text-white/90">
-        {title}
+        <TituloAlteracao title={title} />
       </p>
       {shown.length > 0 ? (
         <ul className="space-y-0.5 [overflow-wrap:anywhere]">
           {shown.map((c) => (
             <li key={c.field}>
-              {c.label} volta para {formatChangeValue(c.before, c.format)}.
+              {c.label} volta para <ValorAlteracao value={c.before} format={c.format} />.
             </li>
           ))}
           {changes.length > shown.length ? (
@@ -112,6 +118,7 @@ export default function HistoricoAlteracoesPage() {
   const undoMutation = useUndoAlteracao();
   const isBelowLg = useIsBelowLg();
   const { confirmAndRun, confirmSheet } = useResponsiveConfirm();
+  const { mascarar } = useValoresOcultos();
 
   const handleSectionChange = (next: ChangeSection | undefined) => {
     setSection(next);
@@ -127,7 +134,7 @@ export default function HistoricoAlteracoesPage() {
     try {
       const ok = await confirmAndRun(
         {
-          desktopMessage: `Desfazer esta alteração?\n\n${title}`,
+          desktopMessage: `Desfazer esta alteração?\n\n${mascarar(title)}`,
           title: 'Desfazer esta alteração?',
           message: <UndoConfirmMessage entry={entry} title={title} />,
           confirmLabel: 'Desfazer',

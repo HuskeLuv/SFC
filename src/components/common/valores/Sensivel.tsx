@@ -22,11 +22,11 @@ import {
  *
  * NUNCA embrulhe elemento interativo (botão, link, input): ele some junto. Embrulhe só o texto.
  *
- * Modo visível (olho aberto, flag desligada ou tela não coberta): renderiza `children` cru — o
- * DOM, o textContent e o nome acessível ficam IDÊNTICOS aos de hoje. Olho fechado numa tela
- * coberta: `span.mf-sensivel` (a pílula, desenhada pelo CSS de globals.css) com o valor fora da
- * árvore de acessibilidade e "valor oculto" só para leitor de tela. O SSR já sai assim (o
- * RootLayout lê o cookie), então não há flash.
+ * Modo visível (olho aberto ou flag desligada): renderiza `children` cru — o DOM, o textContent
+ * e o nome acessível ficam IDÊNTICOS aos de hoje. Olho fechado: `span.mf-sensivel` (a pílula,
+ * desenhada pelo CSS de globals.css) com o valor fora da árvore de acessibilidade e "valor
+ * oculto" só para leitor de tela. O SSR já sai assim (o RootLayout lê o cookie), então não há
+ * flash.
  */
 
 export interface SensivelProps {
@@ -59,15 +59,20 @@ export function ValorVisivel({ children }: { children?: ReactNode }) {
   return <span data-mf-valor-visivel="">{children}</span>;
 }
 
-/** Texto livre: só os valores em R$/US$ viram pílula; o resto (%, nomes, datas) fica. */
-export function TextoSensivel({ texto }: { texto: string }) {
+/**
+ * Texto livre: só os valores em R$/US$ viram pílula; o resto (%, nomes, datas) fica. `className`
+ * vai para cada pílula (ex.: 'mf-sensivel--reserva' para o texto não refluir).
+ */
+export function TextoSensivel({ texto, className }: { texto: string; className?: string }) {
   const { ativo } = useValoresOcultos();
   if (!ativo || !contemValorMonetario(texto)) return <>{texto}</>;
   return (
     <>
       {dividirPorValores(texto).map((trecho, i) =>
         trecho.sensivel ? (
-          <Sensivel key={i}>{trecho.texto}</Sensivel>
+          <Sensivel key={i} className={className}>
+            {trecho.texto}
+          </Sensivel>
         ) : (
           <React.Fragment key={i}>{trecho.texto}</React.Fragment>
         ),
