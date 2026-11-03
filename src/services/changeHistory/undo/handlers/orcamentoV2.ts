@@ -7,7 +7,8 @@
  *     lápide nova de item-template → apagada; linha só do usuário → recriada com o mesmo id;
  *  2. células movidas voltam para a sub (pelo id); células somadas: a da Geral volta ao estado
  *     de antes e a da sub é recriada — só se a da Geral ainda está como a fusão a gravou (valor,
- *     valor do banco, cor, comentário e fórmula);
+ *     valor do banco, cor, comentário e fórmula). Modo 'apagar': as reduzidas à parte do banco
+ *     voltam inteiras (mesma conferência) e as apagadas são recriadas;
  *  3. transações do banco que ainda estão na Geral voltam para a sub;
  *  4. orçados: os da Geral voltam ao anterior (se ainda valem o somado) e os da sub são recriados.
  * Qualquer mudança posterior nos alvos → 409 (STATE_MISMATCH), sem desfazer nada pela metade.
@@ -148,6 +149,35 @@ const subcategoriaExcluir: UndoDefinition = {
         await tx.cashflowValue.update({ where: { id: atual.id }, data: { ...c.geralAntes } });
         await tx.cashflowValue.create({
           data: { itemId, userId, year: c.ano, month: c.mes, ...c.sub },
+        });
+      }
+      // Modo 'apagar' (86e3vxd5r): células reduzidas à parte do banco voltam inteiras (só se a
+      // Geral não mexeu nelas depois); células só digitadas são recriadas.
+      for (const c of d.celulasReduzidas ?? []) {
+        const atual = await tx.cashflowValue.findFirst({
+          where: { id: c.id, itemId: d.geralId, userId },
+        });
+        if (
+          !atual ||
+          !valuesMatch(atual.value, c.depois.value) ||
+          !valuesMatch(atual.valorBanco, c.depois.valorBanco) ||
+          (atual.color ?? null) !== (c.depois.color ?? null) ||
+          (atual.comment ?? null) !== (c.depois.comment ?? null) ||
+          (atual.formula ?? null) !== (c.depois.formula ?? null)
+        ) {
+          throw conflito();
+        }
+        await tx.cashflowValue.update({ where: { id: c.id }, data: { itemId, ...c.antes } });
+      }
+      if ((d.celulasApagadas ?? []).length > 0) {
+        await tx.cashflowValue.createMany({
+          data: (d.celulasApagadas ?? []).map((c) => ({
+            itemId,
+            userId,
+            year: c.ano,
+            month: c.mes,
+            ...c.sub,
+          })),
         });
       }
 

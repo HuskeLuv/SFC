@@ -236,9 +236,20 @@ describe('delegarExclusaoItem', () => {
     const contexto = { request: {} as never, auth: {} as never };
     mockExecutarExclusao.mockResolvedValueOnce({ itemId: 'i1' });
     expect(await delegarExclusaoItem('u1', 'i1', contexto)).toBe('fundido');
-    expect(mockExecutarExclusao).toHaveBeenCalledWith('u1', 'i1', { contexto, delegacao: true });
+    expect(mockExecutarExclusao).toHaveBeenCalledWith('u1', 'i1', {
+      contexto,
+      delegacao: true,
+      destino: 'geral',
+    });
     mockExecutarExclusao.mockResolvedValueOnce(null);
     expect(await delegarExclusaoItem('u1', 'i2')).toBe('nao_aplica');
+    mockExecutarExclusao.mockResolvedValueOnce({ itemId: 'i3' });
+    await delegarExclusaoItem('u1', 'i3', contexto, 'apagar');
+    expect(mockExecutarExclusao).toHaveBeenLastCalledWith('u1', 'i3', {
+      contexto,
+      delegacao: true,
+      destino: 'apagar',
+    });
   });
 
   it('recusa da fusão sobe (409 da rota)', async () => {

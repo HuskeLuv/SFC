@@ -33,6 +33,7 @@ import { garantirGerais } from '@/services/cashflow/orcamentoV2/ativacao';
 import {
   executarExclusaoSubcategoria,
   type ContextoRegistro,
+  type DestinoValoresExclusao,
 } from '@/services/cashflow/orcamentoV2/excluirSubcategoria';
 import type { CashflowGroup, CashflowItem } from '@/types/cashflow';
 
@@ -195,8 +196,13 @@ export async function delegarExclusaoItem(
   userId: string,
   itemId: string,
   contexto?: ContextoRegistro,
+  destino: DestinoValoresExclusao = 'geral',
 ): Promise<'fundido' | 'nao_aplica'> {
-  const r = await executarExclusaoSubcategoria(userId, itemId, { contexto, delegacao: true });
+  const r = await executarExclusaoSubcategoria(userId, itemId, {
+    contexto,
+    delegacao: true,
+    destino,
+  });
   return r ? 'fundido' : 'nao_aplica';
 }
 
