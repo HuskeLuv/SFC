@@ -18,8 +18,11 @@ export interface MonthSummaryCardProps {
   despesas: number;
   /** Índice de Poupança Mensal (%); `null` sem entradas. */
   poupanca: number | null;
-  /** Saldo Conta Corrente Mês Anterior; `null` = não calculável. */
-  saldoCcAnterior: number | null;
+  /**
+   * Saldo Conta Corrente Mês Anterior; `null` = não calculável; ausente = linha oculta
+   * (ticket 86e3vxd5r).
+   */
+  saldoCcAnterior?: number | null;
 }
 
 export const VALUE_POS = 'text-mf-patrimonio dark:text-mf-tranquilidade';
@@ -97,13 +100,19 @@ export default function MonthSummaryCard({
         {entradas > 0 ? <i className="block h-full flex-1 bg-[#0079F2]" /> : null}
       </div>
 
-      <div className="mt-2.5 flex items-baseline justify-between gap-2 border-t border-gray-100 pt-2.5 text-[13px] text-gray-600 tabular-nums max-[359px]:mt-2 max-[359px]:pt-2 dark:border-gray-800 dark:text-gray-300">
-        <span className="min-w-0">Saldo Conta Corrente do mês anterior</span>
-        <b className={`font-semibold whitespace-nowrap ${signClass(saldoCcAnterior)}`}>
-          {/* Pílula curta: a de 5,5em quebrava o rótulo em duas linhas a 390px. */}
-          {saldoCcAnterior === null ? '–' : <Sensivel curto>{formatBRL(saldoCcAnterior)}</Sensivel>}
-        </b>
-      </div>
+      {saldoCcAnterior !== undefined ? (
+        <div className="mt-2.5 flex items-baseline justify-between gap-2 border-t border-gray-100 pt-2.5 text-[13px] text-gray-600 tabular-nums max-[359px]:mt-2 max-[359px]:pt-2 dark:border-gray-800 dark:text-gray-300">
+          <span className="min-w-0">Saldo Conta Corrente do mês anterior</span>
+          <b className={`font-semibold whitespace-nowrap ${signClass(saldoCcAnterior)}`}>
+            {/* Pílula curta: a de 5,5em quebrava o rótulo em duas linhas a 390px. */}
+            {saldoCcAnterior === null ? (
+              '–'
+            ) : (
+              <Sensivel curto>{formatBRL(saldoCcAnterior)}</Sensivel>
+            )}
+          </b>
+        </div>
+      ) : null}
     </section>
   );
 }

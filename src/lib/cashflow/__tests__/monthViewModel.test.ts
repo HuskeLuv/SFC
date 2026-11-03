@@ -161,7 +161,13 @@ const labels = (blocks: ReturnType<typeof buildMonthBlocks>) =>
 describe('buildMonthBlocks', () => {
   it('segue a ordem do DataTableTwo', () => {
     const { processedData, derived } = fixture();
-    const blocks = buildMonthBlocks({ processedData, derived, month: 3, year: YEAR });
+    const blocks = buildMonthBlocks({
+      processedData,
+      derived,
+      month: 3,
+      year: YEAR,
+      mostrarCaixa: true,
+    });
     expect(labels(blocks)).toEqual([
       'G:Total de Entradas',
       'D:saldoCcAnterior',
@@ -183,9 +189,32 @@ describe('buildMonthBlocks', () => {
     expect(despesas.children[1].level).toBe(2);
   });
 
-  it('valores do mês 3 (abril) iguais à coluna do desktop', () => {
+  it('padrão oculta Saldo C/C anterior, Conta Corrente, Aporte/Resgate e Fluxo livre', () => {
     const { processedData, derived } = fixture();
     const blocks = buildMonthBlocks({ processedData, derived, month: 3, year: YEAR });
+    expect(labels(blocks)).toEqual([
+      'G:Total de Entradas',
+      'G:Despesas Fixas e Variáveis',
+      'D:saldoMes',
+      'D:poupanca',
+      'D:evolucao',
+      'D:rendimentos',
+      'D:paz',
+    ]);
+    // Só exibição: a Evolução segue com o mesmo valor da visão completa.
+    const evol = blocks.find((b) => b.kind === 'derived' && b.key === 'evolucao') as MonthDerived;
+    expect(evol.value).toBe(50003);
+  });
+
+  it('valores do mês 3 (abril) iguais à coluna do desktop', () => {
+    const { processedData, derived } = fixture();
+    const blocks = buildMonthBlocks({
+      processedData,
+      derived,
+      month: 3,
+      year: YEAR,
+      mostrarCaixa: true,
+    });
     const entradas = blocks[0] as MonthGroup;
     const despesas = blocks[2] as MonthGroup;
     expect(entradas.monthSubtotal).toBe(10500);
@@ -211,7 +240,13 @@ describe('buildMonthBlocks', () => {
 
   it('linhas: situação normalizada, comentário, fórmula, selos e capacidades', () => {
     const { processedData, derived } = fixture();
-    const blocks = buildMonthBlocks({ processedData, derived, month: 3, year: YEAR });
+    const blocks = buildMonthBlocks({
+      processedData,
+      derived,
+      month: 3,
+      year: YEAR,
+      mostrarCaixa: true,
+    });
     const entradas = blocks[0] as MonthGroup;
     const salario = entradas.children[0].items[0];
     expect(salario).toMatchObject({

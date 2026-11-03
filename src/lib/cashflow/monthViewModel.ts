@@ -10,6 +10,7 @@ import {
 import { groupLevel, type GroupLevel } from '@/components/cashflow/groupLevel';
 import { isReceitaGroupByType } from '@/utils/formatters';
 import { cellColorLabel, normalizeCellColor } from './cellColor';
+import { MOSTRAR_BLOCOS_CAIXA_NA_PLANILHA } from './blocosOcultosPlanilha';
 import {
   getItemCapabilities,
   groupDisplayName,
@@ -204,17 +205,22 @@ function buildGroup(
  * Total de Entradas → Saldo C/C mês anterior → Despesas Fixas e Variáveis (% da receita + Inflação
  * Pedro) → Saldo do mês → Índice de Poupança → Conta Corrente → Aporte/Resgate → Fluxo de caixa
  * livre → Evolução do patrimônio → Rendimentos → Paz financeira.
+ *
+ * `mostrarCaixa` falso (padrão, ticket 86e3vxd5r) tira Saldo C/C anterior, Conta Corrente,
+ * Aporte/Resgate e Fluxo livre da lista — só exibição, as séries seguem no `derived`.
  */
 export function buildMonthBlocks({
   processedData,
   derived,
   month,
   year,
+  mostrarCaixa = MOSTRAR_BLOCOS_CAIXA_NA_PLANILHA,
 }: {
   processedData: MonthProcessedData;
   derived: MonthDerivedSeries;
   month: number;
   year: number;
+  mostrarCaixa?: boolean;
 }): MonthBlock[] {
   const blocks: MonthBlock[] = [];
   const { groups } = processedData;
@@ -224,7 +230,7 @@ export function buildMonthBlocks({
     const isFirstDespesaGroup =
       !isReceitaGroupByType(group.type) &&
       mainGroups.slice(0, index).every((g) => isReceitaGroupByType(g.type));
-    if (isFirstDespesaGroup) {
+    if (mostrarCaixa && isFirstDespesaGroup) {
       blocks.push(
         derivedBlock('saldoCcAnterior', derived.saldoContaCorrenteAnteriorByMonth, month),
       );
@@ -243,18 +249,20 @@ export function buildMonthBlocks({
     ),
   );
 
-  if (derived.contaCorrenteGroup) {
-    // A árvore do processedData é a fonte (o grupo do derived é o mesmo objeto).
-    const cc =
-      groups.find((g) => g.id === derived.contaCorrenteGroup?.id) ?? derived.contaCorrenteGroup;
-    blocks.push(buildGroup(cc, processedData, month, year));
-  }
+  if (mostrarCaixa) {
+    if (derived.contaCorrenteGroup) {
+      // A árvore do processedData é a fonte (o grupo do derived é o mesmo objeto).
+      const cc =
+        groups.find((g) => g.id === derived.contaCorrenteGroup?.id) ?? derived.contaCorrenteGroup;
+      blocks.push(buildGroup(cc, processedData, month, year));
+    }
 
-  for (const group of groups.filter((g) => g.type === 'investimento')) {
-    blocks.push(buildGroup(group, processedData, month, year));
-  }
+    for (const group of groups.filter((g) => g.type === 'investimento')) {
+      blocks.push(buildGroup(group, processedData, month, year));
+    }
 
-  blocks.push(derivedBlock('fluxoLivre', derived.fluxoCaixaLivreByMonth, month));
+    blocks.push(derivedBlock('fluxoLivre', derived.fluxoCaixaLivreByMonth, month));
+  }
   blocks.push(derivedBlock('evolucao', derived.evolucaoPatrimonioByMonth, month));
   blocks.push(derivedBlock('rendimentos', derived.proventosByMonth, month));
   const despesasFixas = derived.despesasFixasData.byMonth ?? zeros();

@@ -129,28 +129,20 @@ test('Mover: oferece "Mover para cima" (sem executar)', async ({ page }) => {
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
-test('Aporte/Resgate abre só leitura (sem Salvar)', async ({ page }) => {
+// Ticket 86e3vxd5r: Aporte/Resgate, Conta Corrente, Saldo C/C anterior e Fluxo livre saíram da
+// tela (só exibição). Mesmo abrindo as linhas sem valor, nenhuma linha de Aporte/Resgate aparece.
+test('Aporte/Resgate e Fluxo livre ficam fora da visão do mês', async ({ page }) => {
   await gotoFluxo(page, { mes: 7 });
   await waitFluxoMobileReady(page);
 
-  const invest = page.locator('[data-mf-fluxo-row][data-item-id^="investimento-"]');
-  if ((await invest.count()) === 0) {
-    const mostrar = page.getByRole('button', { name: /^Mostrar \d+ linhas? sem valor$/ });
-    for (let i = await mostrar.count(); i > 0; i--) {
-      const botao = mostrar.first();
-      if (!(await botao.isVisible())) break;
-      await botao.click();
-    }
+  const mostrar = page.getByRole('button', { name: /^Mostrar \d+ linhas? sem valor$/ });
+  for (let i = await mostrar.count(); i > 0; i--) {
+    const botao = mostrar.first();
+    if (!(await botao.isVisible())) break;
+    await botao.click();
   }
-  test.skip((await invest.count()) === 0, 'sem linha de Aporte/Resgate neste banco');
-
-  const row = invest.first();
-  await row.scrollIntoViewIfNeeded();
-  await row.click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toBeVisible();
-  await expect(dialog.getByText(/Calculado automaticamente da carteira/)).toBeVisible();
-  await expect(dialog.getByRole('button', { name: 'Salvar', exact: true })).toHaveCount(0);
-  await dialog.getByRole('button', { name: 'Fechar' }).click();
-  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.locator('[data-mf-fluxo-row][data-item-id^="investimento-"]')).toHaveCount(0);
+  await expect(page.locator('[data-mf-fluxo-derived="fluxoLivre"]')).toHaveCount(0);
+  await expect(page.locator('[data-mf-fluxo-derived="saldoCcAnterior"]')).toHaveCount(0);
+  await expect(page.locator('[data-mf-fluxo-derived="evolucao"]')).toHaveCount(1);
 });

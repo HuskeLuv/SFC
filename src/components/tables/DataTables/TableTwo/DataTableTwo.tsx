@@ -30,6 +30,7 @@ import { TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import { CANONICAL_GROUPS, isCanonical } from '@/services/cashflow/groupMatchers';
 import { EditableItemRow } from '@/components/cashflow/EditableItemRow';
 import { linhaTemGeralNaCategoria } from '@/lib/cashflow/geralDaCategoria';
+import { MOSTRAR_BLOCOS_CAIXA_NA_PLANILHA } from '@/lib/cashflow/blocosOcultosPlanilha';
 import { CashflowItem, CashflowGroup } from '@/types/cashflow';
 import { useCommentModal } from '@/hooks/useCommentModal';
 import { useGroupEditMode } from '@/hooks/useGroupEditMode';
@@ -475,7 +476,12 @@ export default function DataTableTwo({
   const mainGroups = processedData.groups.filter(
     (group) => group.type !== 'investimento' && group.type !== 'saldo',
   );
-  const investimentoGroups = processedData.groups.filter((group) => group.type === 'investimento');
+  // Conta Corrente, Aporte/Resgate, Saldo C/C anterior e Fluxo livre: fora da tela (ticket
+  // 86e3vxd5r); as séries seguem calculadas (Evolução, Poupança).
+  const mostrarCaixa = MOSTRAR_BLOCOS_CAIXA_NA_PLANILHA;
+  const investimentoGroups = mostrarCaixa
+    ? processedData.groups.filter((group) => group.type === 'investimento')
+    : [];
 
   return (
     <div className="bg-white dark:bg-white/[0.03] flex-1 flex flex-col min-h-0 min-w-0">
@@ -529,7 +535,7 @@ export default function DataTableTwo({
 
                 return (
                   <React.Fragment key={group.id}>
-                    {isFirstDespesaGroup && (
+                    {mostrarCaixa && isFirstDespesaGroup && (
                       <>
                         <SpacingRow />
                         <SaldoContaCorrenteAnteriorRow cells={saldoContaCorrenteAnteriorByMonth} />
@@ -569,7 +575,7 @@ export default function DataTableTwo({
               />
 
               {/* Conta Corrente: saldo parado nos bancos, preenchido manualmente */}
-              {contaCorrenteGroup && (
+              {mostrarCaixa && contaCorrenteGroup && (
                 <React.Fragment key={contaCorrenteGroup.id}>
                   <SpacingRow />
                   <GroupHeader {...renderGroupHeaderProps(contaCorrenteGroup, ctx)} />
@@ -604,15 +610,17 @@ export default function DataTableTwo({
               ))}
 
               <SpacingRow />
-              <SummaryRow
-                label="Fluxo de Caixa livre"
-                tooltip="Saldo do mês + Saldo Conta Corrente do mês anterior − aportes/resgates do mês. Mês com aporte grande fica negativo: o dinheiro saiu do caixa livre e virou patrimônio investido."
-                cells={fluxoCaixaLivreByMonth}
-                annual={fluxoCaixaLivreAnnual}
-                variant="highlight"
-                negativeRed
-                positiveBlue
-              />
+              {mostrarCaixa && (
+                <SummaryRow
+                  label="Fluxo de Caixa livre"
+                  tooltip="Saldo do mês + Saldo Conta Corrente do mês anterior − aportes/resgates do mês. Mês com aporte grande fica negativo: o dinheiro saiu do caixa livre e virou patrimônio investido."
+                  cells={fluxoCaixaLivreByMonth}
+                  annual={fluxoCaixaLivreAnnual}
+                  variant="highlight"
+                  negativeRed
+                  positiveBlue
+                />
+              )}
               <SummaryRow
                 label="Evolução do Patrimônio"
                 cells={evolucaoPatrimonioByMonth}
