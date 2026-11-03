@@ -11,7 +11,6 @@ import { gotoSaude, mockarSaude } from './helpers/saude';
  * specs próprias.
  */
 
-const FAIXA = 'Nesta tela os valores ainda aparecem.';
 const COBERTO = '[data-mf-content]';
 
 test.beforeEach(async ({ page }) => {
@@ -45,12 +44,10 @@ test.describe('esconder valores — Dívidas e Saúde Financeira (preparo da Fas
     await expect(page.locator(COBERTO)).toBeAttached();
 
     await alternarOlho(page, true);
-    await expect(page.getByText(FAIXA)).toHaveCount(0);
 
     // Detalhe pelo deep link (?divida=), também coberto.
     await gotoDividas(page, ID_DIVIDA.imovel);
     await expect(page.locator(COBERTO)).toBeAttached();
-    await expect(page.getByText(FAIXA)).toHaveCount(0);
     expect(escritas).toEqual([]);
   });
 
@@ -66,7 +63,6 @@ test.describe('esconder valores — Dívidas e Saúde Financeira (preparo da Fas
     await expect(page.getByText('Seguro de vida').first()).toBeVisible();
 
     await alternarOlho(page, true);
-    await expect(page.getByText(FAIXA)).toHaveCount(0);
     expect(escritas).toEqual([]);
   });
 });

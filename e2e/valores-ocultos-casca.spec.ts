@@ -66,7 +66,7 @@ for (const variante of VARIANTES) {
   test.describe(`esconder valores — casca (${variante.nome})`, () => {
     test.use(variante.use);
 
-    test('liga pelo servidor, sai no SSR, persiste, mostra a faixa e desliga', async ({
+    test('liga pelo servidor, sai no SSR, persiste, vale em outra tela e desliga', async ({
       page,
       context,
     }) => {
@@ -97,10 +97,9 @@ for (const variante of VARIANTES) {
       await page.reload({ waitUntil: 'domcontentloaded' });
       await expect(olhoValores(page)).toHaveAttribute('aria-pressed', 'true', { timeout: 60_000 });
 
-      // Outra tela (antes "não coberta"): olho fechado e sem a faixa "ainda aparecem".
+      // Outra tela (antes "não coberta"): o olho continua fechado.
       await page.goto('/educacao', { waitUntil: 'domcontentloaded' });
       await expect(olhoValores(page)).toHaveAttribute('aria-pressed', 'true', { timeout: 60_000 });
-      await expect(page.getByText('Nesta tela os valores ainda aparecem.')).toHaveCount(0);
 
       // Desliga: atributo e cookie somem.
       await alternarEsperandoPost(page, false);

@@ -8,6 +8,7 @@ import { RedeemWizardErrors, RedeemWizardFormData } from '@/types/redeemWizard';
 import ReinvestimentoToggle from '@/components/carteira/wizard/shared/ReinvestimentoToggle';
 import { parseDecimalValue, DECIMAL_INPUT_PROPS } from '@/components/carteira/wizard/step4Utils';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
+import { Sensivel } from '@/components/common/valores/Sensivel';
 
 /** Unidade da posição no texto do celular ("Você tem 1.200 ações de ITSA4"). */
 const UNIDADE_POR_TIPO: Record<string, string> = {
@@ -246,16 +247,17 @@ export default function Step4RedeemInfo({
           <p className="text-xs text-gray-600 dark:text-gray-400">Posição disponível</p>
           <p className="text-sm font-semibold text-gray-900 dark:text-white">
             {ativoNome ? `${ativoNome} · ` : ''}
-            {formatQuantity(available)} {unidade}
+            <Sensivel curto>{formatQuantity(available)}</Sensivel> {unidade}
           </p>
           <p className="text-xs text-gray-600 dark:text-gray-400">
             {formData.instituicao ? `${formData.instituicao} · ` : ''}
             investido{' '}
-            {/* eslint-disable-next-line mf/valor-sem-sensivel -- formulário de resgate fica visível (decisão 3) */}
-            {(formData.availableTotal ?? 0).toLocaleString('pt-BR', {
-              style: 'currency',
-              currency: formData.moeda || 'BRL',
-            })}
+            <Sensivel>
+              {(formData.availableTotal ?? 0).toLocaleString('pt-BR', {
+                style: 'currency',
+                currency: formData.moeda || 'BRL',
+              })}
+            </Sensivel>
           </p>
         </div>
       )}
@@ -280,16 +282,19 @@ export default function Step4RedeemInfo({
 
       {!isBelowLg && (
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
-          <p>Quantidade disponível: {formData.availableQuantity ?? 0}</p>
+          <p>
+            Quantidade disponível: <Sensivel curto>{formData.availableQuantity ?? 0}</Sensivel>
+          </p>
           <p>
             {/* rótulo honesto: é o CUSTO (totalInvested), não o valor de mercado —
               resgate com rendimento pode (e deve poder) exceder este número */}
             Valor investido:{' '}
-            {/* eslint-disable-next-line mf/valor-sem-sensivel -- formulário de resgate fica visível (decisão 3) */}
-            {(formData.availableTotal ?? 0).toLocaleString('pt-BR', {
-              style: 'currency',
-              currency: formData.moeda || 'BRL',
-            })}
+            <Sensivel>
+              {(formData.availableTotal ?? 0).toLocaleString('pt-BR', {
+                style: 'currency',
+                currency: formData.moeda || 'BRL',
+              })}
+            </Sensivel>
           </p>
         </div>
       )}
@@ -342,7 +347,7 @@ export default function Step4RedeemInfo({
                   onClick={() => applyQuickQuantity(available)}
                   className="min-h-11 rounded-full border border-gray-300 px-4 text-sm font-medium text-gray-700 active:bg-gray-100 dark:border-gray-600 dark:text-gray-200 dark:active:bg-gray-800"
                 >
-                  Tudo ({formatQuantity(available)})
+                  Tudo (<Sensivel curto>{formatQuantity(available)}</Sensivel>)
                 </button>
               </div>
             )}

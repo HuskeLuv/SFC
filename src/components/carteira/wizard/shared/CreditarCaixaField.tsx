@@ -4,6 +4,7 @@ import Label from '@/components/form/Label';
 import Input from '@/components/form/input/InputField';
 import { useCarteiraResumoContextOptional } from '@/context/CarteiraResumoContext';
 import { formatBRL, formatUSD } from '@/utils/format';
+import { Sensivel, ValorVisivel } from '@/components/common/valores/Sensivel';
 import { logger } from '@/lib/logger';
 
 /** Câmbio com até 4 casas ("5,1111"): com 2 casas a conta exibida não fecha. */
@@ -99,18 +100,31 @@ export default function CreditarCaixaField({
   const ligado = checked === true;
   const valorEmReais = emDolar ? (cotacaoMoeda ? valor * cotacaoMoeda : null) : valor;
 
-  let detalhe: string;
+  // O valor do resgate e a cotação foram digitados (ficam visíveis, decisão 3); o saldo do caixa
+  // não foi, e vira pílula com o olho fechado.
+  let detalhe: React.ReactNode;
   if (!ligado) {
     detalhe = 'O caixa não será alterado.';
   } else if (valorEmReais === null) {
     detalhe = 'Informe a cotação do dólar para converter o valor em reais.';
   } else {
-    detalhe =
-      (emDolar
-        ? `${formatUSD(valor)} × R$ ${formatCotacao(cotacaoMoeda!)} = ${formatBRL(valorEmReais)}`
-        : formatBRL(valorEmReais)) +
-      ' voltam como caixa livre' +
-      (caixa ? `. O caixa total fica em ${formatBRL(caixa.total + valorEmReais)}.` : '.');
+    detalhe = (
+      <>
+        <ValorVisivel>
+          {emDolar
+            ? `${formatUSD(valor)} × R$ ${formatCotacao(cotacaoMoeda!)} = ${formatBRL(valorEmReais)}`
+            : formatBRL(valorEmReais)}
+        </ValorVisivel>
+        {' voltam como caixa livre'}
+        {caixa ? (
+          <>
+            . O caixa total fica em <Sensivel>{formatBRL(caixa.total + valorEmReais)}</Sensivel>.
+          </>
+        ) : (
+          '.'
+        )}
+      </>
+    );
   }
 
   return (

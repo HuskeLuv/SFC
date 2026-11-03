@@ -35,9 +35,13 @@ export type SensibilidadeValor = 'auto' | 'sensivel' | 'sensivel-curto' | 'visiv
  * Valor em dinheiro dentro de um texto: sinal opcional, símbolo (R$ ou US$), número pt-BR e sufixo
  * compacto opcional (mil, mi, bi, K, M, B). `\s` cobre o NBSP do Intl. O sufixo não pode ser o
  * começo de uma palavra ("R$ 10 milhões" casa só "R$ 10").
+ *
+ * Também casa o "$" puro do Intl en-US ("$575", "$1,575,000.50"), que aparece no nome gerado de
+ * REIT. Só com o número COLADO e no agrupamento en-US: "$" solto, "${" e "$ 10" não casam. Sem
+ * lookbehind de propósito (Safari < 16.4 não carrega o módulo).
  */
 export const REGEX_VALOR_MONETARIO =
-  /-?\s?(?:R\$|US\$)\s?-?\d[\d.]*(?:,\d+)?(?:\s?(?:mil|mi|bi|[KMB])(?![A-Za-zÀ-ÿ]))?/g;
+  /-?\s?(?:(?:R\$|US\$)\s?-?\d[\d.]*(?:,\d+)?|\$\d{1,3}(?:,\d{3})*(?:\.\d+)?)(?:\s?(?:mil|mi|bi|[KMB])(?![A-Za-zÀ-ÿ]))?/g;
 
 const novaRegex = () => new RegExp(REGEX_VALOR_MONETARIO.source, 'g');
 
@@ -46,7 +50,8 @@ export function contemValorMonetario(texto: string): boolean {
   return novaRegex().test(texto);
 }
 
-const simboloDe = (trecho: string) => (trecho.includes('US$') ? 'US$' : 'R$');
+const simboloDe = (trecho: string) =>
+  trecho.includes('US$') ? 'US$' : trecho.includes('R$') ? 'R$' : '$';
 
 /**
  * Separa do trecho casado o que não é valor: o espaço inicial e o hífen de separação seguido de

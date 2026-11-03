@@ -50,7 +50,8 @@ const UndoConfirmMessage: React.FC<{ entry: HistoricoAlteracaoEntry; title: stri
         <ul className="space-y-0.5 [overflow-wrap:anywhere]">
           {shown.map((c) => (
             <li key={c.field}>
-              {c.label} volta para <ValorAlteracao value={c.before} format={c.format} />.
+              {c.label} volta para{' '}
+              <ValorAlteracao value={c.before} format={c.format} field={c.field} />.
             </li>
           ))}
           {changes.length > shown.length ? (

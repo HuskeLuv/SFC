@@ -270,14 +270,14 @@ const MAX_SUMMARY_PAIRS = 2;
  * componente (HistoricoEntryRow) usa os pedaços para pôr a pílula só nos valores (esconder
  * valores, Fase 6); `renderRichDescription` junta tudo na string de sempre.
  */
-export type ParteResumo = string | { valor: unknown; format?: ChangeValueFormat };
+export type ParteResumo = string | { valor: unknown; format?: ChangeValueFormat; field?: string };
 
 const partesDoPar = (
   change: FieldChange,
   style: 'edit' | 'single-before' | 'single-after',
 ): ParteResumo[] => {
-  const antes = { valor: change.before, format: change.format };
-  const depois = { valor: change.after, format: change.format };
+  const antes = { valor: change.before, format: change.format, field: change.field };
+  const depois = { valor: change.after, format: change.format, field: change.field };
   if (style === 'single-before') return [`${change.label}: `, antes];
   if (style === 'single-after') return [`${change.label}: `, depois];
   return [`${change.label}: `, antes, ' → ', depois];

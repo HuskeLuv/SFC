@@ -41,7 +41,6 @@ test.beforeEach(async ({ page }) => {
 const CARD = 'section[data-na-carteira]';
 const DIALOGO = '[role="dialog"]';
 const OPCOES = { ignorarPercentuais: true } as const;
-const FAIXA = 'Nesta tela os valores ainda aparecem.';
 
 async function areaLigada(page: Page): Promise<boolean> {
   const res = await page.request.get('/api/analise-ativos/config');
@@ -106,8 +105,6 @@ async function conferirCard(page: Page, card: Locator) {
   await expect(
     card.locator('dl > div', { hasText: 'Quantidade' }).locator('.mf-sensivel--curto'),
   ).toHaveCount(1);
-  // a tela é coberta: a faixa "ainda aparecem" não aparece
-  await expect(page.getByText(FAIXA)).toHaveCount(0);
   // dado de MERCADO fica idêntico: cabeçalho (cotação) e KPIs
   expect(await page.locator('[data-bloco="cabecalho"]').innerText()).toBe(cabecalho);
   expect(cabecalho).toMatch(/R\$\s?\d/);
@@ -183,7 +180,6 @@ test.describe('esconder valores — Análise de Ativos (desktop 1280)', () => {
     expect(await page.locator('[data-kpi]').allInnerTexts()).toEqual(kpis);
     await expect(page.locator('[data-bloco="cabecalho"] .mf-sensivel')).toHaveCount(0);
     await expect(page.locator('[data-kpi] .mf-sensivel')).toHaveCount(0);
-    await expect(page.getByText(FAIXA)).toHaveCount(0);
     await alternarOlho(page, false);
   });
 
