@@ -17,6 +17,7 @@ const mockPrisma = vi.hoisted(() => ({
   bankCreditBill: { upsert: vi.fn(), findMany: vi.fn() },
   pluggyWebhookEvent: { findMany: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
   openFinanceConsentimento: { updateMany: vi.fn() },
+  cashflowItem: { findUnique: vi.fn() },
   cashflowValue: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
 }));
 // recomputarCelula usa transação interativa: o tx é o próprio mock. A forma em lote
@@ -102,6 +103,7 @@ const tx = (id: string, over: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockPrisma.cashflowItem.findUnique.mockResolvedValue({ group: { type: 'despesa' } });
   mockPrisma.bankConnection.findUniqueOrThrow.mockResolvedValue({
     id: 'conn-1',
     userId: 'user-1',
@@ -457,7 +459,11 @@ describe('sincronizarConexao', () => {
           return [{ cashflowItemId: 'cf-y', date: new Date('2026-09-12T00:00:00Z') }];
         }
         // recomputarCelula: soma das transações que restam na célula
-        if (select?.amount) return where.cashflowItemId === 'cf-x' ? [{ amount: 9000 }] : [];
+        if (select?.amount) {
+          return where.cashflowItemId === 'cf-x'
+            ? [{ amount: 9000, date: new Date('2026-09-10T00:00:00Z'), description: 'SALARIO' }]
+            : [];
+        }
         return [];
       },
     );
@@ -474,7 +480,12 @@ describe('sincronizarConexao', () => {
       where: {
         itemId_userId_year_month: { itemId: 'cf-x', userId: 'user-1', year: 2026, month: 8 },
       },
-      data: { value: 9100, valorBanco: 9000, formula: null },
+      data: {
+        value: 9100,
+        valorBanco: 9000,
+        formula: null,
+        comment: 'Gasto de R$ 9000,00 — 10/09 SALARIO (Open Finance)',
+      },
     });
     expect(mockPrisma.cashflowValue.update).toHaveBeenCalledWith({
       where: {
@@ -805,17 +816,26 @@ describe('atualizarManualmente / excluirConexao', () => {
       .mockResolvedValueOnce([
         { cashflowItemId: 'cf-item-a', date: new Date('2026-09-25T00:00:00Z') },
       ])
-      .mockResolvedValueOnce([{ amount: 123.45 }]);
+      .mockResolvedValueOnce([
+        { amount: 123.45, date: new Date('2026-09-26T00:00:00Z'), description: 'PADARIA' },
+      ]);
     mockPrisma.cashflowValue.findUnique.mockResolvedValue({
       value: 223.45,
       valorBanco: 223.45,
       color: null,
-      comment: null,
+      // A linha da conexão excluída sai do comentário; a da outra conexão fica.
+      comment:
+        'Gasto de R$ 100,00 — 25/09 MERCADO (Open Finance)\nGasto de R$ 123,45 — 26/09 PADARIA (Open Finance)',
     });
     await excluirConexao('conn-1', 'user-1');
     expect(mockPrisma.cashflowValue.update).toHaveBeenCalledWith({
       where: celulaA,
-      data: { value: 123.45, valorBanco: 123.45, formula: null },
+      data: {
+        value: 123.45,
+        valorBanco: 123.45,
+        formula: null,
+        comment: 'Gasto de R$ 123,45 — 26/09 PADARIA (Open Finance)',
+      },
     });
     expect(mockPrisma.cashflowValue.delete).not.toHaveBeenCalled();
   });

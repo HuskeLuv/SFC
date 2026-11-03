@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { TextoSensivel } from '@/components/common/valores/Sensivel';
 
 interface CommentIndicatorProps {
   comment: string;
@@ -175,7 +176,8 @@ export const CommentIndicator: React.FC<CommentIndicatorProps> = ({
               {itemName} - {MONTH_NAMES[month]} / {year}
             </div>
             <div className="text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap break-words">
-              {formatCommentForTooltip(comment)}
+              {/* Carimbos do assistente e do Open Finance trazem R$: pílula com o olho fechado. */}
+              <TextoSensivel texto={formatCommentForTooltip(comment)} />
             </div>
           </div>,
           document.body,

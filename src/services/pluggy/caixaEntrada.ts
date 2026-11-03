@@ -10,6 +10,9 @@
  *    só a soma do banco e apagava o valor digitado);
  *  - o sentido (receita/despesa) vem do GRUPO da linha, não do sinal da
  *    transação (cartão manda compra com sinal trocado em alguns conectores);
+ *  - o comentário da célula ganha uma linha por transação aplicada ("Gasto de R$ 30,00 — 15/08
+ *    Mercado (Open Finance)", como o carimbo do assistente); tirar a transação tira a linha
+ *    (03/11/2026, ticket 86e3xtngw);
  *  - linhas do grupo Investimentos não aceitam transação (a Carteira é a fonte);
  *  - mês de competência = BankTransaction.competencia* quando preenchida (cartão no
  *    mês do vencimento da fatura, chave PLUGGY_CARTAO_MES_FATURA — competenciaCartao.ts);
@@ -20,6 +23,7 @@ import { prisma } from '@/lib/prisma';
 import { ApiError } from '@/utils/apiErrorHandler';
 import { ensurePersonalizedItem } from '@/utils/cashflowPersonalization';
 import { getUserCashflowStructure } from '@/utils/cashflowSetup';
+import { isReceitaGroupByType } from '@/utils/formatters';
 import { sugerirPorCategoria, type SugestaoCategoria } from './categorias';
 
 export interface SugestaoLinha {
@@ -189,6 +193,70 @@ export const SELECT_COMPETENCIA = {
   competenciaMes: true,
 } as const;
 
+// ---------------------------------------------------------------------------
+// Comentário da célula (ticket 86e3xtngw)
+// ---------------------------------------------------------------------------
+
+/** Sufixo das linhas que o banco escreve no comentário — como o "(assistente)" da IA. */
+export const SUFIXO_OPEN_FINANCE = '(Open Finance)';
+
+/** Teto do comentário da célula (o mesmo do batch-update e do assistente). */
+const COMENTARIO_MAX = 2000;
+
+/**
+ * Linhas geradas pelo banco: "Gasto de R$ 30,00 — 15/08 Mercado X (Open Finance)" e o resumo
+ * "+ 3 lançamentos do banco (Open Finance)". São reescritas a cada recomputo da célula; o resto do
+ * comentário (digitado, da IA) fica como está.
+ */
+const LINHA_BANCO_RE =
+  /^(?:(?:Gasto|Receita) de R\$ .* |\+ \d+ lançamentos? do banco )\(Open Finance\)$/;
+
+export interface TransacaoComentario {
+  date: Date;
+  description: string;
+  amount: number | { toString(): string };
+}
+
+/** Mesmo formato do carimbo do assistente ("R$ 1234,50"). */
+const formatarBrl = (n: number) => `R$ ${n.toFixed(2).replace('.', ',')}`;
+
+/** "Gasto de R$ 30,00 — 15/08 Mercado X (Open Finance)": data UTC da transação, como na caixa. */
+export function linhaComentarioBanco(t: TransacaoComentario, receita: boolean): string {
+  const dia = String(t.date.getUTCDate()).padStart(2, '0');
+  const mes = String(t.date.getUTCMonth() + 1).padStart(2, '0');
+  const descricao = t.description.replace(/\s+/g, ' ').trim().slice(0, 120);
+  const valor = formatarBrl(Math.abs(Number(t.amount)));
+  return `${receita ? 'Receita' : 'Gasto'} de ${valor} — ${dia}/${mes}${descricao ? ` ${descricao}` : ''} ${SUFIXO_OPEN_FINANCE}`;
+}
+
+/**
+ * Comentário da célula com as linhas do banco em dia: tira as linhas geradas antes e põe uma por
+ * transação aplicada hoje na célula (lançar acrescenta, tirar remove, lote = várias). O que não é
+ * linha do banco é preservado. Se não couber no teto, as últimas viram "+ N lançamentos do banco".
+ * `null` quando não sobra nada.
+ */
+export function comentarioComBanco(atual: string | null, linhasBanco: string[]): string | null {
+  const todas = (atual ?? '').split('\n');
+  const manuais = todas.filter((l) => !LINHA_BANCO_RE.test(l.trim()));
+  // Nada do banco antes nem agora: o comentário fica intacto (nem espaços mudam).
+  if (linhasBanco.length === 0 && manuais.length === todas.length) return atual;
+  while (manuais.length > 0 && manuais[manuais.length - 1].trim() === '') manuais.pop();
+
+  const montar = (linhas: string[]) => [...manuais, ...linhas].join('\n');
+  let texto = montar(linhasBanco);
+  if (texto.length > COMENTARIO_MAX) {
+    let cabem = linhasBanco.length;
+    const resumo = (n: number) =>
+      `+ ${n} ${n === 1 ? 'lançamento' : 'lançamentos'} do banco ${SUFIXO_OPEN_FINANCE}`;
+    do {
+      cabem--;
+      texto = montar([...linhasBanco.slice(0, cabem), resumo(linhasBanco.length - cabem)]);
+    } while (cabem > 0 && texto.length > COMENTARIO_MAX);
+    texto = texto.slice(0, COMENTARIO_MAX);
+  }
+  return texto.trim() === '' ? null : texto;
+}
+
 /**
  * Recalcula a parte do banco da célula (Σ |amount| das transações aplicadas no item naquele mês)
  * e ajusta o total pela diferença: value = value atual − parte do banco anterior + parte nova.
@@ -211,18 +279,37 @@ export async function recomputarCelula(userId: string, c: Celula): Promise<numbe
         { competenciaAno: null, date: { gte: inicio, lt: fim } },
       ],
     },
-    select: { amount: true },
+    select: { amount: true, date: true, description: true },
+    orderBy: [{ date: 'asc' }, { id: 'asc' }],
   });
   const banco = centavos(rows.reduce((acc, r) => acc + Math.abs(Number(r.amount)), 0));
   const where = {
     itemId_userId_year_month: { itemId: c.itemId, userId, year: c.year, month: c.month },
   };
+  // Sentido pelo GRUPO da linha (como o valor): receita em Entradas, gasto no resto.
+  let linhasBanco: string[] = [];
+  if (rows.length > 0) {
+    const item = await prisma.cashflowItem.findUnique({
+      where: { id: c.itemId },
+      select: { group: { select: { type: true } } },
+    });
+    const receita = isReceitaGroupByType(item?.group?.type ?? '');
+    linhasBanco = rows.map((r) => linhaComentarioBanco(r, receita));
+  }
 
   return prisma.$transaction(async (tx) => {
     const atual = await tx.cashflowValue.findUnique({ where });
     const bancoAnterior = atual ? Number(atual.valorBanco) : 0;
     const totalAnterior = atual ? Number(atual.value) : 0;
-    if (atual && centavos(bancoAnterior - banco) === 0) return totalAnterior;
+    const comentarioAnterior = atual?.comment ?? null;
+    const comentario = comentarioComBanco(comentarioAnterior, linhasBanco);
+    const comentarioMudou = comentario !== comentarioAnterior;
+    if (atual && centavos(bancoAnterior - banco) === 0) {
+      // Mesma parte do banco: valor e fórmula intactos; só o comentário pode se atualizar
+      // (ex.: troca de transação de mesmo valor, ou célula lançada antes do comentário existir).
+      if (comentarioMudou) await tx.cashflowValue.update({ where, data: { comment: comentario } });
+      return totalAnterior;
+    }
 
     const total = centavos(totalAnterior - bancoAnterior + banco);
     if (!atual) {
@@ -235,17 +322,23 @@ export async function recomputarCelula(userId: string, c: Celula): Promise<numbe
           month: c.month,
           value: total,
           valorBanco: banco,
+          ...(comentario ? { comment: comentario } : {}),
         },
       });
       return total;
     }
-    if (total === 0 && banco === 0 && !atual.color && !atual.comment) {
+    if (total === 0 && banco === 0 && !atual.color && !comentario) {
       await tx.cashflowValue.delete({ where });
       return 0;
     }
     await tx.cashflowValue.update({
       where,
-      data: { value: total, valorBanco: banco, formula: null },
+      data: {
+        value: total,
+        valorBanco: banco,
+        formula: null,
+        ...(comentarioMudou ? { comment: comentario } : {}),
+      },
     });
     return total;
   });
