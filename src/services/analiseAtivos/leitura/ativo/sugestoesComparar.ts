@@ -49,9 +49,12 @@ export function perfilFii(
   return tipoFiiExibido(avaliado, linha.fiiTipo) === 'tijolo' ? 'fii_tijolo' : 'fii_papel';
 }
 
-/** Par do ativo: ação = mesmo segmento B3 ou mesmo setor; FII = mesmo segmento CVM. */
+/**
+ * Par do ativo: ação (e stock/REIT, 24/10) = mesmo segmento ou mesmo setor; FII = mesmo segmento
+ * CVM.
+ */
 export function ehParComparar(alvo: LinhaQuadroApi, l: LinhaQuadroApi): boolean {
-  if (alvo.classe === 'acao') {
+  if (alvo.classe !== 'fii') {
     return (
       (!!alvo.segmento && l.segmento === alvo.segmento) || (!!alvo.setor && l.setor === alvo.setor)
     );
@@ -60,6 +63,12 @@ export function ehParComparar(alvo: LinhaQuadroApi, l: LinhaQuadroApi): boolean 
 }
 
 function metrica(l: LinhaQuadroApi): SugestaoComparar['metrica'] {
+  // Stocks/REITs: só o P/L e só se houver (sem cotação EUA, o P/L fica sem dado — não poluir)
+  if (l.classe === 'stock' || l.classe === 'reit') {
+    return l.pl?.estado === 'ok'
+      ? { rotulo: T.rotuloMetricaAcao, valor: l.pl, formato: 'multiplo' }
+      : null;
+  }
   return l.classe === 'acao'
     ? { rotulo: T.rotuloMetricaAcao, valor: l.pl, formato: 'multiplo' }
     : { rotulo: T.rotuloMetricaFii, valor: l.pvp, formato: 'numero2' };

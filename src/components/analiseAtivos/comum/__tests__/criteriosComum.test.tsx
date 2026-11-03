@@ -91,6 +91,11 @@ describe('CelulaCriterios', () => {
     expect(botao).toHaveTextContent('5 de 6');
     expect(container.querySelectorAll('[data-quadrado]')).toHaveLength(6);
     expect(container.querySelectorAll('[data-quadrado="atende"]')).toHaveLength(5);
+    // 01/11 (Pedro): o quadradinho atendido sai no amarelo das estrelas do HTML
+    for (const q of container.querySelectorAll('[data-quadrado="atende"]'))
+      expect(q.className).toContain('bg-[#F2B01E]');
+    for (const q of container.querySelectorAll('[data-quadrado]:not([data-quadrado="atende"])'))
+      expect(q.className).not.toContain('#F2B01E');
   });
 
   it('financeira: n de 3 com 3 quadradinhos tracejados (não se aplica)', () => {

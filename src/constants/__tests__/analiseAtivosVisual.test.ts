@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'fs';
 import path from 'path';
 import {
+  AMARELO_QUADRADO_ATENDE,
   COLUNAS,
   CORES_EXCECAO_ANALISE,
   CORES_EXCECAO_ATENDE,
@@ -24,9 +25,12 @@ describe('analiseAtivosVisual', () => {
       ...new Set([...FONTE.matchAll(/#[0-9A-Fa-f]{6}\b/g)].map((m) => m[0].toUpperCase())),
     ];
     const permitidas = new Set(
-      [...CORES_PERMITIDAS, ...CORES_EXCECAO_ATENDE, ...HEX_EXCECAO_ANALISE].map((c) =>
-        c.toUpperCase(),
-      ),
+      [
+        ...CORES_PERMITIDAS,
+        ...CORES_EXCECAO_ATENDE,
+        ...HEX_EXCECAO_ANALISE,
+        AMARELO_QUADRADO_ATENDE,
+      ].map((c) => c.toUpperCase()),
     );
     expect(hex.filter((h) => !permitidas.has(h))).toEqual([]);
     expect(hex.length).toBeGreaterThan(5);
@@ -37,6 +41,12 @@ describe('analiseAtivosVisual', () => {
     for (const v of Object.values(VERDE_ATENDE))
       expect(permitidas.has(v.toUpperCase())).toBe(false);
     expect(CORES_EXCECAO_ATENDE).toEqual([VERDE_ATENDE.claro, VERDE_ATENDE.escuro]);
+  });
+
+  it('exceção 01/11 (Pedro): amarelo do quadradinho atendido fica FORA de CORES_PERMITIDAS', () => {
+    const permitidas = new Set(CORES_PERMITIDAS.map((c) => c.toUpperCase()));
+    expect(AMARELO_QUADRADO_ATENDE).toBe('#F2B01E');
+    expect(permitidas.has(AMARELO_QUADRADO_ATENDE)).toBe(false);
   });
 
   it('sem verde/âmbar: nenhuma classe Tailwind de green/emerald/amber/yellow/red-*', () => {

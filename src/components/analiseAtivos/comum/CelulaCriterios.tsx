@@ -3,7 +3,7 @@
 /**
  * CelulaCriterios (v2.4, fatia 0) — célula "Critérios" do Quadro (B), dos cartões do celular (B) e
  * dos pares (C2): k quadradinhos NEUTROS + 'n de k'.
- *  - cheio (gray-700 / gray-300) = atende; vazio com contorno = não atende OU sem dado;
+ *  - cheio (amarelo das estrelas do HTML, 01/11) = atende; vazio com contorno = não atende OU sem dado;
  *    tracejado = não se aplica (só se os params religarem o D4). Nunca verde/vermelho (§9, D1).
  *  - v2.5: marca com `obs` (lucro sem o descontado na fonte, dados incompletos) acrescenta ao
  *    tooltip a frase de textosCriterios.obs, uma vez por observação.
@@ -15,6 +15,7 @@
  */
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import MarcaCriterio from '@/components/analiseAtivos/comum/MarcaCriterio';
+import { QUADRADO_ATENDE_AMARELO } from '@/constants/analiseAtivosVisual';
 import { TEXTOS_CRITERIOS, formatarTexto } from '@/services/analiseAtivos/textosCriterios';
 import type {
   CelulaCriteriosProps,
@@ -27,7 +28,8 @@ export type { CelulaCriteriosProps };
 const T = TEXTOS_CRITERIOS.celula;
 
 const QUADRADO: Record<EstadoCriterio, string> = {
-  atende: 'bg-gray-700 dark:bg-gray-300',
+  // amarelo das estrelas do HTML (pedido do Pedro 01/11: o preto não destacava)
+  atende: QUADRADO_ATENDE_AMARELO,
   nao_atende: 'border border-gray-500 dark:border-gray-400',
   sem_dado: 'border border-gray-500 dark:border-gray-400',
   nao_se_aplica: 'border border-dashed border-gray-400 dark:border-gray-500',
