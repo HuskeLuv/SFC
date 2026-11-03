@@ -79,6 +79,15 @@ export const TEXTO_VARIACAO_POSITIVA = 'text-[#16A34A] dark:text-[#34C47C]';
 export const CORES_EXCECAO_ATENDE: readonly string[] = Object.values(VERDE_ATENDE);
 
 /**
+ * Exceção pedida pelo Pedro (ticket 86e3nugkb, 01/11/2026): o quadradinho "atende" da célula
+ * Critérios (Quadro, cartões do celular e pares) sai no amarelo das estrelas do HTML de referência
+ * da Análise (`.st5{color:#f2b01e}`), nos dois temas — o preto não destacava. Só nesse quadradinho;
+ * fora de CORES_PERMITIDAS, como o verde do ✓.
+ */
+export const AMARELO_QUADRADO_ATENDE = '#F2B01E';
+export const QUADRADO_ATENDE_AMARELO = 'bg-[#F2B01E]';
+
+/**
  * fundamentei-regras (F4, item C; Wellington 20/10): cores de EXCEÇÃO do HTML do Pedro, SÓ na
  * Análise de Ativos e SÓ com ANALISE_ATIVOS_VISUAL_V2_HABILITADO. Ficam aqui (e nas classes de
  * VISUAL_V2 abaixo) e em nenhum componente: os testes de paleta dos componentes continuam
