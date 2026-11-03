@@ -153,7 +153,6 @@ async function conferir(page: Page, celular: boolean, nome: string, estreito = f
   }
   expect(await percentuais(page), '% continuam').toEqual(pcts);
   expect((await tamanhoDoDocumento(page)).largura).toBeLessThanOrEqual(largura);
-  await expect(page.getByText('Nesta tela os valores ainda aparecem.')).toHaveCount(0);
   await expect(page.getByText('Posição Consolidada').first()).toBeVisible();
 
   if (!process.env.CI) {

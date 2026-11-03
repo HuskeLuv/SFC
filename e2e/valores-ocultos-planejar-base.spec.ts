@@ -9,8 +9,6 @@ import { gotoPlanejar, mockarPlanejar } from './helpers/planejar';
  * escrita chega ao banco. As fatias medem as pílulas nas specs próprias.
  */
 
-const FAIXA = 'Nesta tela os valores ainda aparecem.';
-
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     const style = document.createElement('style');
@@ -44,7 +42,6 @@ test.describe('esconder valores — Planejar (preparo da Fase 3)', () => {
     expect(expostos).toContain('R$ 88 K');
 
     await alternarOlho(page, true);
-    await expect(page.getByText(FAIXA)).toHaveCount(0);
     expect(escritas).toEqual([]);
   });
 
@@ -61,7 +58,6 @@ test.describe('esconder valores — Planejar (preparo da Fase 3)', () => {
     expect(campos.replace(/\D/g, ' ')).toMatch(/234\s*567/);
 
     await alternarOlho(page, true);
-    await expect(page.getByText(FAIXA)).toHaveCount(0);
     // Acumulação: os dois campos lado a lado seguem alinhados com as pílulas no cabeçalho.
     const painel = page.locator('[data-mf-content] aside').first();
     await expect(painel.locator('.mf-sensivel').first()).toBeVisible();
