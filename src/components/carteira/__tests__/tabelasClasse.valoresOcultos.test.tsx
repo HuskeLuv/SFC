@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createTestQueryClient } from '@/test/wrappers';
 import {
@@ -20,7 +20,7 @@ import { formatBRL, formatPct, formatUSD } from '@/utils/format';
  * title/aria. A cotação atual (12,34) fica visível (decisão 1); os % ficam.
  */
 
-const h = vi.hoisted(() => ({ celular: false, layoutUsd: false }));
+const h = vi.hoisted(() => ({ celular: false, layoutUsd: false, etfUsd: false }));
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/carteira',
@@ -232,7 +232,32 @@ const hookAba = (chave: string, moeda: 'BRL' | 'USD' = 'BRL') => ({
 
 vi.mock('@/hooks/useAcoes', () => ({ useAcoes: () => hookAba('value') }));
 vi.mock('@/hooks/useFii', () => ({ useFii: () => hookAba('tijolo') }));
-vi.mock('@/hooks/useEtf', () => ({ useEtf: () => hookAba('brasil') }));
+// ETF americano em US$ (nov/2026): com h.etfUsd a seção EUA tem o VOO (US$) ao lado do IVVB11 (R$).
+const linhaEtfUsd = () =>
+  linha({
+    id: 'a-voo',
+    ticker: 'VOO',
+    nome: 'VOO',
+    regiao: 'estados_unidos',
+    moedaRegistro: 'USD',
+    precoAquisicaoUSD: S.precoMedio,
+    valorTotalUSD: S.aplicado,
+    cotacaoAtualUSD: COTACAO,
+    valorAtualizadoUSD: S.saldo,
+    proventosUSD: S.aplicado,
+    semCambio: false,
+  });
+vi.mock('@/hooks/useEtf', () => ({
+  useEtf: () => {
+    const aba = hookAba('brasil');
+    if (!h.etfUsd) return aba;
+    const eua = secao('estados_unidos', [
+      linha({ id: 'a-ivvb', ticker: 'IVVB11', regiao: 'estados_unidos' }),
+      linhaEtfUsd(),
+    ]);
+    return { ...aba, data: { ...aba.data, secoes: [...aba.data.secoes, eua] } };
+  },
+}));
 vi.mock('@/hooks/useStocks', () => ({ useCarteiraStocks: () => hookAba('value', 'USD') }));
 vi.mock('@/hooks/useReit', () => ({ useReit: () => hookAba('value', 'USD') }));
 vi.mock('@/hooks/useFimFia', () => ({ useFimFia: () => hookAba('fim') }));
@@ -367,5 +392,42 @@ describe('quantidade em pílula curta e cotação visível (computador)', () => 
       const visiveis = Array.from(container.querySelectorAll('[data-mf-valor-visivel]'));
       expect(visiveis.some((el) => el.textContent?.includes('12,34'))).toBe(true);
     }
+  });
+});
+
+describe.each([
+  ['computador', false],
+  ['celular', true],
+])("ETF's com ETF americano em US$ — olho fechado (%s)", (_nome, celular) => {
+  beforeEach(() => {
+    h.celular = celular;
+    h.layoutUsd = false;
+    h.etfUsd = true;
+  });
+  afterEach(() => {
+    h.etfUsd = false;
+  });
+
+  it('preço médio, valor total, valor atualizado e proventos (US$ e R$) somem; a Cotação fica', () => {
+    const { container } = renderAba(() => <EtfTable totalCarteira={S.saldo} />, true);
+    abrirCartoes(container);
+    expectSemValoresExpostos(container);
+    expectPilulas(container);
+    const visiveis = Array.from(container.querySelectorAll('[data-mf-valor-visivel]')).map(
+      (el) => el.textContent ?? '',
+    );
+    expect(visiveis.some((t) => t.includes(formatUSD(COTACAO)))).toBe(true);
+    // Faixa do câmbio (dado de mercado) legível.
+    expect(visiveis.some((t) => t.includes('US$ 1 = R$ 5,4000'))).toBe(true);
+  });
+
+  it('olho aberto = DOM de sempre', () => {
+    const hoje = renderAba(() => <EtfTable totalCarteira={S.saldo} />);
+    abrirCartoes(hoje.container);
+    const html = htmlEstavel(hoje.container);
+    hoje.unmount();
+    const aberto = renderAba(() => <EtfTable totalCarteira={S.saldo} />, false);
+    abrirCartoes(aberto.container);
+    expect(htmlEstavel(aberto.container)).toBe(html);
   });
 });
