@@ -19,6 +19,7 @@ import { cenariosParaExportacao } from '@/services/analiseAtivos/cenarios/cenari
 import { relatosParaExportacao } from '@/services/analiseAtivos/curadoria/privacidadeReportes';
 import { alvosParaExportacao } from '@/services/analiseAtivos/carteira/alvosAtivo';
 import { paraExportacao as salvosParaExportacao } from '@/services/analiseAtivos/salvos/privacidadeSalvos';
+import { csatParaExportacao } from '@/services/csat/csat';
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const { payload } = await requireAuthWithActing(req);
@@ -53,6 +54,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     analiseCenarios,
     planningAssetTargets,
     analiseSalvos,
+    csatRespostas,
   ] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
@@ -96,6 +98,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     // Análise de Ativos (bloco 1): listas (com itens), filtros salvos, comparações salvas e os
     // avisos enviados nos últimos 90 dias.
     salvosParaExportacao(userId),
+    // Pesquisa de satisfação (CSAT): notas, comentários e "Agora não".
+    csatParaExportacao(userId),
   ]);
 
   if (!user) {
@@ -151,6 +155,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       comparacoes: analiseSalvos.comparacoes,
       alertasEnviados: analiseSalvos.alertasEnviados,
     },
+    pesquisaSatisfacao: csatRespostas,
   };
 
   const json = JSON.stringify(payload_, null, 2);
