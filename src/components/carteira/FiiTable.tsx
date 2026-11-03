@@ -102,26 +102,6 @@ export default function FiiTable({ totalCarteira = 0 }: FiiTableProps) {
       ),
     },
     {
-      key: 'mandato',
-      header: 'Mandato',
-      align: 'center',
-      render: (a) => a.mandato,
-      renderSectionTotal: () => '-',
-      renderGrandTotal: () => '-',
-    },
-    {
-      key: 'segmento',
-      header: 'Segmento',
-      align: 'center',
-      render: (a) => (
-        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs">
-          {a.segmento.charAt(0).toUpperCase() + a.segmento.slice(1)}
-        </span>
-      ),
-      renderSectionTotal: () => '-',
-      renderGrandTotal: () => '-',
-    },
-    {
       key: 'quantidade',
       valor: 'sensivel-curto',
       header: 'Quantidade',

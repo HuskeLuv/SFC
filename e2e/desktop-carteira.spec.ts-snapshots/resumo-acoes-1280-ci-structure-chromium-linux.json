@@ -69,8 +69,6 @@
   {
    "ths": [
     "Nome do Ativo",
-    "Setor",
-    "Subsetor",
     "Quantidade",
     "Preço Médio",
     "Valor Total",
@@ -85,11 +83,10 @@
     "Rentabilidade",
     "Ações"
    ],
-   "colCount": 16,
+   "colCount": 14,
    "theadClass": "",
    "thClasses": [
     "font-medium px-3 py-2 relative w-10 whitespace-nowrap",
-    "font-medium px-3 py-2 text-center whitespace-nowrap",
     "font-medium px-3 py-2 text-left whitespace-nowrap",
     "font-medium px-3 py-2 text-right whitespace-nowrap"
    ],
@@ -100,14 +97,11 @@
     "border-b border-gray-200 cursor-pointer dark:border-gray-800 font-semibold text-sm text-white"
    ],
    "tdClasses": [
-    "dark:text-white px-3 py-2 text-center text-white text-xs",
     "dark:text-white px-3 py-2 text-left text-white text-xs",
     "dark:text-white px-3 py-2 text-right text-white text-xs",
-    "font-semibold px-3 py-2 text-center text-xs",
     "font-semibold px-3 py-2 text-left text-xs",
     "font-semibold px-3 py-2 text-right text-xs",
     "italic px-3 py-2 text-gray-400 text-xs",
-    "px-3 py-2 text-center text-xs",
     "px-3 py-2 text-left text-xs",
     "px-3 py-2 text-right text-xs",
     "px-3 py-2 text-right text-xs w-10",
