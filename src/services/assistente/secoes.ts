@@ -91,6 +91,7 @@ const SECOES_DA_INTENCAO: Partial<Record<Intencao, Secao[]>> = {
   saude_financeira: ['saude'],
   objetivos: ['objetivos', 'rentabilidade'],
   lancamento: ['linhasDoFluxo'],
+  ajuste_fluxo: ['linhasDoFluxo', 'orcamento'],
 };
 
 export function secoesDaIntencao(intencoes: Intencao[]): Secao[] {

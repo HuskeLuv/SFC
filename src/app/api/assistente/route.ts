@@ -2,7 +2,7 @@
  * Assistente de IA — Fase 1 (MVP).
  *
  * GET  /api/assistente  → { habilitado, modelo, uso }
- * POST /api/assistente  → { resposta, propostas?, proposta?, eventos?, uso }
+ * POST /api/assistente  → { resposta, propostas?, proposta?, eventos?, ajustes?, uso }
  *   (`proposta` só quando há exatamente uma; `propostas` sempre que houver
  *   alguma; `eventos` são as propostas de compromisso na Agenda)
  *
@@ -10,7 +10,9 @@
  * prompt (cacheado por conversa). Duas ferramentas: `propor_lancamento` (um
  * mês, ou o ano da planilha inteiro quando o gasto é recorrente; o modelo
  * chama uma vez por item quando o usuário lista vários) e `propor_evento`
- * (compromisso na Agenda). O servidor devolve uma PROPOSTA assinada por item
+ * (compromisso na Agenda), além de propor_comentario / propor_cor / propor_orcamento
+ * (comentário, cor da legenda e orçado do Orçamento v2 — `ajustes` na resposta, um cartão
+ * cada). O servidor devolve uma PROPOSTA assinada por item
  * e o app pede confirmação; a gravação acontece em POST
  * /api/assistente/confirmar. A IA nunca grava.
  * Consultor agindo por cliente: só leitura (sem ferramenta).
@@ -33,8 +35,11 @@ import {
   MAX_OUTPUT_TOKENS,
   MAX_TROCAS_HISTORICO,
   MODELO_ASSISTENTE,
+  TOOL_PROPOR_COMENTARIO,
+  TOOL_PROPOR_COR,
   TOOL_PROPOR_EVENTO,
   TOOL_PROPOR_LANCAMENTO,
+  TOOL_PROPOR_ORCAMENTO,
   buildSystemParts,
 } from '@/services/assistente/prompt';
 import { classificarIntencao, guardarTextoDaIntencao } from '@/services/assistente/intencao';
@@ -59,6 +64,18 @@ import {
   montarPropostaEvento,
   type PropostaEvento,
 } from '@/services/assistente/evento';
+import {
+  CORES_AJUSTE,
+  MAX_AJUSTES_POR_MENSAGEM,
+  descreverAjuste,
+  montarPropostaComentario,
+  montarPropostaCor,
+  montarPropostaOrcamento,
+  paraRespostaAjuste,
+  type AjusteResposta,
+  type CorAjuste,
+  type ResultadoAjuste,
+} from '@/services/assistente/ajustes';
 
 /** Rodadas de consultar_dados por mensagem (cada uma é uma chamada a mais ao modelo). */
 const MAX_RODADAS_CONSULTA = 2;
@@ -109,6 +126,79 @@ const eventoInputSchema = z.object({
   lembrete: z.boolean().optional(),
   descricao: z.string().trim().max(500).optional(),
 });
+
+const linhaAlvoSchema = {
+  linha: z.string().trim().min(1).max(120),
+  grupo: z.string().trim().max(120).optional(),
+  tipo: z.enum(['despesa', 'entrada']).optional(),
+  ano: z.number().int().min(2000).max(2100).optional(),
+};
+const mesSchema = z.number().int().min(0).max(11).optional();
+
+const comentarioInputSchema = z.object({
+  ...linhaAlvoSchema,
+  mes: mesSchema,
+  comentario: z.string().max(1000).optional(),
+  acao: z.enum(['acrescentar', 'substituir', 'apagar']).optional(),
+});
+
+const corInputSchema = z.object({
+  ...linhaAlvoSchema,
+  cor: z.enum(CORES_AJUSTE as [CorAjuste, ...CorAjuste[]]),
+  mes: mesSchema,
+  mesInicio: mesSchema,
+  mesFim: mesSchema,
+});
+
+const orcamentoInputSchema = z.object({
+  subcategoria: z.string().trim().min(1).max(120),
+  categoria: z.string().trim().max(120).optional(),
+  valor: z.number().finite().min(0),
+  mes: mesSchema,
+  mesInicio: mesSchema,
+  mesFim: mesSchema,
+  ano: z.number().int().min(2000).max(2100).optional(),
+});
+
+/** Ferramentas de ajuste (comentário, cor, orçado): nome → validação + montagem. */
+const FERRAMENTAS_AJUSTE: Record<
+  string,
+  {
+    falta: string;
+    montar: (
+      userId: string,
+      mensagemId: string,
+      input: Record<string, unknown>,
+      anoPlanilha?: number,
+    ) => Promise<ResultadoAjuste | null>;
+  }
+> = {
+  [TOOL_PROPOR_COMENTARIO.name]: {
+    falta: 'Para o comentário faltou a linha ou o texto.',
+    montar: async (userId, mensagemId, input, anoPlanilha) => {
+      const p = comentarioInputSchema.safeParse(input);
+      return p.success
+        ? montarPropostaComentario(userId, mensagemId, p.data, { anoPlanilha })
+        : null;
+    },
+  },
+  [TOOL_PROPOR_COR.name]: {
+    falta: 'Para mudar a cor faltou a linha ou a cor (só as da legenda do fluxo).',
+    montar: async (userId, mensagemId, input, anoPlanilha) => {
+      const p = corInputSchema.safeParse(input);
+      return p.success ? montarPropostaCor(userId, mensagemId, p.data, { anoPlanilha }) : null;
+    },
+  },
+  [TOOL_PROPOR_ORCAMENTO.name]: {
+    falta: 'Para o orçamento faltou a subcategoria ou o valor.',
+    montar: async (userId, mensagemId, input, anoPlanilha) => {
+      const p = orcamentoInputSchema.safeParse(input);
+      return p.success
+        ? montarPropostaOrcamento(userId, mensagemId, p.data, { anoPlanilha })
+        : null;
+    },
+  },
+};
 
 function brl(n: number): string {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -185,7 +275,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const tools = [
     TOOL_CONSULTAR_DADOS,
     // Consultor agindo pelo cliente não propõe escrita (decisão Fase 0).
-    ...(viaConsultant ? [] : [TOOL_PROPOR_LANCAMENTO, TOOL_PROPOR_EVENTO]),
+    ...(viaConsultant
+      ? []
+      : [
+          TOOL_PROPOR_LANCAMENTO,
+          TOOL_PROPOR_EVENTO,
+          TOOL_PROPOR_COMENTARIO,
+          TOOL_PROPOR_COR,
+          TOOL_PROPOR_ORCAMENTO,
+        ]),
   ];
   let mensagens: LlmMessage[] = [
     ...historico.slice(-MAX_TROCAS_HISTORICO * 2).map((m) => ({
@@ -207,7 +305,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
         tools,
         maxOutputTokens: MAX_OUTPUT_TOKENS,
         reasoning: 'none',
-        cacheKey: 'assistente-v7',
+        cacheKey: 'assistente-v8',
       });
       respostas.push(r);
       const consultas = r.toolCalls.filter((c) => c.name === TOOL_CONSULTAR_DADOS.name);
@@ -253,7 +351,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const chamadasEvento = res.toolCalls
     .filter((c) => c.name === TOOL_PROPOR_EVENTO.name)
     .slice(0, MAX_EVENTOS_POR_MENSAGEM);
-  const usouFerramenta = chamadas.length + chamadasEvento.length > 0;
+  const chamadasAjuste = res.toolCalls
+    .filter((c) => c.name in FERRAMENTAS_AJUSTE)
+    .slice(0, MAX_AJUSTES_POR_MENSAGEM);
+  const usouFerramenta = chamadas.length + chamadasEvento.length + chamadasAjuste.length > 0;
   const mensagemId = await registrarMensagem({
     ...base,
     motor: usouFerramenta ? 'ia+t' : 'ia',
@@ -312,13 +413,47 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     eventos.push(paraRespostaEvento(resultado.proposta, resultado.token));
   }
 
+  const ajustes: AjusteResposta[] = [];
+  for (const chamada of chamadasAjuste) {
+    const ferramenta = FERRAMENTAS_AJUSTE[chamada.name];
+    const resultado = await ferramenta.montar(
+      targetUserId,
+      mensagemId ?? '',
+      chamada.input,
+      anoPlanilha,
+    );
+    if (!resultado) {
+      falhas.push(ferramenta.falta);
+      continue;
+    }
+    if (!resultado.ok) {
+      const alt = resultado.alternativas ?? [];
+      falhas.push(
+        resultado.motivo +
+          (alt.length > 0
+            ? ` Linhas parecidas: ${alt.map((a) => `"${a.itemNome}" (${grupoCurto(a.grupoNome)})`).join(', ')}.`
+            : ''),
+      );
+      continue;
+    }
+    ajustes.push(paraRespostaAjuste(resultado.proposta, resultado.token));
+  }
+
+  const totalChamadas = chamadas.length + chamadasEvento.length + chamadasAjuste.length;
   const cortada =
     res.stopReason === 'max_tokens' ||
-    res.toolCalls.filter((c) => c.name !== TOOL_CONSULTAR_DADOS.name).length >
-      chamadas.length + chamadasEvento.length;
+    res.toolCalls.filter((c) => c.name !== TOOL_CONSULTAR_DADOS.name).length > totalChamadas;
 
-  if (propostas.length === 0 && eventos.length === 0) {
-    const unica = chamadas.length + chamadasEvento.length === 1;
+  if (propostas.length === 0 && eventos.length === 0 && ajustes.length === 0) {
+    if (chamadas.length === 0 && chamadasEvento.length === 0) {
+      // Só ajustes (comentário/cor/orçado): o motivo de cada um já é a resposta.
+      const resposta =
+        falhas.length === 1
+          ? `${falhas[0]}${falhas[0].includes('Linhas parecidas') ? ' Qual delas?' : ''}`
+          : `Não consegui montar:\n${falhas.map((f) => `- ${f}`).join('\n')}`;
+      return NextResponse.json({ resposta, uso: usoDepois });
+    }
+    const unica = totalChamadas === 1;
     const resposta = unica
       ? falhas[0].includes('faltou o valor')
         ? 'Entendi que você quer registrar algo, mas faltou o valor ou a linha. Pode dizer, por exemplo: "gastei 45,90 no mercado"?'
@@ -327,16 +462,24 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     return NextResponse.json({ resposta, uso: usoDepois });
   }
 
-  const simples = propostas.length + eventos.length === 1 && falhas.length === 0 && !cortada;
+  const simples =
+    propostas.length + eventos.length + ajustes.length === 1 && falhas.length === 0 && !cortada;
   let resposta: string;
   if (simples) {
     resposta =
-      propostas.length === 1 ? descreverPropostaUnica(propostas[0]) : descreverEvento(eventos[0]);
+      propostas.length === 1
+        ? descreverPropostaUnica(propostas[0])
+        : eventos.length === 1
+          ? descreverEvento(eventos[0])
+          : `${descreverAjuste(ajustes[0])} Confirma?`;
   } else {
     const partes: string[] = [];
     if (propostas.length > 0) partes.push(descreverLote(propostas));
     if (eventos.length > 0) {
       partes.push(`Na agenda:\n${eventos.map((e) => `- ${resumoEvento(e)}`).join('\n')}`);
+    }
+    if (ajustes.length > 0) {
+      partes.push(ajustes.map((a) => `- ${descreverAjuste(a)}`).join('\n'));
     }
     if (falhas.length > 0) {
       partes.push(
@@ -357,6 +500,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     ...(propostas.length === 1 ? { proposta: propostas[0] } : {}),
     propostas,
     ...(eventos.length > 0 ? { eventos } : {}),
+    ...(ajustes.length > 0 ? { ajustes } : {}),
     uso: usoDepois,
   });
 });
