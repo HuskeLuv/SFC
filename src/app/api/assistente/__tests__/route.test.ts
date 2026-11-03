@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   registrarMensagem: vi.fn(),
   assistenteHabilitado: vi.fn(),
   montarProposta: vi.fn(),
+  montarPropostaCor: vi.fn(),
 }));
 
 vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mocks.requireAuthWithActing }));
@@ -31,6 +32,11 @@ vi.mock('@/services/assistente/limite', () => ({
 vi.mock('@/services/assistente/lancamento', async (importOriginal) => {
   const orig = await importOriginal<typeof import('@/services/assistente/lancamento')>();
   return { ...orig, montarProposta: mocks.montarProposta };
+});
+
+vi.mock('@/services/assistente/ajustes', async (importOriginal) => {
+  const orig = await importOriginal<typeof import('@/services/assistente/ajustes')>();
+  return { ...orig, montarPropostaCor: mocks.montarPropostaCor };
 });
 
 import { GET, POST } from '../route';
@@ -149,6 +155,9 @@ describe('POST /api/assistente', () => {
       'consultar_dados',
       'propor_lancamento',
       'propor_evento',
+      'propor_comentario',
+      'propor_cor',
+      'propor_orcamento',
     ]);
     expect(req.reasoning).toBe('none');
     expect(mocks.registrarMensagem).toHaveBeenCalledWith(
@@ -696,5 +705,79 @@ describe('POST /api/assistente', () => {
     expect(mocks.registrarMensagem).toHaveBeenCalledWith(
       expect.objectContaining({ resposta: null, erro: 'rate' }),
     );
+  });
+});
+
+describe('POST /api/assistente — ajustes (comentário, cor, orçado)', () => {
+  beforeEach(() => {
+    mocks.requireAuthWithActing.mockResolvedValue(user);
+    mocks.assistenteHabilitado.mockReturnValue(true);
+    mocks.usoMensal.mockResolvedValue(uso);
+    mocks.buildContextoUsuario.mockResolvedValue('{"ano":2026}');
+    mocks.registrarMensagem.mockResolvedValue('msg-1');
+  });
+  afterEach(() => vi.clearAllMocks());
+
+  const chamadaCor = (input: Record<string, unknown>) =>
+    llmText('', {
+      stopReason: 'tool_use',
+      toolCalls: [{ id: 'c1', name: 'propor_cor', input }],
+    });
+
+  it('propor_cor vira cartão de ajuste com confirmação (sem lançamento nem evento)', async () => {
+    mocks.complete.mockResolvedValue(chamadaCor({ linha: 'Gás', cor: 'red', mes: 8 }));
+    mocks.montarPropostaCor.mockResolvedValue({
+      ok: true,
+      token: 'tok.assinado',
+      proposta: {
+        kind: 'ajuste',
+        tipo: 'cor',
+        id: 'p',
+        mensagemId: 'msg-1',
+        userId: 'u1',
+        itemId: 'i-gas',
+        itemNome: 'Gás',
+        grupoNome: 'Despesas > Habitação',
+        ano: 2026,
+        cor: 'red',
+        celulas: [{ mes: 8, antes: null }],
+        expiraEm: Date.now() + 60_000,
+      },
+    });
+    const res = await POST(post({ mensagem: 'pinta de vermelho o gás de setembro' }));
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(mocks.montarPropostaCor).toHaveBeenCalledWith(
+      'u1',
+      'msg-1',
+      { linha: 'Gás', cor: 'red', mes: 8 },
+      { anoPlanilha: undefined },
+    );
+    expect(body.ajustes).toHaveLength(1);
+    expect(body.ajustes[0]).toMatchObject({ tipo: 'cor', titulo: 'Cor · Pago', linha: 'Gás' });
+    expect(body.resposta).toContain('Confirma?');
+    expect(body.eventos).toBeUndefined();
+    expect(mocks.registrarMensagem).toHaveBeenCalledWith(
+      expect.objectContaining({ motor: 'ia+t', propostaGerada: true }),
+    );
+  });
+
+  it('cor fora da legenda não chega a montar: explica a legenda', async () => {
+    mocks.complete.mockResolvedValue(chamadaCor({ linha: 'Gás', cor: 'rosa' }));
+    const body = await (await POST(post({ mensagem: 'pinta de rosa o gás' }))).json();
+    expect(mocks.montarPropostaCor).not.toHaveBeenCalled();
+    expect(body.ajustes).toBeUndefined();
+    expect(body.resposta).toMatch(/legenda/);
+  });
+
+  it('motivo da montagem (linha não encontrada) vira a resposta', async () => {
+    mocks.complete.mockResolvedValue(chamadaCor({ linha: 'Academia', cor: 'red' }));
+    mocks.montarPropostaCor.mockResolvedValue({
+      ok: false,
+      motivo: 'Não encontrei uma linha parecida com "Academia".',
+      alternativas: [],
+    });
+    const body = await (await POST(post({ mensagem: 'pinta a academia' }))).json();
+    expect(body.resposta).toBe('Não encontrei uma linha parecida com "Academia".');
   });
 });

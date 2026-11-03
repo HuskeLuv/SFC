@@ -8,6 +8,7 @@
  * Um token    → { ok, resumo, itemId, celulas, ano }           (formato original)
  * Vários      → { ok, resumo, itens: [{ ok, linha, resumo | error, itemId?, celulas?, ano? }] }
  * tokenEvento → { ok, resumo, evento }                          (compromisso na Agenda)
+ * tokenAjuste → { ok, resumo }                                  (comentário, cor ou orçado)
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -26,6 +27,11 @@ import {
   type ResultadoAplicacao,
 } from '@/services/assistente/lancamento';
 import { aplicarPropostaEvento, verificarPropostaEvento } from '@/services/assistente/evento';
+import {
+  ErroAjuste,
+  aplicarPropostaAjuste,
+  verificarPropostaAjuste,
+} from '@/services/assistente/ajustes';
 
 const tokenSchema = z.string().min(20).max(8000);
 const confirmarSchema = z.union([
@@ -33,6 +39,8 @@ const confirmarSchema = z.union([
   z.object({ tokens: z.array(tokenSchema).min(1).max(MAX_LANCAMENTOS_POR_MENSAGEM) }),
   // Compromisso na Agenda: um por confirmação (cada cartão tem o seu botão).
   z.object({ tokenEvento: tokenSchema }),
+  // Comentário, cor ou orçado: um por confirmação (cada cartão tem o seu botão).
+  z.object({ tokenAjuste: tokenSchema }),
 ]);
 
 function brl(n: number): string {
@@ -73,6 +81,22 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       resumo: `Marquei "${evento.titulo}" na agenda em ${quando}. Dá para desfazer em Histórico.`,
       evento,
     });
+  }
+
+  // Ajuste (comentário, cor ou orçado).
+  if ('tokenAjuste' in parsed.data) {
+    const proposta = verificarPropostaAjuste(parsed.data.tokenAjuste, auth.targetUserId);
+    if (!proposta) {
+      throw new ApiError(400, 'Proposta inválida ou expirada. Peça de novo ao assistente.');
+    }
+    try {
+      const { resumo } = await aplicarPropostaAjuste(auth, request, proposta);
+      if (proposta.mensagemId) await marcarPropostaConfirmada(proposta.mensagemId);
+      return NextResponse.json({ ok: true, resumo, tipo: proposta.tipo });
+    } catch (error: unknown) {
+      if (error instanceof ErroAjuste) throw new ApiError(409, error.message);
+      throw error;
+    }
   }
 
   // Um token só: comportamento original.

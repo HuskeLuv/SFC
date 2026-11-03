@@ -156,6 +156,7 @@ const ACTION_RENDERERS: Record<string, Renderer> = {
     (l) => `Registrou lançamento recorrente em ${l}`,
   ),
   'comentario.editar': withLabel('Editou um comentário', (l) => `Editou comentário de ${l}`),
+  'cor.editar': withLabel('Mudou a cor de células do fluxo de caixa', (l) => `Mudou a cor de ${l}`),
   'lancamento.editar': withLabel('Editou um lançamento', (l) => `Editou o lançamento ${l}`),
   'lancamento.excluir': withLabel('Excluiu um lançamento', (l) => `Excluiu o lançamento ${l}`),
   'fluxo.importar-planilha': withLabel(

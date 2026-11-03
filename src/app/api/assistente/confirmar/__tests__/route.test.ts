@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   aplicarPropostas: vi.fn(),
   verificarPropostaEvento: vi.fn(),
   aplicarPropostaEvento: vi.fn(),
+  verificarPropostaAjuste: vi.fn(),
+  aplicarPropostaAjuste: vi.fn(),
 }));
 
 vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mocks.requireAuthWithActing }));
@@ -36,7 +38,17 @@ vi.mock('@/services/assistente/evento', async (importOriginal) => {
   };
 });
 
+vi.mock('@/services/assistente/ajustes', async (importOriginal) => {
+  const orig = await importOriginal<typeof import('@/services/assistente/ajustes')>();
+  return {
+    ...orig,
+    verificarPropostaAjuste: mocks.verificarPropostaAjuste,
+    aplicarPropostaAjuste: mocks.aplicarPropostaAjuste,
+  };
+});
+
 import { POST } from '../route';
+import { ErroAjuste } from '@/services/assistente/ajustes';
 
 const user = {
   payload: { id: 'u1', email: 'a@b.c', role: 'user' },
@@ -303,5 +315,44 @@ describe('POST /api/assistente/confirmar', () => {
         (await POST(post({ tokens: Array.from({ length: 21 }, (_, i) => tok(i)) }))).status,
       ).toBe(400);
     });
+  });
+});
+
+describe('POST /api/assistente/confirmar — tokenAjuste', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.requireAuthWithActing.mockResolvedValue(user);
+    mocks.assistenteHabilitado.mockReturnValue(true);
+  });
+
+  it('grava o ajuste confirmado e marca a métrica', async () => {
+    mocks.verificarPropostaAjuste.mockReturnValue({ tipo: 'cor', mensagemId: 'msg-7' });
+    mocks.aplicarPropostaAjuste.mockResolvedValue({ resumo: 'Marquei "Gás" como Pago.' });
+    const res = await POST(post({ tokenAjuste: 'a'.repeat(30) }));
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(body).toEqual({ ok: true, resumo: 'Marquei "Gás" como Pago.', tipo: 'cor' });
+    expect(mocks.marcarPropostaConfirmada).toHaveBeenCalledWith('msg-7');
+    expect(mocks.aplicarProposta).not.toHaveBeenCalled();
+  });
+
+  it('token inválido → 400; falha esperada da gravação → 409 com a mensagem', async () => {
+    mocks.verificarPropostaAjuste.mockReturnValue(null);
+    expect((await POST(post({ tokenAjuste: 'a'.repeat(30) }))).status).toBe(400);
+
+    mocks.verificarPropostaAjuste.mockReturnValue({ tipo: 'orcamento', mensagemId: '' });
+    mocks.aplicarPropostaAjuste.mockRejectedValue(new ErroAjuste('Não está ativo.'));
+    const res = await POST(post({ tokenAjuste: 'a'.repeat(30) }));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe('Não está ativo.');
+  });
+
+  it('consultor não confirma ajuste (403)', async () => {
+    mocks.requireAuthWithActing.mockResolvedValue({
+      ...user,
+      actingClient: { id: 'u1', consultantId: 'c1' },
+    });
+    expect((await POST(post({ tokenAjuste: 'a'.repeat(30) }))).status).toBe(403);
+    expect(mocks.aplicarPropostaAjuste).not.toHaveBeenCalled();
   });
 });

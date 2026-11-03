@@ -59,7 +59,7 @@ export const REGRAS_ASSISTENTE = [
   'específicos, nem "onde investir". Explique conceitos em termos gerais, mostre os números do próprio',
   'usuário e sugira um profissional habilitado para recomendação personalizada.',
   '',
-  'Registrar no fluxo de caixa (única ação que você pode propor):',
+  'Registrar no fluxo de caixa:',
   '- Quando o usuário pedir para registrar, lançar ou anotar um gasto ou uma receita, chame a ferramenta',
   '  propor_lancamento com o valor, a linha, o grupo e o mês.',
   '- Escolha a linha em linhasDoFluxo (se não veio, consulte a seção linhasDoFluxo antes), que é o',
@@ -96,6 +96,24 @@ export const REGRAS_ASSISTENTE = [
   '- Nunca diga que registrou. O app mostra um cartão e o usuário confirma; só então grava.',
   '- Aportes, resgates, dívidas e objetivos ainda não podem ser registrados por aqui: explique que o',
   '  usuário faz na tela correspondente (Carteira, Dívidas, Planejamento).',
+  '',
+  'Comentário, cor e orçamento no fluxo de caixa (também com confirmação):',
+  '- Comentário numa célula ("anota que esse curso foi DET", "comenta na luz de setembro..."): chame',
+  '  propor_comentario com a linha, o grupo, o mês e o texto. acao "acrescentar" (padrão) junta ao',
+  '  comentário que já existe; "substituir" quando ele mandar trocar/editar; "apagar" para tirar.',
+  '  Sem mês dito, é o mês atual; "esse curso"/"esse gasto" = a linha e o mês de que vocês falavam.',
+  '- Cor da célula: só existem as cores da legenda do fluxo, cada uma com um significado: vermelho =',
+  '  Pago (cor "red"), verde = Recebido ("green"), azul = Lançamento Futuro ("blue"), amarelo/dourado',
+  '  = Cartão crédito ("yellow"), preto = Pagar/Receber ("black"); "nenhuma" tira a cor. "Marca como',
+  '  pago" = red. Chame propor_cor com a linha, o grupo e o mês (ou mesInicio/mesFim para vários).',
+  '  Se ele pedir outra cor (rosa, laranja...), explique a legenda e pergunte qual delas quer.',
+  '- Orçamento: o orçamento é por SUBCATEGORIA (as linhas de despesa, ex.: Cinema dentro de Lazer) e',
+  '  por mês; o da categoria é a soma das subcategorias. Para definir, chame propor_orcamento com a',
+  '  subcategoria, a categoria, o valor e o mês (sem mês = mês atual; "todo mês"/"daqui até o fim do',
+  '  ano" = mesInicio/mesFim). Se ele der um valor para a categoria inteira ("orçamento de Lazer',
+  '  3.000"), pergunte em qual subcategoria colocar (ou na Geral da categoria), lembrando que o total',
+  '  da categoria é a soma.',
+  '- Nunca diga que já fez: o app mostra um cartão e só grava quando o usuário confirma.',
   '',
   'Marcar na Agenda (segunda ação que você pode propor):',
   '- Quando o usuário pedir para marcar, lembrar ou anotar um COMPROMISSO com data ("marca dia 10 que',
@@ -251,6 +269,111 @@ export const TOOL_PROPOR_LANCAMENTO: LlmTool = {
       },
     },
     required: ['tipo', 'linha', 'valor'],
+    additionalProperties: false,
+  },
+};
+
+const LINHA_DO_FLUXO = {
+  linha: {
+    type: 'string',
+    description: 'Nome da linha, copiado do catálogo linhasDoFluxo (ex.: "Cursos", "Gás").',
+  },
+  grupo: {
+    type: 'string',
+    description:
+      'Grupo da linha no catálogo, último nome da trilha (ex.: "Educação", "Habitação").',
+  },
+  tipo: {
+    type: 'string',
+    enum: ['despesa', 'entrada'],
+    description: 'Se a linha é de gasto ou de receita, quando souber.',
+  },
+  ano: {
+    type: 'integer',
+    description: 'Ano, só se o usuário disser. Omitir = ano que ele está vendo na planilha.',
+  },
+} as const;
+
+const MES_SCHEMA = {
+  type: 'integer',
+  minimum: 0,
+  maximum: 11,
+  description: 'Mês de 0 (janeiro) a 11 (dezembro). Omitir = mês atual.',
+} as const;
+
+export const TOOL_PROPOR_COMENTARIO: LlmTool = {
+  name: 'propor_comentario',
+  description:
+    'Propõe colocar, editar ou apagar o comentário de uma célula (linha × mês) do fluxo de caixa. ' +
+    'Não muda o valor. O app pede confirmação antes de gravar.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      ...LINHA_DO_FLUXO,
+      mes: MES_SCHEMA,
+      comentario: { type: 'string', description: 'Texto do comentário (vazio só com apagar).' },
+      acao: {
+        type: 'string',
+        enum: ['acrescentar', 'substituir', 'apagar'],
+        description:
+          'acrescentar (padrão) junta ao comentário atual; substituir troca; apagar remove.',
+      },
+    },
+    required: ['linha'],
+    additionalProperties: false,
+  },
+};
+
+export const TOOL_PROPOR_COR: LlmTool = {
+  name: 'propor_cor',
+  description:
+    'Propõe mudar a cor de uma ou mais células (linha × mês) do fluxo de caixa, só com as cores ' +
+    'da legenda: red = Pago, green = Recebido, blue = Lançamento Futuro, yellow = Cartão crédito, ' +
+    'black = Pagar/Receber, nenhuma = sem cor. O app pede confirmação antes de gravar.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      ...LINHA_DO_FLUXO,
+      cor: {
+        type: 'string',
+        enum: ['red', 'green', 'blue', 'yellow', 'black', 'nenhuma'],
+        description: 'Cor da legenda do fluxo.',
+      },
+      mes: MES_SCHEMA,
+      mesInicio: { ...MES_SCHEMA, description: 'Primeiro mês de um intervalo (0 = janeiro).' },
+      mesFim: { ...MES_SCHEMA, description: 'Último mês de um intervalo (11 = dezembro).' },
+    },
+    required: ['linha', 'cor'],
+    additionalProperties: false,
+  },
+};
+
+export const TOOL_PROPOR_ORCAMENTO: LlmTool = {
+  name: 'propor_orcamento',
+  description:
+    'Propõe definir o orçado (R$) de uma subcategoria de despesa no Orçamento, num mês ou num ' +
+    'intervalo de meses. O app pede confirmação antes de gravar.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      subcategoria: {
+        type: 'string',
+        description: 'Linha de despesa do catálogo linhasDoFluxo (ex.: "Cinema", "Geral").',
+      },
+      categoria: {
+        type: 'string',
+        description: 'Categoria da subcategoria, último nome da trilha (ex.: "Lazer").',
+      },
+      valor: { type: 'number', description: 'Orçado do mês em reais (0 zera).' },
+      mes: MES_SCHEMA,
+      mesInicio: { ...MES_SCHEMA, description: 'Primeiro mês de um intervalo (0 = janeiro).' },
+      mesFim: { ...MES_SCHEMA, description: 'Último mês de um intervalo (11 = dezembro).' },
+      ano: {
+        type: 'integer',
+        description: 'Ano, só se o usuário disser. Omitir = ano que ele está vendo na planilha.',
+      },
+    },
+    required: ['subcategoria', 'valor'],
     additionalProperties: false,
   },
 };

@@ -68,6 +68,7 @@ describe('UNDO_REGISTRY', () => {
       'valor.editar',
       'valores.editar-recorrente',
       'comentario.editar',
+      'cor.editar',
       'item.criar',
       'item.editar',
       'item.excluir',

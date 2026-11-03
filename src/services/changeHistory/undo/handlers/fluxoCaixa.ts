@@ -211,6 +211,49 @@ const comentarioEditar: UndoDefinition = {
   },
 };
 
+interface CelulaCor {
+  month: number;
+  before: string | null;
+  after: string | null;
+}
+
+/**
+ * Cor de células pintadas pelo assistente (snapshot 'cashflow-cores', cor antes/depois por mês).
+ * Volta cada célula que AINDA está com a cor gravada (repintada depois é preservada); nenhuma
+ * restaurável = conflito. A cor não mexe em valor: sem recálculo de snapshots.
+ */
+const corEditar: UndoDefinition = {
+  strategy: 'custom',
+  requires: { entityId: true, snapshot: true },
+  precheck(entry) {
+    return getSnapshot(entry)?.kind === 'cashflow-cores';
+  },
+  async execute({ auth, entry }: UndoContext): Promise<UndoOutcome> {
+    const { targetUserId } = auth;
+    const snap = getSnapshot(entry)!;
+    const itemId = snap.meta?.itemId;
+    const year = snap.meta?.year;
+    const celulas = (snap.data as { celulas?: CelulaCor[] }).celulas;
+    if (typeof itemId !== 'string' || typeof year !== 'number' || !Array.isArray(celulas)) {
+      throw new UndoError(400, 'Snapshot sem as células pintadas', 'UNDO_MISSING_DATA');
+    }
+    // `changes` foi gravado na mesma ordem das células (um par por célula pintada).
+    const restauradas = new Set<number>();
+    for (const [i, c] of celulas.entries()) {
+      const current = await prisma.cashflowValue.findFirst({
+        where: { itemId, userId: targetUserId, year, month: c.month },
+      });
+      if (!current || (current.color ?? null) !== c.after) continue;
+      await prisma.cashflowValue.update({ where: { id: current.id }, data: { color: c.before } });
+      restauradas.add(i);
+    }
+    if (restauradas.size === 0) throw new UndoError(409, STATE_MISMATCH_MESSAGE);
+    return {
+      changes: invertChanges(getChanges(entry)).filter((_, i) => restauradas.has(i)),
+    };
+  },
+};
+
 const itemCriar: UndoDefinition = {
   strategy: 'delete-created',
   requires: { entityId: true },
@@ -578,6 +621,7 @@ export const FLUXO_CAIXA_UNDO_HANDLERS: Record<string, UndoDefinition> = {
   'valor.editar': valorEditar,
   'valores.editar-recorrente': valoresEditarRecorrente,
   'comentario.editar': comentarioEditar,
+  'cor.editar': corEditar,
   'item.criar': itemCriar,
   'item.editar': itemEditar,
   'item.excluir': itemExcluir,

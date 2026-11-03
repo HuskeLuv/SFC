@@ -19,6 +19,7 @@ export type Intencao =
   | 'saude_financeira'
   | 'objetivos'
   | 'lancamento'
+  | 'ajuste_fluxo'
   | 'conceito'
   | 'navegacao'
   | 'recomendacao_investimento'
@@ -43,6 +44,12 @@ const REGRAS: Array<{ intencao: Intencao; re: RegExp }> = [
     // Agenda (16/09/2026): parcelas, vencimentos de RF, proventos e IR têm data no app.
     intencao: 'vencimentos',
     re: /\bvence(m|r|ndo)?\b|vencimento|agenda|proxim(a|o)s? (parcela|pagamento|vencimento)/,
+  },
+  {
+    // Comentário, cor ou orçado no fluxo (ticket 86e2wwqxm): "comenta que foi DET", "pinta de
+    // vermelho", "marca como pago", "lança um orçamento de 200 em cinema".
+    intencao: 'ajuste_fluxo',
+    re: /comenta|\bcor\b|pint(a|e|ar|ou)\b|colori|marc\w* como (pago|recebido)|(defin|coloc|lanc|poe|bota|muda|ajust)\w*.{0,30}\borcamento|\borcamento de .{0,30}\d/,
   },
   {
     // Verbo de registro + um número: "gastei 45,90", "registra 1.000 em ITSA4".
