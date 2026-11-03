@@ -12,6 +12,9 @@
  *    JÁ tem o ativo, só vincula (não duplica a posição);
  *  - renda fixa bancária vira Asset 'bond' + FixedIncomeAsset (marcação na
  *    curva pela taxa/indexador contratados, como o wizard);
+ *  - debênture (DEBENTURES/CORPORATE_DEBT) entra como a debênture do wizard, na
+ *    curva a partir da data da compra; CDB/LC pós até 100% do CDI entra com
+ *    liquidez diária (o Open Finance não manda o prazo de resgate);
  *  - fundo/previdência: pelo CNPJ no catálogo CVM quando existir; senão ativo
  *    manual cujo "valor atual" segue o saldo do banco;
  *  - empréstimo vira Dívida (financiamento) com espelho no fluxo de caixa;
@@ -88,6 +91,7 @@ export function mapInvestment(i: Investment, connectionId: string, userId: strin
     rateType: (x.rateType as string | undefined) ?? null,
     fixedAnnualRate: num(x.fixedAnnualRate),
     issueDate: dt(x.issueDate),
+    purchaseDate: dt(x.purchaseDate),
     dueDate: dt(x.dueDate),
     issuer: (x.issuer as string | undefined) ?? null,
     // Fora de chaveInvestimento: o CNPJ não pode mudar a identidade da posição.
@@ -138,6 +142,13 @@ export function mapLoan(l: Loan, connectionId: string, userId: string) {
 // ---------------------------------------------------------------------------
 
 const LISTADOS = new Set(['EQUITY', 'ETF']);
+/**
+ * Debênture e crédito privado: o Pluggy manda DEBENTURES / CORPORATE_DEBT (o
+ * 'DEBENTURE' no singular nunca chegou, e as debêntures caíam em "cadastre à
+ * mão" — ticket 86e3x9801). Entram como a debênture do wizard: tipo CDB_*,
+ * marcada na curva pela taxa contratada.
+ */
+export const SUBTIPOS_DEBENTURE = new Set(['DEBENTURES', 'CORPORATE_DEBT', 'DEBENTURE']);
 const RF_BANCARIA = new Set([
   'CDB',
   'LCI',
@@ -147,15 +158,36 @@ const RF_BANCARIA = new Set([
   'LF',
   'CRI',
   'CRA',
-  'DEBENTURE',
   'LIG',
+  ...SUBTIPOS_DEBENTURE,
 ]);
 const ISENTOS = new Set(['LCI', 'LCA', 'CRI', 'CRA', 'LIG']);
 
 export function tipoRendaFixa(subtype: string | null, rateType: string | null): FixedIncomeType {
-  const base = subtype && RF_BANCARIA.has(subtype) && subtype !== 'DEBENTURE' ? subtype : 'CDB';
+  const base =
+    subtype && RF_BANCARIA.has(subtype) && !SUBTIPOS_DEBENTURE.has(subtype) ? subtype : 'CDB';
   const hib = rateType === 'IPCA';
   return `${base}_${hib ? 'HIB' : 'PRE'}` as FixedIncomeType;
+}
+
+/**
+ * Liquidez da renda fixa bancária importada. O Open Finance não informa o prazo
+ * de resgate; sem ele, a aplicação ia para "acima de D+360" pelo vencimento,
+ * inclusive o CDB de liquidez diária (ticket 86e3vxd5r). Regra de mercado: CDB/LC/RDB
+ * pós-fixado que paga até 100% do CDI é o de liquidez diária (BTG, Itaú, XP...);
+ * acima disso, ou prefixado/IPCA, o resgate é no vencimento (null = pelo vencimento).
+ */
+const SUBTIPOS_LIQUIDEZ_DIARIA = new Set(['CDB', 'LC', 'RDB']);
+export function liquidezRendaFixaPluggy(
+  subtype: string | null,
+  rateType: string | null,
+  rate: number | null,
+): 'DAILY' | null {
+  if (!subtype || !SUBTIPOS_LIQUIDEZ_DIARIA.has(subtype)) return null;
+  const t = (rateType ?? '').toUpperCase();
+  if (!t.includes('CDI') && !t.includes('SELIC')) return null;
+  const pct = rate && rate > 0 ? rate : 100;
+  return pct <= 100 ? 'DAILY' : null;
 }
 
 export function indexadorRendaFixa(
@@ -169,7 +201,10 @@ export function indexadorRendaFixa(
   if (t.includes('CDI') || t.includes('SELIC')) {
     return { indexer: 'CDI', indexerPercent: rate && rate > 0 ? rate : 100, annualRate: 0 };
   }
-  return { indexer: 'PRE', indexerPercent: null, annualRate: rate ?? fixedAnnualRate ?? 0 };
+  // Prefixado: o banco manda a taxa em fixedAnnualRate e rate = 0 (CDB Pine 14,85% entrava
+  // rendendo 0%).
+  const taxa = fixedAnnualRate && fixedAnnualRate > 0 ? fixedAnnualRate : rate;
+  return { indexer: 'PRE', indexerPercent: null, annualRate: taxa ?? 0 };
 }
 
 /**
@@ -577,7 +612,11 @@ export async function importarInvestimento(
         inv.rate,
         inv.fixedAnnualRate,
       );
-      const start = inv.issueDate ?? inv.providerDate ?? agora;
+      // Debênture é comprada no secundário: issueDate é a emissão do papel (NTEN11 = 2020),
+      // não a compra do cliente. Curva a partir da emissão inflava o valor.
+      const debenture = SUBTIPOS_DEBENTURE.has(inv.subtype ?? '');
+      const start =
+        (debenture ? inv.purchaseDate : null) ?? inv.issueDate ?? inv.providerDate ?? agora;
       let maturity = inv.dueDate;
       if (!maturity || maturity <= start) {
         maturity = new Date(start);
@@ -652,7 +691,9 @@ export async function importarInvestimento(
             annualRate,
             indexer,
             indexerPercent,
-            liquidityType: null,
+            liquidityType: tesouro
+              ? null
+              : liquidezRendaFixaPluggy(inv.subtype, inv.rateType, inv.rate),
             // Tesouro nunca é isento (tabela regressiva).
             taxExempt: !tesouro && ISENTOS.has(inv.subtype ?? ''),
             tesouroBondType: tesouro?.bondType ?? null,

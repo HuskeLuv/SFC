@@ -43,6 +43,7 @@ import {
   importarEmprestimo,
   importarInvestimento,
   indexadorRendaFixa,
+  liquidezRendaFixaPluggy,
   mapLoan,
   posicaoDesatualizada,
   prazoMesesDivida,
@@ -68,6 +69,7 @@ const base = {
   rateType: null,
   fixedAnnualRate: null,
   issueDate: new Date('2026-01-10T00:00:00Z'),
+  purchaseDate: null,
   dueDate: new Date('2028-01-10T00:00:00Z'),
   issuer: 'Banco do Pluggy',
   issuerCnpj: null,
@@ -126,6 +128,25 @@ describe('mapeamentos', () => {
       indexerPercent: null,
       annualRate: 12,
     });
+    // prefixado do banco: rate = 0 e a taxa em fixedAnnualRate (CDB Pine 14,85%)
+    expect(indexadorRendaFixa('', 0, 14.85)).toEqual({
+      indexer: 'PRE',
+      indexerPercent: null,
+      annualRate: 14.85,
+    });
+    expect(tipoRendaFixa('DEBENTURES', 'IPCA')).toBe('CDB_HIB');
+    expect(tipoRendaFixa('CORPORATE_DEBT', null)).toBe('CDB_PRE');
+  });
+
+  it('liquidez da renda fixa: CDB até 100% do CDI é diária; o resto, pelo vencimento', () => {
+    expect(liquidezRendaFixaPluggy('CDB', 'CDI', 100)).toBe('DAILY');
+    expect(liquidezRendaFixaPluggy('CDB', 'SELIC', 0)).toBe('DAILY');
+    expect(liquidezRendaFixaPluggy('LC', 'CDI', 98)).toBe('DAILY');
+    expect(liquidezRendaFixaPluggy('CDB', 'CDI', 122)).toBeNull();
+    expect(liquidezRendaFixaPluggy('CDB', 'IPCA', 100)).toBeNull();
+    expect(liquidezRendaFixaPluggy('CDB', '', 0)).toBeNull();
+    expect(liquidezRendaFixaPluggy('LCA', 'CDI', 99)).toBeNull();
+    expect(liquidezRendaFixaPluggy('DEBENTURES', 'CDI', 100)).toBeNull();
   });
 
   it('dívida: tipo, taxa a.a.→a.m., prazo e indexador', () => {
@@ -335,6 +356,8 @@ describe('importarInvestimento', () => {
         startDate: new Date('2026-01-10T00:00:00Z'),
         maturityDate: new Date('2028-01-10T00:00:00Z'),
         taxExempt: false,
+        // 150% do CDI: resgate no vencimento
+        liquidityType: null,
         // emissor 'Banco do Pluggy' não está no catálogo: fica para a corretora
         emissorInstitutionId: null,
       }),
@@ -343,6 +366,80 @@ describe('importarInvestimento', () => {
       data: expect.objectContaining({ quantity: 1, avgPrice: 2000, totalInvested: 2000 }),
     });
     expect(mockRecalc).not.toHaveBeenCalled();
+  });
+
+  it('CDB 100% CDI entra com liquidez diária (balanço: até D+360)', async () => {
+    await importarInvestimento({
+      ...base,
+      type: 'FIXED_INCOME',
+      subtype: 'CDB',
+      name: 'CDB - BANCO BTG PACTUAL S.A.',
+      code: 'CDBC252TACK',
+      rate: 100,
+      rateType: 'CDI',
+    });
+    expect(mockPrisma.tx.fixedIncomeAsset.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ liquidityType: 'DAILY' }),
+    });
+  });
+
+  it('debênture (DEBENTURES) entra sozinha na curva, a partir da data da compra', async () => {
+    const st = await importarInvestimento({
+      ...base,
+      type: 'FIXED_INCOME',
+      subtype: 'DEBENTURES',
+      name: 'DEBENTURES - BANCO BTG PACTUAL S.A.',
+      code: 'NTEN11',
+      isin: 'BRNTENDBS005',
+      issuer: 'BANCO BTG PACTUAL S.A.',
+      balance: 23813.7,
+      quantity: 24,
+      amountOriginal: 29584.21,
+      rate: 100,
+      rateType: 'IPCA',
+      fixedAnnualRate: 8.55,
+      issueDate: new Date('2020-05-15T03:00:00Z'),
+      purchaseDate: new Date('2023-03-10T03:00:00Z'),
+      dueDate: new Date('2030-05-15T03:00:00Z'),
+    });
+    expect(st).toBe('importado');
+    expect(mockPrisma.tx.fixedIncomeAsset.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: 'CDB_HIB',
+        indexer: 'IPCA',
+        indexerPercent: 100,
+        annualRate: 8.55,
+        investedAmount: 29584.21,
+        startDate: new Date('2023-03-10T03:00:00Z'),
+        liquidityType: null,
+        taxExempt: false,
+        // a corretora (BTG) não é emissora da debênture
+        emissorInstitutionId: null,
+      }),
+    });
+  });
+
+  it('debênture sem data da compra usa a emissão', async () => {
+    await importarInvestimento({
+      ...base,
+      type: 'FIXED_INCOME',
+      subtype: 'DEBENTURES',
+      name: 'DEBENTURES - BANCO BTG PACTUAL S.A.',
+      code: 'BTGL32',
+      rate: 0,
+      rateType: null,
+      fixedAnnualRate: 13.99,
+      issueDate: new Date('2026-07-15T03:00:00Z'),
+      dueDate: new Date('2036-07-15T03:00:00Z'),
+    });
+    expect(mockPrisma.tx.fixedIncomeAsset.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: 'CDB_PRE',
+        indexer: 'PRE',
+        annualRate: 13.99,
+        startDate: new Date('2026-07-15T03:00:00Z'),
+      }),
+    });
   });
 
   describe('Tesouro Direto', () => {
