@@ -13,6 +13,7 @@ import {
   overrideEfetivo,
   type CategoriaMovivel,
 } from '@/lib/carteiraMover';
+import { ApiError } from '@/utils/apiErrorHandler';
 import { filtrarDaCategoria, whereWatchlistDaCategoria } from './categoriaAba';
 
 /**
@@ -37,6 +38,10 @@ import { filtrarDaCategoria, whereWatchlistDaCategoria } from './categoriaAba';
  * mesmo formato e, na compra, a rota de operação REAPROVEITA esse Asset
  * quando o ticker/nome digitado bate (`encontrarPlanejadoManual`), em vez de
  * criar outro — assim a absorção por assetId funciona.
+ *
+ * ETF americano (nov/2026, docs/carteira-eua-dolar/etf/desenho.json): também manual (sentinela
+ * ETF-MANUAL), Asset etf/USD no mesmo formato de símbolo. O ETF da B3 continua no catálogo;
+ * `assertTickerNaoEhEtfB3` barra o ticker da B3 digitado à mão (compra e planejado).
  */
 
 /** Tipos de `Asset.type` que cada aba aceita como planejado. */
@@ -85,7 +90,10 @@ export const SECOES_POR_ABA: Record<AbaPlanejavel, readonly string[]> = {
  * Tipos de operação cujo Asset NÃO vem de catálogo: ao planejar, o Asset é
  * criado aqui (`criarAssetPlanejadoManual`) a partir do ticker/nome digitado.
  */
-export const TIPOS_OPERACAO_MANUAIS_PLANEJAVEIS = ['stock', 'reit', 'fundo'] as const;
+export const TIPOS_OPERACAO_MANUAIS_PLANEJAVEIS = ['stock', 'reit', 'fundo', 'etf'] as const;
+
+/** Tipo de operação com Asset manual (sem catálogo) planejável. */
+export type TipoOperacaoManualPlanejavel = (typeof TIPOS_OPERACAO_MANUAIS_PLANEJAVEIS)[number];
 
 const ALL_PLANEJAVEL_TYPES = new Set<string>(Object.values(TIPOS_ATIVO_PLANEJAVEIS).flat());
 
@@ -201,11 +209,17 @@ export function subtipoFundoPlanejado(row: PlanejadoComAsset): FundoSubtipo {
 }
 
 // ---------------------------------------------------------------------------
-// Ativos MANUAIS (stock / reit / fundo): símbolo no MESMO formato da compra
+// Ativos MANUAIS (stock / reit / fundo / etf): símbolo no MESMO formato da compra
 // ---------------------------------------------------------------------------
 
+const FALLBACK_SIMBOLO_MANUAL: Record<Exclude<TipoOperacaoManualPlanejavel, 'fundo'>, string> = {
+  stock: 'STOCK',
+  reit: 'REIT',
+  etf: 'ETF',
+};
+
 /** Mesma sanitização que `/api/carteira/operacao` usa ao criar o Asset na compra. */
-export function prefixoSimboloManual(tipoOperacao: 'stock' | 'reit' | 'fundo', nome: string) {
+export function prefixoSimboloManual(tipoOperacao: TipoOperacaoManualPlanejavel, nome: string) {
   const limpo = nome.trim();
   if (tipoOperacao === 'fundo') {
     const safe =
@@ -219,28 +233,67 @@ export function prefixoSimboloManual(tipoOperacao: 'stock' | 'reit' | 'fundo', n
     limpo
       .replace(/[^a-zA-Z0-9]/g, '')
       .substring(0, 10)
-      .toUpperCase() || (tipoOperacao === 'stock' ? 'STOCK' : 'REIT');
+      .toUpperCase() || FALLBACK_SIMBOLO_MANUAL[tipoOperacao];
   return `${safe}-`;
 }
 
-const ASSET_TYPE_MANUAL: Record<'stock' | 'reit' | 'fundo', { type: string; currency: string }> = {
-  stock: { type: 'stock', currency: 'USD' },
-  reit: { type: 'reit', currency: 'USD' },
-  fundo: { type: 'fund', currency: 'BRL' },
-};
+/** Tipos cujo ticker digitado é normalizado em maiúsculas (nome = ticker). */
+const TICKER_EM_MAIUSCULAS = new Set<TipoOperacaoManualPlanejavel>(['stock', 'etf']);
+
+const ASSET_TYPE_MANUAL: Record<TipoOperacaoManualPlanejavel, { type: string; currency: string }> =
+  {
+    stock: { type: 'stock', currency: 'USD' },
+    reit: { type: 'reit', currency: 'USD' },
+    fundo: { type: 'fund', currency: 'BRL' },
+    // ETF americano: sempre em dólar (o da B3 vem do catálogo em R$).
+    etf: { type: 'etf', currency: 'USD' },
+  };
+
+/** Mensagem do guarda anti-B3 da entrada manual de ETF. */
+export const MSG_ETF_NEGOCIADO_NA_B3 = 'Este ETF é negociado na B3: escolha-o na busca';
+
+/** Ticker digitado → forma do catálogo: sem espaços, maiúsculas e sem o sufixo '.SA'. */
+export const normalizarTickerEtfDigitado = (ticker: string): string =>
+  ticker.trim().toUpperCase().replace(/\.SA$/, '');
 
 /**
- * Cria o Asset de um planejado manual (stock/REIT/fundo sem catálogo), com
+ * Guarda anti-B3 da entrada manual de ETF (compra ETF-MANUAL e planejado): o ticker digitado
+ * que bate com um ETF em R$ do catálogo (etf/etf-cvm com currency BRL) é da B3 e tem de vir da
+ * busca — senão nasceria um ETF em US$ com cotação de R$. Lança ApiError 400. Ticker terminado
+ * em '11' que não está no catálogo NÃO é barrado (decisão de 03/11/2026: só aviso no wizard).
+ */
+export async function assertTickerNaoEhEtfB3(
+  db: Pick<Prisma.TransactionClient, 'asset'> | typeof prisma,
+  ticker: string,
+): Promise<void> {
+  const normalizado = normalizarTickerEtfDigitado(ticker);
+  if (!normalizado) return;
+  const daB3 = await db.asset.findFirst({
+    where: {
+      type: { in: ['etf', 'etf-cvm'] },
+      currency: 'BRL',
+      OR: [
+        { symbol: { equals: normalizado, mode: 'insensitive' } },
+        { symbol: { equals: `${normalizado}.SA`, mode: 'insensitive' } },
+      ],
+    },
+    select: { id: true },
+  });
+  if (daB3) throw new ApiError(400, MSG_ETF_NEGOCIADO_NA_B3);
+}
+
+/**
+ * Cria o Asset de um planejado manual (stock/REIT/fundo/ETF americano sem catálogo), com
  * símbolo `PREFIXO-<timestamp>-<rnd>` — o mesmo formato da compra, para que
  * `extrairTicker` e as demais rotinas tratem igual. Nome limpo (sem o sufixo
  * "- R$ valor - data" da compra: não há valor).
  */
 export async function criarAssetPlanejadoManual(
-  tipoOperacao: 'stock' | 'reit' | 'fundo',
+  tipoOperacao: TipoOperacaoManualPlanejavel,
   nome: string,
 ): Promise<Asset> {
   const { type, currency } = ASSET_TYPE_MANUAL[tipoOperacao];
-  const limpo = tipoOperacao === 'stock' ? nome.trim().toUpperCase() : nome.trim();
+  const limpo = TICKER_EM_MAIUSCULAS.has(tipoOperacao) ? nome.trim().toUpperCase() : nome.trim();
   const symbol = `${prefixoSimboloManual(tipoOperacao, limpo)}${Date.now()}-${Math.random()
     .toString(36)
     .substring(2, 9)}`;
@@ -300,17 +353,26 @@ type TxLike = Pick<Prisma.TransactionClient, 'watchlist'>;
  */
 export async function encontrarPlanejadoManual(
   userId: string,
-  tipoOperacao: 'stock' | 'reit' | 'fundo',
+  tipoOperacao: TipoOperacaoManualPlanejavel,
   nome: string,
   db: Pick<Prisma.TransactionClient, 'watchlist'> | typeof prisma = prisma,
 ): Promise<PlanejadoComAsset | null> {
-  const { type } = ASSET_TYPE_MANUAL[tipoOperacao];
+  const { type, currency } = ASSET_TYPE_MANUAL[tipoOperacao];
   const prefixo = prefixoSimboloManual(
     tipoOperacao,
-    tipoOperacao === 'stock' ? nome.trim().toUpperCase() : nome,
+    TICKER_EM_MAIUSCULAS.has(tipoOperacao) ? nome.trim().toUpperCase() : nome,
   );
   const row = await db.watchlist.findFirst({
-    where: { userId, asset: { type, source: 'manual', symbol: { startsWith: prefixo } } },
+    where: {
+      userId,
+      asset: {
+        type,
+        source: 'manual',
+        symbol: { startsWith: prefixo },
+        // ETF: só o americano (USD) é manual; nunca casar um Asset etf em R$.
+        ...(tipoOperacao === 'etf' ? { currency } : {}),
+      },
+    },
     include: { asset: true },
     orderBy: { addedAt: 'asc' },
   });
