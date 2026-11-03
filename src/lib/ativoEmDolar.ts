@@ -7,7 +7,17 @@
  *  - Toda conversão decide pela unidade gravada: `posicaoEmDolar` (Portfolio) e
  *    `unidadeDaTransacao` (StockTransaction). Stock legado em R$ (sem marcador e sem
  *    moedaRegistro) nunca é convertido; REIT sempre foi gravado em US$.
- *  - Ações BR, BDR, crypto, moedas e ETF devolvem sempre 'BRL'/false aqui.
+ *  - ETF americano (nov/2026, docs/carteira-eua-dolar/etf/desenho.json): Asset etf com
+ *    currency 'USD' (ramo manual ETF-MANUAL). Segue o REIT no fallback (TIPOS_SEMPRE_EM_DOLAR):
+ *    não existe legado de ETF em US$ gravado em R$, e todo criador grava o marcador. O fallback
+ *    só protege transação/posição sem marcador (ex.: o stub do Desfazer antes do recálculo).
+ *  - ETF da B3 (IVVB11, BOVA11…) vem do catálogo com currency 'BRL' e fica em R$, mesmo com
+ *    regiaoEtf 'estados_unidos'. Região ou seção NUNCA decidem moeda.
+ *  - Ações BR, BDR, crypto, moedas, ETF BRL e etf-cvm devolvem sempre 'BRL'/false aqui.
+ *
+ * ATENÇÃO, criadores futuros de Asset etf/reit em 'USD': por causa do fallback, TODA transação
+ * TEM de gravar `notes.operation = marcadorOperacaoUsd(...)` e TODA posição `moedaRegistro`
+ * ('USD' ou 'BRL'). Sem isso, valores em R$ seriam lidos como US$.
  *
  * Puro (sem prisma): importável do cliente e do edge.
  */
@@ -19,7 +29,16 @@ export type UnidadeValor = 'BRL' | 'USD';
 export const MOEDA_REGISTRO_USD = 'USD' as const;
 
 /** Tipos de Asset que podem estar em dólar (sempre com currency 'USD'). */
-export const TIPOS_ATIVO_EM_DOLAR: ReadonlySet<string> = new Set(['stock', 'reit']);
+export const TIPOS_ATIVO_EM_DOLAR: ReadonlySet<string> = new Set(['stock', 'reit', 'etf']);
+
+/**
+ * Tipos em dólar que, sem marcador (transação) ou sem moedaRegistro (posição), estão em US$.
+ * Só o stock tem legado em R$; REIT e ETF sempre foram gravados em US$.
+ */
+export const TIPOS_SEMPRE_EM_DOLAR: ReadonlySet<string> = new Set(['reit', 'etf']);
+
+/** Sentinela do assetId do ETF americano manual (wizard → POST /api/carteira/operacao). */
+export const ETF_MANUAL_ASSET_ID = 'ETF-MANUAL' as const;
 
 /** Recorte mínimo do Asset que o teste precisa. */
 export interface AtivoMoedaRef {
@@ -58,7 +77,7 @@ export const marcadorOperacaoUsd = (cotacaoMoeda?: number | null): MarcadorOpera
       : null,
 });
 
-/** Stock EUA ou REIT com currency 'USD'. Só guarda: a conversão usa as funções abaixo. */
+/** Stock EUA, REIT ou ETF com currency 'USD'. Só guarda: a conversão usa as funções abaixo. */
 export const isAtivoEmDolar = (asset: AtivoMoedaRef | null | undefined): boolean =>
   !!asset && TIPOS_ATIVO_EM_DOLAR.has(asset.type ?? '') && asset.currency === 'USD';
 
@@ -86,7 +105,8 @@ const unidadeValida = (v: unknown): UnidadeValor | null => (v === 'USD' || v ===
  * Unidade em que price/total da transação estão gravados.
  *  - Ativo que não está em dólar: sempre 'BRL'.
  *  - Com marcador `notes.operation.unidade`: o marcador.
- *  - Sem marcador (ou notes ilegível): REIT = 'USD' (sempre gravado em US$); stock = 'BRL' (legado).
+ *  - Sem marcador (ou notes ilegível): REIT/ETF = 'USD' (sempre gravados em US$); stock = 'BRL'
+ *    (legado).
  * `fees` é sempre R$, em qualquer unidade.
  */
 export const unidadeDaTransacao = (
@@ -100,13 +120,13 @@ export const unidadeDaTransacao = (
       ? unidadeValida((operation as Record<string, unknown>).unidade)
       : null;
   if (marcador) return marcador;
-  return asset?.type === 'reit' ? 'USD' : 'BRL';
+  return TIPOS_SEMPRE_EM_DOLAR.has(asset?.type ?? '') ? 'USD' : 'BRL';
 };
 
 /**
  * Posição (Portfolio.avgPrice/totalInvested) gravada em US$?
  *  - moedaRegistro 'USD' em ativo em dólar: sim;
- *  - moedaRegistro null: REIT sim (sempre US$), stock não (legado em R$);
+ *  - moedaRegistro null: REIT/ETF sim (sempre US$), stock não (legado em R$);
  *  - ativo que não está em dólar: nunca.
  */
 export const posicaoEmDolar = (
@@ -116,5 +136,5 @@ export const posicaoEmDolar = (
   if (!isAtivoEmDolar(asset)) return false;
   const moedaRegistro = portfolio?.moedaRegistro ?? null;
   if (moedaRegistro === MOEDA_REGISTRO_USD) return true;
-  return moedaRegistro == null && asset?.type === 'reit';
+  return moedaRegistro == null && TIPOS_SEMPRE_EM_DOLAR.has(asset?.type ?? '');
 };
