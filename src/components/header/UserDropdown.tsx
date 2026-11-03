@@ -130,7 +130,7 @@ export default function UserDropdown() {
           </DropdownItem>
           <DropdownItem>
             <Link
-              href="/help"
+              href="/ajuda"
               className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
               onClick={closeDropdown}
             >

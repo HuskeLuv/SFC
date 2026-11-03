@@ -62,6 +62,11 @@ const nextConfig: NextConfig = {
     return config;
   },
 
+  // Link antigo do menu do usuário ("Ajuda" apontava para /help, que não existia).
+  async redirects() {
+    return [{ source: '/help', destination: '/ajuda', permanent: false }];
+  },
+
   // Configurações de headers
   async headers() {
     return [
