@@ -250,6 +250,52 @@ describe('importarInvestimento', () => {
     });
   });
 
+  it('ação sem custo do banco: compra pela cotação da conexão, marcada "preço médio não informado"', async () => {
+    mockPrisma.asset.findFirst.mockResolvedValue({
+      id: 'asset-ivvb',
+      symbol: 'IVVB11',
+      type: 'etf',
+    });
+    mockPrisma.portfolio.findFirst.mockResolvedValue(null);
+    await importarInvestimento({
+      ...base,
+      type: 'EQUITY',
+      subtype: 'ETF',
+      name: 'IVVB11',
+      code: 'IVVB11',
+      quantity: 40,
+      amountOriginal: null,
+      balance: 18880,
+    });
+    const data = mockPrisma.tx.stockTransaction.create.mock.calls[0][0].data;
+    expect(data.price).toBe(472);
+    expect(JSON.parse(data.notes)).toEqual({
+      observacoes: 'Importado do banco (Open Finance)',
+      operation: { action: 'compra', origem: 'open-finance', precoMedioNaoInformado: true },
+    });
+  });
+
+  it('com custo do banco (amountOriginal): compra sem o marcador', async () => {
+    mockPrisma.asset.findFirst.mockResolvedValue({
+      id: 'asset-bova',
+      symbol: 'BOVA11',
+      type: 'etf',
+    });
+    mockPrisma.portfolio.findFirst.mockResolvedValue(null);
+    await importarInvestimento({
+      ...base,
+      type: 'ETF',
+      subtype: 'ETF',
+      name: 'BOVA11',
+      code: 'BOVA11',
+      quantity: 10,
+      amountOriginal: 1190,
+    });
+    expect(mockPrisma.tx.stockTransaction.create.mock.calls[0][0].data.notes).toBe(
+      'Importado do banco (Open Finance)',
+    );
+  });
+
   it('FII do catálogo entra na seção do tipo vigente da CVM (papel → TVM)', async () => {
     mockPrisma.asset.findFirst.mockResolvedValue({
       id: 'asset-irim',
