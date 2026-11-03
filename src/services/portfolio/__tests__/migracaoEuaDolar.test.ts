@@ -65,7 +65,11 @@ describe('elegivelParaMigracao', () => {
     expect(elegivelParaMigracao(REIT)).toBe(true);
     expect(elegivelParaMigracao(PETR4)).toBe(false);
     expect(elegivelParaMigracao({ ...PETR4, symbol: 'PETR4-1700000000000-abc' })).toBe(false);
+    // ETF em US$ é isAtivoEmDolar desde nov/2026, mas não tem legado em R$: nunca migra.
     expect(elegivelParaMigracao({ ...STOCK, type: 'etf' })).toBe(false);
+    expect(
+      elegivelParaMigracao({ ...STOCK, type: 'etf', symbol: 'VOO-1730000000000-ab3cd11' }),
+    ).toBe(false);
     expect(elegivelParaMigracao({ ...STOCK, symbol: 'AAPL' })).toBe(false);
   });
 
@@ -73,6 +77,22 @@ describe('elegivelParaMigracao', () => {
     const plano = planejarMigracaoAsset(
       PETR4,
       [tx({ type: 'compra', price: 30, quantity: 100, notes: notesFx(5) })],
+      { serie: () => 5 },
+    );
+    expect(plano.status).toBe('pular');
+  });
+
+  it('ETF manual em US$ é pulado: o preço já em US$ nunca é dividido pelo câmbio', () => {
+    const etf: AssetMigracao = {
+      id: 'a-voo',
+      symbol: 'VOO-1730000000000-ab3cd11',
+      name: 'VOO - US$ 500 - 01/11/2026',
+      type: 'etf',
+      currency: 'USD',
+    };
+    const plano = planejarMigracaoAsset(
+      etf,
+      [tx({ type: 'compra', price: 500, quantity: 2, notes: notesFx(5) })],
       { serie: () => 5 },
     );
     expect(plano.status).toBe('pular');
