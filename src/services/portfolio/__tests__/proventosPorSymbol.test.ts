@@ -40,4 +40,22 @@ describe('proventosPorSymbol (auditoria 25/08 — B1/T2)', () => {
     expect(ativos[2].proventos).toBe(0);
     expect(ativos[2].rentabilidade).toBe(0);
   });
+
+  it('chave opcional: busca pelo symbol cru do ativo manual (ticker de exibição difere)', () => {
+    const ativos = [
+      {
+        ticker: 'VOO',
+        symbol: 'VOO-1730000000000-ab3cd11',
+        valorTotal: 1000,
+        valorAtualizado: 1000,
+        rentabilidade: 0,
+      },
+    ];
+    const mapa = new Map([['VOO-1730000000000-ab3cd11', 10]]);
+    aplicarProventosNosAtivos(ativos, mapa);
+    expect(ativos[0].proventos).toBe(0);
+    aplicarProventosNosAtivos(ativos, mapa, (a) => a.symbol);
+    expect(ativos[0].proventos).toBe(10);
+    expect(ativos[0].rentabilidade).toBeCloseTo(1, 6);
+  });
 });

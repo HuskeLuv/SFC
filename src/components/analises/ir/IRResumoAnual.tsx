@@ -61,7 +61,7 @@ export default function IRResumoAnual() {
             <IRSummaryCard
               label="IR total estimado no ano"
               value={formatBRL(data.irPorCategoria.total)}
-              subtext="Soma de RV-BR + Stocks US + Cripto + Come-cotas"
+              subtext="Soma de RV-BR + Stocks, REITs e ETFs EUA + Cripto + Come-cotas"
               color={
                 data.irPorCategoria.total > 0
                   ? 'text-amber-600 dark:text-amber-400'
@@ -75,7 +75,7 @@ export default function IRResumoAnual() {
               subtext="Ações / FII / ETF — DARF mensal"
             />
             <IRSummaryCard
-              label="Stocks US + REIT"
+              label="Stocks, REITs e ETFs EUA"
               value={formatBRL(data.irPorCategoria.stocksUs)}
               subtext="Ganho de capital em ME"
             />
@@ -146,7 +146,7 @@ export default function IRResumoAnual() {
                   data.rendimentos.exterior.semCambio > 0) && (
                   <div className="flex justify-between gap-3 border-b border-gray-100 py-1.5 dark:border-gray-800">
                     <dt className="text-gray-500 dark:text-gray-400">
-                      Exterior — Stocks/REITs EUA (tributável)
+                      Exterior — Stocks, REITs e ETFs EUA (tributável)
                     </dt>
                     <dd className="font-medium text-gray-900 dark:text-white">
                       <Sensivel curto>{formatBRL(data.rendimentos.exterior.total)}</Sensivel>

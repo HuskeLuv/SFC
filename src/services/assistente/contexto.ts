@@ -67,6 +67,14 @@ const ATIVO_KEEP = [
   'valorInicial',
   'cidade',
   'observacoes',
+  // ETF americano em US$ (nov/2026): os campos base da linha já vêm em R$ (a classe ETF é R$);
+  // os *USD (só na linha do ETF americano) são o valor nativo em dólar. `moedaRegistro` NÃO vai:
+  // é a unidade GRAVADA, e em Stocks o legado sai 'BRL' com valores exibidos em US$ — o mesmo
+  // campo teria sentidos opostos por classe. A classe ETF ganha `moeda`/`notaMoeda` em montarContexto.
+  'precoAquisicaoUSD',
+  'valorTotalUSD',
+  'cotacaoAtualUSD',
+  'valorAtualizadoUSD',
 ];
 
 /** Chave de `distribuicao` no resumo da carteira → rota de posições. */
@@ -692,6 +700,18 @@ export function montarContexto(raw: ContextoBruto, hoje: Date = new Date()): Jso
       c.moeda = 'USD';
       if (typeof eua.cotacaoDolar === 'number') c.cotacaoDolarHoje = round(eua.cotacaoDolar);
       if (typeof eua.totalBRL === 'number') c.totalEquivalenteBRL = round(eua.totalBRL);
+    }
+    // ETF com linha do ETF americano: a aba é R$ (inclusive o VOO, convertido pelo câmbio do
+    // dia) e os *USD são o nativo. Carteira só com ETF da B3 segue sem estes campos.
+    if (classe === 'etf') {
+      const etf = (d ?? {}) as { secoes?: Secao[]; ativos?: Json[]; cotacaoDolar?: unknown };
+      const linhas = [...(etf.secoes ?? []).flatMap((s) => s.ativos ?? []), ...(etf.ativos ?? [])];
+      if (linhas.some((a) => (a as Json).moedaRegistro === 'USD')) {
+        c.moeda = 'BRL';
+        c.notaMoeda =
+          'Valores em R$ (ETF americano convertido pelo câmbio do dia); campos terminados em USD = valor nativo em US$.';
+        if (typeof etf.cotacaoDolar === 'number') c.cotacaoDolarHoje = round(etf.cotacaoDolar);
+      }
     }
     posicoes[classe] = c;
   }

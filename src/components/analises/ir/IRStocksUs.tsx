@@ -42,12 +42,13 @@ export default function IRStocksUs() {
   const data = resposta as IRStocksUsDados | undefined;
   const isBelowLg = useIsBelowLg();
 
-  if (isLoading) return <LoadingSpinner text="Carregando apuração de Stocks US..." />;
+  if (isLoading)
+    return <LoadingSpinner text="Carregando apuração de Stocks, REITs e ETFs EUA..." />;
   if (error)
     return (
       <IRStateMessage
         variant="error"
-        title="Erro ao carregar Stocks US"
+        title="Erro ao carregar Stocks, REITs e ETFs EUA"
         description={(error as Error).message}
       />
     );
@@ -55,8 +56,8 @@ export default function IRStocksUs() {
     return (
       <IRStateMessage
         variant="empty"
-        title="Sem operações de Stocks US ou REITs"
-        description="Considera Stocks e REITs cadastrados em dólar. Operações sem a cotação do dólar usam o câmbio de mercado da data. BDRs seguem regras de Renda Variável BR."
+        title="Sem operações de Stocks, REITs ou ETFs EUA"
+        description="Considera Stocks, REITs e ETFs EUA cadastrados em dólar. Operações sem a cotação do dólar usam o câmbio de mercado da data. BDRs seguem regras de Renda Variável BR."
       />
     );
 
@@ -112,7 +113,7 @@ export default function IRStocksUs() {
 
       {isBelowLg ? (
         <ResponsiveCardList<(typeof data.meses)[number]>
-          ariaLabel="Apuração mensal de Stocks US"
+          ariaLabel="Apuração mensal de Stocks, REITs e ETFs EUA"
           rows={data.meses}
           getRowKey={(m) => m.yearMonth}
           columns={[

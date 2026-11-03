@@ -1,14 +1,14 @@
 /**
  * Apuração mensal de IR sobre ganho de capital em moeda estrangeira (ME).
  *
- * Aplica-se a alienação de bens no exterior — pra nossa aplicação cobre Stocks
- * US e REITs. Regras (Pessoa Física):
+ * Aplica-se a alienação de bens no exterior — pra nossa aplicação cobre Stocks,
+ * REITs e ETFs EUA (ETF americano etf/USD desde nov/2026). Regras (Pessoa Física):
  *  - Conversão obrigatória em BRL: custo de aquisição em BRL via PTAX-venda da
  *    data da compra; receita em BRL via PTAX-venda da data da venda. A diferença
  *    entre os dois fxRates já reflete a variação cambial dentro do lucro.
  *  - Isenção de R$ 35.000/mês quando o **total de alienações em ME** no mês,
  *    convertido em BRL, for ≤ R$ 35.000. Aplica-se ao mês inteiro (somando
- *    stocks + REITs).
+ *    stocks + REITs + ETFs EUA).
  *  - Alíquota: 15% sobre o lucro (ignoramos a progressiva acima de R$5MM por
  *    cobrir caso atípico).
  *  - Compensação de prejuízo: NÃO permitida entre meses para ganho de capital
@@ -182,7 +182,7 @@ export interface MontagemTransacoesUs {
 
 /**
  * Monta a entrada de `apurarStocksUs` a partir das StockTransactions do usuário.
- *  - Só stock/REIT com currency 'USD' (isAtivoEmDolar): PETR4 nunca entra, mesmo com
+ *  - Só stock/REIT/ETF com currency 'USD' (isAtivoEmDolar): PETR4 nunca entra, mesmo com
  *    cotacaoMoeda nas notes.
  *  - fx = cotação gravada na operação; sem ela, a série USD-BRL na data (aproximado).
  *  - priceUsd = price se a unidade é US$; price ÷ fx se é o stock legado em R$ — o produto

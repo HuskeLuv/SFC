@@ -422,6 +422,109 @@ describe('montarContexto — ativos planejados', () => {
       totalEquivalenteBRL: 1764,
     });
   });
+  it('ETF só da B3 (IVVB11 na seção EUA): classe sem moeda nem nota', () => {
+    const ctx = montarContexto(
+      {
+        ...base,
+        posicoes: {
+          etf: { secoes: [{ nome: 'EUA', ativos: [{ ticker: 'IVVB11', valorAtualizado: 3300 }] }] },
+        },
+      } as unknown as typeof base,
+      new Date('2026-11-03T12:00:00Z'),
+    ) as { carteira: { posicoes: Record<string, Record<string, unknown>> } };
+    expect(ctx.carteira.posicoes.etf).not.toHaveProperty('moeda');
+    expect(ctx.carteira.posicoes.etf).not.toHaveProperty('notaMoeda');
+  });
+  it('Stock legado (moedaRegistro BRL, exibido em US$) não sai rotulado BRL', () => {
+    const ctx = montarContexto(
+      {
+        ...base,
+        posicoes: {
+          stocks: {
+            secoes: [
+              {
+                nome: 'Stocks',
+                ativos: [
+                  { ticker: 'AAPL', moedaRegistro: 'BRL', precoAquisicao: 100 },
+                  { ticker: 'MSFT', moedaRegistro: 'USD', precoAquisicao: 300 },
+                ],
+              },
+            ],
+            cotacaoDolar: 5.5,
+          },
+        },
+      } as unknown as typeof base,
+      new Date('2026-11-03T12:00:00Z'),
+    ) as {
+      carteira: {
+        posicoes: Record<
+          string,
+          { moeda?: string; secoes: Array<{ ativos: Array<Record<string, unknown>> }> }
+        >;
+      };
+    };
+    const stocks = ctx.carteira.posicoes.stocks;
+    expect(stocks.moeda).toBe('USD');
+    for (const a of stocks.secoes[0].ativos) expect(a).not.toHaveProperty('moedaRegistro');
+  });
+  it('ETF mista (IVVB11 B3 + VOO em US$): classe em R$ com nota, VOO com os *USD nativos', () => {
+    const ctx = montarContexto(
+      {
+        ...base,
+        posicoes: {
+          etf: {
+            secoes: [
+              {
+                nome: 'EUA',
+                totalValorAtualizado: 8800,
+                ativos: [
+                  { ticker: 'IVVB11', precoAquisicao: 300, valorAtualizado: 3300 },
+                  {
+                    ticker: 'VOO',
+                    symbol: 'VOO-1730000000000-ab3cd11',
+                    moedaRegistro: 'USD',
+                    precoAquisicao: 2505,
+                    cotacaoAtual: 2750,
+                    valorAtualizado: 5500,
+                    precoAquisicaoUSD: 500,
+                    cotacaoAtualUSD: 500,
+                    valorTotalUSD: 1000,
+                    valorAtualizadoUSD: 1000,
+                  },
+                ],
+              },
+            ],
+            cotacaoDolar: 5.5,
+          },
+        },
+      } as unknown as typeof base,
+      new Date('2026-11-03T12:00:00Z'),
+    ) as { carteira: { posicoes: Record<string, Record<string, unknown>> } };
+    const etf = ctx.carteira.posicoes.etf as {
+      moeda?: string;
+      notaMoeda?: string;
+      cotacaoDolarHoje?: number;
+      secoes: Array<{ ativos: Array<Record<string, unknown>> }>;
+    };
+    expect(etf).toMatchObject({ moeda: 'BRL', cotacaoDolarHoje: 5.5 });
+    expect(etf.notaMoeda).toMatch(/R\$.*USD/);
+    const [ivvb, voo] = etf.secoes[0].ativos;
+    expect(voo).toMatchObject({
+      ticker: 'VOO',
+      precoAquisicao: 2505,
+      valorAtualizado: 5500,
+      precoAquisicaoUSD: 500,
+      valorTotalUSD: 1000,
+      cotacaoAtualUSD: 500,
+      valorAtualizadoUSD: 1000,
+    });
+    // moedaRegistro é a unidade gravada (sentido oposto em Stocks legado): não vai ao modelo.
+    expect(voo).not.toHaveProperty('moedaRegistro');
+    // O symbol cru (com timestamp) não vai ao modelo.
+    expect(voo).not.toHaveProperty('symbol');
+    expect(ivvb).not.toHaveProperty('moedaRegistro');
+    expect(ivvb).toMatchObject({ ticker: 'IVVB11', precoAquisicao: 300 });
+  });
   it('não leva nome nem e-mail do usuário (promessa de /subprocessadores)', () => {
     const comPerfil = {
       ...base,

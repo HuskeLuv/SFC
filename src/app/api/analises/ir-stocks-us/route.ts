@@ -14,7 +14,8 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
 /**
  * Apuração mensal de IR sobre ganho de capital em moeda estrangeira.
  *
- * Cobre Stocks US e REITs US: só Asset stock/reit com currency 'USD' (isAtivoEmDolar).
+ * Cobre Stocks, REITs e ETFs EUA: só Asset stock/reit/etf com currency 'USD' (isAtivoEmDolar).
+ * O ETF da B3 (IVVB11, currency 'BRL') fica fora, mesmo na seção EUA da carteira.
  * O preço é lido pela unidade gravada na transação (US$, ou R$ no stock legado) e o
  * câmbio é a cotação gravada na operação; sem ela, a série USD-BRL na data, rotulada
  * 'câmbio de mercado (aproximado)'. BDRs (negociadas em BRL na B3) seguem regras de
