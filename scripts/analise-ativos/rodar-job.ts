@@ -8,7 +8,7 @@
  *     scripts/analise-ativos/rodar-job.ts scores [--prazo-s=N] [--sem-aplicar]
  *
  * Jobs: b3-cadastro, fii-cadastro, cvm-cias:fca|dfp|itr, cvm-ipe, fii-mensal, fii-trimestral,
- *   fiagro-mensal,
+ *   fiagro-mensal, fi-infra-mensal,
  * cotahist, scores, criterios, quadro, curadoria. Saída: uma linha JSON com o relatório; código 1 se
  * o job falhou. --sem-aplicar = dry-run (o job calcula e relata sem gravar; ex.: 1ª execução do
  * 'criterios' em produção, conferindo RSS e tempo).

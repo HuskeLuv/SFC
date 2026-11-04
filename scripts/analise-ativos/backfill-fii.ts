@@ -13,7 +13,10 @@
  *   (padrão)        cadastro ⇒ mensal ⇒ trimestral
  *   --sem-cadastro  pula o cadastro (usa o mapa gravado)
  *   --so-fiagro     só o informe mensal de Fiagro (todos os meses desde 202505; Fiagros do mapa)
- *   --como-cron=fii-cadastro|fii-mensal|fii-trimestral|fiagro-mensal  roda exatamente a função do cron
+ *   --so-fi-infra   só o FI-Infra leve (informe diário, meses fechados desde --desde-mes=AAAA-MM,
+ *                   padrão 2021-01; ~11 MB por mês)
+ *   --como-cron=fii-cadastro|fii-mensal|fii-trimestral|fiagro-mensal|fi-infra-mensal  roda
+ *                   exatamente a função do cron
  * O padrão (cadastro ⇒ mensal ⇒ trimestral) roda também o informe de Fiagro no fim: o histórico de
  * FII dos Fiagros (mesmo CNPJ, até mai–ago/2025) vem do mensal de FII; dali em diante, do de Fiagro.
  *
@@ -38,6 +41,10 @@ import {
   mesesDesdeInicioFiagro,
   sincronizarFiagroMensal,
 } from '../../src/services/analiseAtivos/fii/sincronizarFiagroMensal';
+import {
+  mesesFechadosDesde,
+  sincronizarFiInfraMensal,
+} from '../../src/services/analiseAtivos/fii/sincronizarFiInfraMensal';
 import { sincronizarFiiCadastro } from '../../src/services/analiseAtivos/fii/sincronizarFiiCadastro';
 import { sincronizarFiiMensal } from '../../src/services/analiseAtivos/fii/sincronizarFiiMensal';
 import { sincronizarFiiTrimestral } from '../../src/services/analiseAtivos/fii/sincronizarFiiTrimestral';
@@ -147,6 +154,18 @@ async function rodarFiagro() {
   );
 }
 
+/** FI-Infra leve: meses fechados do informe diário desde --desde-mes (padrão 2021-01). */
+async function rodarFiInfra() {
+  const desde = arg('desde-mes') ? `${arg('desde-mes')}-01` : undefined;
+  const meses = mesesFechadosDesde(hoje, desde);
+  console.log(`# FI-Infra leve, informe diário (${meses[0]}…${meses[meses.length - 1]})`);
+  await rodar(
+    nomeBackfill('fi-infra-mensal'),
+    (ctx) => sincronizarFiInfraMensal(ctx, { meses, cacheDir, condicional: false }),
+    { meses: meses.length },
+  );
+}
+
 async function main() {
   console.log(
     `=== backfill FII (${aplicar ? 'APPLY' : 'dry-run'}) anos ${anos[0]}–${anos[anos.length - 1]}` +
@@ -164,6 +183,7 @@ async function main() {
       'fii-mensal': sincronizarFiiMensal,
       'fii-trimestral': sincronizarFiiTrimestral,
       'fiagro-mensal': sincronizarFiagroMensal,
+      'fi-infra-mensal': sincronizarFiInfraMensal,
     } as const;
     if (!(comoCron in fns)) throw new Error(`--como-cron inválido: ${comoCron}`);
     const f = fns[comoCron as keyof typeof fns];
@@ -178,6 +198,8 @@ async function main() {
     imprimir(r, run?.detalhes);
   } else if (arg('so-fiagro') === 'true') {
     await rodarFiagro();
+  } else if (arg('so-fi-infra') === 'true') {
+    await rodarFiInfra();
   } else {
     const reconferir = arg('reconferir') === 'true';
     const soCadastro = arg('so-cadastro') === 'true' || reconferir;
