@@ -150,6 +150,8 @@ export interface TickerFii {
   cnpj: string;
   conferido: boolean;
   origem: 'b3_isin' | 'b3_nome' | 'manual';
+  /** tipo na lista da B3 (FiiTickerMap.tipoFundo); ausente = 'FII' */
+  tipoFundo?: 'FII' | 'FIAGRO' | 'FI-INFRA';
 }
 export interface ItemUniverso {
   symbol: string;

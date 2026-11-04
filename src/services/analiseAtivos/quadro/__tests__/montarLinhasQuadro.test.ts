@@ -3,6 +3,7 @@ import {
   FLAG_CNPJ_EM_CONFERENCIA,
   anosSeguidosComProvento,
   ehFiagro,
+  ehFundoNaoFii,
   montarLinhasQuadro,
   type EntradaQuadro,
   type MultiplosQuadro,
@@ -274,6 +275,22 @@ describe('montarLinhasQuadro', () => {
     expect(ehFiagro('FIAGRO XYZ')).toBe(true);
     expect(ehFiagro('FI-AGRO ABC')).toBe(true);
     expect(ehFiagro('FII CSHG LOG')).toBe(false);
+  });
+
+  it('Fiagro/FI-Infra pelo tipo do mapa ficam fora enquanto os params mandam (v1–v5)', () => {
+    const base = entrada();
+    const rs = montarLinhasQuadro({
+      ...base,
+      fiis: base.fiis.map((f) =>
+        f.symbol === 'HCTR11' ? { ...f, tipoFundo: 'FI-INFRA' } : { ...f, tipoFundo: 'FII' },
+      ),
+    });
+    expect(linha(rs, 'HCTR11')).toMatchObject({ noQuadro: false, foraDoQuadroMotivo: 'fiagro' });
+    expect(linha(rs, 'HGLG11').noQuadro).toBe(true);
+    expect(ehFundoNaoFii('FIAGRO')).toBe(true);
+    expect(ehFundoNaoFii('FI-INFRA')).toBe(true);
+    expect(ehFundoNaoFii('FII')).toBe(false);
+    expect(ehFundoNaoFii(undefined)).toBe(false);
   });
 
   it('nome do FII: Asset.name igual ao ticker cede ao nome do cadastro B3', () => {

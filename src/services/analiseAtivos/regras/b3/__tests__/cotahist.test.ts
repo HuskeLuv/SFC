@@ -5,6 +5,7 @@ import { ErroLayoutFonte } from '@/services/analiseAtivos/fontes/erros';
 import {
   dataParaDdmmaaaa,
   filtrarRegistro,
+  filtrarRegistroComBdi14,
   lerTrailerCotahist,
   parseLinhaCotahist,
   validarCabecalhoCotahist,
@@ -124,6 +125,16 @@ describe('filtrarRegistro — só TPMERC 010 e BDI 02/12', () => {
     expect(passam).not.toContain('BOVA11');
     expect(passam).not.toContain('RZAG11');
     expect(passam.filter((s) => s === 'MGLU3')).toHaveLength(16);
+  });
+
+  it('BDI 14 só para os tickers pedidos (Fiagro do mapa entra; ETF fica de fora)', () => {
+    const mapa = new Set(['RZAG11']);
+    expect(filtrarRegistroComBdi14(reg('RZAG11', '2026-08-03'), mapa)).toBe(true);
+    expect(filtrarRegistroComBdi14(reg('BOVA11', '2016-12-29'), mapa)).toBe(false);
+    expect(filtrarRegistroComBdi14(reg('RZAG11', '2026-08-03'), undefined)).toBe(false);
+    // 02/12 continuam iguais; fracionário continua fora
+    expect(filtrarRegistroComBdi14(reg('HGLG11', '2016-12-29'), mapa)).toBe(true);
+    expect(filtrarRegistroComBdi14(reg('WEGE3F', '2016-12-29'), new Set(['WEGE3F']))).toBe(false);
   });
 });
 

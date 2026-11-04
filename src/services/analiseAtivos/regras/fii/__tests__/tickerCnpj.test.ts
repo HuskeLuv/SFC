@@ -8,10 +8,10 @@ import {
 import {
   casarTickerCnpj,
   conferirPorPlCotacao,
-  ehItemFii,
   fundosCandidatos,
   normalizarNomeFundo,
   reconciliarMapa,
+  tipoFundoDoItem,
   type CasamentoParaMapa,
   type FundoCvm,
   type ItemListaB3,
@@ -88,10 +88,15 @@ describe('casarTickerCnpj (regra 20)', () => {
     expect(r).toMatchObject({ cnpj: CNPJ.HGLG, origem: 'b3_cnpj', conferido: true });
   });
 
-  it('FIAGRO/FI-Infra (typeName ≠ FII) nunca entra', () => {
-    expect(ehItemFii({ ...item('HGLG'), typeName: 'FIAGRO' })).toBe(false);
-    expect(ehItemFii({ ...item('HGLG'), typeName: 'FII' })).toBe(true);
-    expect(ehItemFii({ ...item('HGLG'), typeName: null })).toBe(true);
+  it('tipo do item: FII, FIAGRO e FI-INFRA entram (com o tipo); outro tipo fica fora', () => {
+    expect(tipoFundoDoItem({ ...item('HGLG'), typeName: 'FIAGRO' })).toBe('FIAGRO');
+    expect(tipoFundoDoItem({ ...item('HGLG'), typeName: 'FI-INFRA' })).toBe('FI-INFRA');
+    expect(tipoFundoDoItem({ ...item('HGLG'), typeName: 'FII' })).toBe('FII');
+    expect(tipoFundoDoItem({ ...item('HGLG'), typeName: null })).toBe('FII');
+    expect(tipoFundoDoItem({ ...item('KNCA'), typeName: null, tipoLista: 'FIAGRO' })).toBe(
+      'FIAGRO',
+    );
+    expect(tipoFundoDoItem({ ...item('XXXX'), typeName: 'FIP' })).toBeNull();
   });
 
   it('conferirPorPlCotacao: valor de mercado/PL em [0,3; 3]', () => {
@@ -164,6 +169,31 @@ describe('reconciliarMapa (vigência)', () => {
       expect.arrayContaining(['fii_sigla_nova', 'fii_sigla_sumida']),
     );
     expect(p.atualizar).toHaveLength(0); // nada mudou nos demais
+  });
+
+  it('Fiagro novo abre com tipoFundo; linha FII do mesmo CNPJ que vira FIAGRO é atualizada', () => {
+    const novo = reconciliarMapa(
+      [],
+      [casamento({ ticker: 'KNCA11', cnpj: '41745701000137', tipoFundo: 'FIAGRO' })],
+      '2026-11-04',
+    );
+    expect(novo.abrir[0]).toMatchObject({ ticker: 'KNCA11', tipoFundo: 'FIAGRO' });
+    const legado = reconciliarMapa(
+      [linha({ ticker: 'KNCA11', cnpj: '41745701000137' })],
+      [casamento({ ticker: 'KNCA11', cnpj: '41745701000137', tipoFundo: 'FIAGRO' })],
+      '2026-11-04',
+    );
+    expect(legado.abrir).toHaveLength(0);
+    expect(legado.atualizar).toEqual([
+      expect.objectContaining({ id: 'id-KNCA11', tipoFundo: 'FIAGRO' }),
+    ]);
+    // casamento sem tipo = FII (listas antigas): linha FII igual não é regravada
+    const igual = reconciliarMapa(
+      [linha({ ticker: 'HGLG11', cnpj: CNPJ.HGLG })],
+      [casamento({ ticker: 'HGLG11', cnpj: CNPJ.HGLG })],
+      '2026-11-04',
+    );
+    expect(igual.atualizar).toHaveLength(0);
   });
 
   it('mesmo CNPJ com outra sigla ⇒ alerta fii_sigla_trocada', () => {

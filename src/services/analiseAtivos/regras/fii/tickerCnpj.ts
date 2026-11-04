@@ -1,6 +1,11 @@
 /**
  * Mapa ticker ↔ CNPJ de FIIs (regras 20 e 27; decisão 14). Funções puras.
  *
+ * Desde 04/11/2026 o mapa também tem Fiagro e FI-Infra listados (listas FIAGRO e FI-INFRA da B3),
+ * com o tipo em `tipoFundo`: a Análise os trata como FII de papel. O casamento é o mesmo (CNPJ da
+ * B3 primeiro, conferido pelo valor de mercado ÷ PL); os candidatos vêm do informe mensal de Fiagro
+ * e do informe diário de fundos (FI-Infra), além do informe mensal de FII.
+ *
  * Chave = CNPJ. O universo é a lista pública da B3 (nunca `Mercado_Negociacao_Bolsa = S`: 298 fundos
  * "S" não estão na lista). Ordem de casamento:
  *   1. manual (tickersManuais, com motivo) — conferido;
@@ -47,7 +52,12 @@ export interface ItemListaB3 {
   tradingCode?: string | null;
   /** tipo do fundo segundo a B3 ('FII', 'FIAGRO', …); null quando a lista não informa */
   typeName?: string | null;
+  /** lista da B3 de onde o item veio (typeFund); ausente = 'FII' */
+  tipoLista?: TipoFundoMapa;
 }
+
+/** Tipo do fundo no mapa (FiiTickerMap.tipoFundo). */
+export type TipoFundoMapa = 'FII' | 'FIAGRO' | 'FI-INFRA';
 
 export interface ResultadoCasamento {
   ticker: string;
@@ -86,10 +96,15 @@ export function tickerDoItem(item: ItemListaB3): string {
   return `${item.acronym.trim().toUpperCase()}11`;
 }
 
-/** FIAGRO/FI-Infra (typeFund diferente de FII) nunca entram no mapa (decisão 14, regra 28). */
-export function ehItemFii(item: ItemListaB3): boolean {
+/**
+ * Tipo do item no mapa: FII, FIAGRO ou FI-INFRA (typeName da B3; vazio = o da lista). Outro tipo
+ * qualquer ⇒ null (fica fora do mapa). Até 04/11/2026 Fiagro e FI-Infra ficavam fora (decisão 14).
+ */
+export function tipoFundoDoItem(item: ItemListaB3): TipoFundoMapa | null {
   const t = (item.typeName ?? '').trim().toUpperCase();
-  return t === '' || t === 'FII';
+  if (t === '') return item.tipoLista ?? 'FII';
+  if (t === 'FII' || t === 'FIAGRO' || t === 'FI-INFRA') return t;
+  return null;
 }
 
 export function conferirPorPlCotacao(
@@ -305,12 +320,16 @@ export interface LinhaMapa {
   conferidoPor: string | null;
   motivo: string | null;
   nomeB3: string | null;
+  /** ausente = 'FII' (linhas anteriores à coluna) */
+  tipoFundo?: string;
 }
 
 export interface CasamentoParaMapa extends ResultadoCasamento {
   nomeB3: string | null;
   razaoSocialB3: string | null;
   isin: string | null;
+  /** ausente = 'FII' */
+  tipoFundo?: TipoFundoMapa;
 }
 
 export interface TickerHistorico {
@@ -333,6 +352,7 @@ export interface NovaLinhaMapa {
   razaoSocialB3: string | null;
   isin: string | null;
   motivo: string;
+  tipoFundo: TipoFundoMapa;
 }
 
 export interface PlanoMapa {
@@ -347,6 +367,7 @@ export interface PlanoMapa {
     razaoSocialB3: string | null;
     isin: string | null;
     origem: OrigemTickerFii;
+    tipoFundo: TipoFundoMapa;
     /** só na migração do formato (máscara ⇒ 14 dígitos) do mesmo CNPJ */
     cnpj?: string;
   }>;
@@ -406,6 +427,7 @@ export function reconciliarMapa(
     razaoSocialB3: c.razaoSocialB3,
     isin: c.isin,
     motivo: c.motivo,
+    tipoFundo: c.tipoFundo ?? 'FII',
   });
 
   for (const c of casamentos) {
@@ -448,8 +470,10 @@ export function reconciliarMapa(
       const origem = atual.origem === 'manual' ? 'manual' : c.origem!;
       const conferido = atual.origem === 'manual' ? atual.conferido : c.conferido;
       const conferidoPor = atual.origem === 'manual' ? atual.conferidoPor : c.conferidoPor;
+      const tipoFundo = c.tipoFundo ?? 'FII';
       if (
         migrarCnpj ||
+        tipoFundo !== (atual.tipoFundo ?? 'FII') ||
         origem !== atual.origem ||
         conferido !== atual.conferido ||
         conferidoPor !== atual.conferidoPor ||
@@ -465,6 +489,7 @@ export function reconciliarMapa(
           nomeB3: c.nomeB3,
           razaoSocialB3: c.razaoSocialB3,
           isin: c.isin,
+          tipoFundo,
           ...(migrarCnpj ? { cnpj: c.cnpj } : {}),
         });
       }
@@ -481,6 +506,7 @@ export function reconciliarMapa(
         nomeB3: c.nomeB3,
         razaoSocialB3: c.razaoSocialB3,
         isin: c.isin,
+        tipoFundo: c.tipoFundo ?? 'FII',
       });
     } else {
       plano.fechar.push({ id: atual.id, ticker: atual.ticker, validTo: ontem });
@@ -533,6 +559,7 @@ export function reconciliarMapa(
       razaoSocialB3: null,
       isin: null,
       motivo: h.motivo,
+      tipoFundo: 'FII',
     });
   }
 

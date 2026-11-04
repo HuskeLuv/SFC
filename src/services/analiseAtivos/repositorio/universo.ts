@@ -158,7 +158,24 @@ export async function listarFiisListados(prisma: PrismaClient): Promise<TickerFi
     cnpj: l.cnpj,
     conferido: l.conferido,
     origem: l.origem as TickerFii['origem'],
+    tipoFundo: l.tipoFundo as TickerFii['tipoFundo'],
   }));
+}
+
+/** Tipos do mapa cotados no BDI 14 do COTAHIST (não no 12 dos FIIs). */
+export const TIPOS_FUNDO_BDI14 = ['FIAGRO', 'FI-INFRA'] as const;
+
+/**
+ * Tickers de Fiagro/FI-Infra do FiiTickerMap (vigentes ou não: o histórico da cotação vale) — os
+ * únicos aceitos no BDI 14 do COTAHIST (ETFs também são BDI 14 e ficam de fora).
+ */
+export async function tickersBdi14(prisma: PrismaClient): Promise<Set<string>> {
+  const linhas = await prisma.fiiTickerMap.findMany({
+    where: { tipoFundo: { in: [...TIPOS_FUNDO_BDI14] } },
+    select: { ticker: true },
+    distinct: ['ticker'],
+  });
+  return new Set(linhas.map((l) => l.ticker));
 }
 
 /**

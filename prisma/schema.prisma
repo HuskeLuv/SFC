@@ -2256,10 +2256,14 @@ model FiiTickerMap {
   isin          String?
   motivo        String?
   fetchedAt     DateTime
+  // tipo do fundo na lista da B3: FII | FIAGRO | FI-INFRA (Fiagro e FI-Infra são analisados como
+  // FII de papel; cotação no BDI 14 do COTAHIST)
+  tipoFundo     String    @default("FII")
 
   @@unique([ticker, validFrom])
   @@index([cnpj])
   @@index([ticker])
+  @@index([tipoFundo])
   @@map("fii_ticker_map")
 }
 

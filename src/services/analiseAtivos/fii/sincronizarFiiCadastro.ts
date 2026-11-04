@@ -1,19 +1,23 @@
 /**
- * Job fii-cadastro (semanal): lista pública de FIIs da B3 ⇒ FiiTickerMap (ticker ↔ CNPJ com
- * vigência). Universo = lista B3 (regra 27); FIAGRO/FI-Infra fora (decisão 14).
+ * Job fii-cadastro (semanal): listas públicas da B3 ⇒ FiiTickerMap (ticker ↔ CNPJ com vigência).
+ * Universo = listas B3 (regra 27): FII e, desde 04/11/2026, FIAGRO e FI-INFRA (tipoFundo; a Análise
+ * os trata como FII de papel — revoga a decisão 14 só nesse ponto).
  *
- * 1. GetListFunds (typeFund FII, ~6 páginas, 300 ms entre páginas);
+ * 1. GetListFunds (typeFund FII ~6 páginas, FIAGRO e FI-INFRA 1 página cada, 300 ms entre páginas);
  * 2. candidatos = fundos do Informe Mensal mais recente (ano corrente, + ano−1 se mês ≤ 2) com
  *    informe nos últimos 6 meses (CNPJ, ISIN, nomes, PL, cotas) — lido "de passagem", sem mexer no
  *    ETag do job fii-mensal;
  * 3. GetDetailFund (CNPJ da própria B3) para os fundos novos, sem casamento ou cujo CNPJ sumiu do
  *    informe, mais um lote rolante dos consultados há mais tempo (cron: até `maxDetalhes`);
+ *    Fiagro: candidatos também do informe mensal de Fiagro (últimos meses publicados); FI-Infra:
+ *    do informe diário de fundos (fechamento do mês mais recente, só os CNPJs vindos da B3);
  * 4. casamento (manual > CNPJ B3 > ISIN completo > nome) e conferência valor de mercado/PL pela
  *    cotação do COTAHIST (repositorio.cotacoes.resumoCotacoes; sem cotação ⇒ nome fica não
  *    conferido — rodar de novo com --reconferir depois do COTAHIST);
  * 5. reconciliação de vigência: abre/fecha só quando muda; alertas de sigla nova/sumida/trocada,
  *    sem casamento e conferência divergente.
  */
+import path from 'path';
 import { resumoCotacoes } from '@/services/analiseAtivos/repositorio/cotacoes';
 import { ErroFonte, ErroLayoutFonte } from '@/services/analiseAtivos/fontes/erros';
 import {
@@ -35,18 +39,31 @@ import {
   type GeralMensal,
 } from '@/services/analiseAtivos/fii/parserInformeMensal';
 import {
+  candidatosFiagro,
+  lerInformeFiagroZip,
+  urlInformeFiagro,
+  type ResultadoParserFiagro,
+} from '@/services/analiseAtivos/fii/parserInformeFiagro';
+import {
+  candidatosDiario,
+  lerInformeDiarioZip,
+  urlInformeDiarioFi,
+} from '@/services/analiseAtivos/fii/parserInformeDiarioFi';
+import {
   historicosManuais,
   mapaManuaisVigentes,
 } from '@/services/analiseAtivos/fii/tickersManuais';
 import type { FiiMesBruto } from '@/services/analiseAtivos/regras/fii/saneamentoMensal';
 import {
   casarTickerCnpj,
-  ehItemFii,
   fundosCandidatos,
   formatarCnpj,
   reconciliarMapa,
   tickerDoItem,
+  tipoFundoDoItem,
   type CasamentoParaMapa,
+  type FundoCvm,
+  type TipoFundoMapa,
 } from '@/services/analiseAtivos/regras/fii/tickerCnpj';
 import type { JobContexto, ResultadoJob } from '@/services/analiseAtivos/tipos';
 
@@ -65,9 +82,76 @@ export interface OpcoesFiiCadastro {
   primeiroMesPorCnpj?: Map<string, string>;
   /** injeção para testes */
   baixarDetalhe?: (item: ItemListaB3Bruto) => Promise<DetalheFundoB3 | null>;
+  /** candidatos de Fiagro já lidos (testes); padrão: informe mensal de Fiagro recente */
+  candidatosFiagro?: FundoCvm[];
+  /** candidatos de FI-Infra (testes); padrão: informe diário do mês corrente ou anterior */
+  candidatosFiInfra?: (cnpjs: Set<string>) => Promise<FundoCvm[]>;
 }
 
 const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Meses de referência ('AAAA-MM-01') de `hoje` para trás: o corrente primeiro, `n` ao todo. */
+export function mesesRecentes(hoje: string, n: number): string[] {
+  const ano = Number(hoje.slice(0, 4));
+  const mes = Number(hoje.slice(5, 7));
+  return Array.from({ length: n }, (_, i) =>
+    new Date(Date.UTC(ano, mes - 1 - i, 1)).toISOString().slice(0, 10),
+  );
+}
+
+/** Quantos meses do informe de Fiagro o cadastro lê (o do mês M sai em M+1/M+2). */
+const MESES_FIAGRO_CADASTRO = 4;
+
+/** Informe mensal de Fiagro dos últimos meses publicados (leitura de passagem, sem ETag). */
+async function lerFiagroRecente(
+  ctx: JobContexto,
+  cacheDir: string | undefined,
+): Promise<FundoCvm[]> {
+  const lidos: ResultadoParserFiagro[] = [];
+  // o mês corrente nunca está publicado: começa no anterior
+  for (const ref of mesesRecentes(ctx.hoje, MESES_FIAGRO_CADASTRO + 1).slice(1)) {
+    const url = urlInformeFiagro(ref);
+    const arq = await obterArquivo(ctx.prisma, url, {
+      cacheDir,
+      condicional: false,
+      registrar: false,
+      naoPublicadoSe404: true,
+    });
+    try {
+      if (!arq.caminho) continue;
+      lidos.push(await lerInformeFiagroZip(arq.caminho, { arquivo: path.basename(url) }));
+    } finally {
+      await arq.descartar();
+    }
+  }
+  return candidatosFiagro(lidos);
+}
+
+/** Fechamento mais recente do informe diário (mês corrente; sem linha ⇒ o anterior). */
+async function lerFiInfraRecente(
+  ctx: JobContexto,
+  cnpjs: Set<string>,
+  cacheDir: string | undefined,
+): Promise<FundoCvm[]> {
+  if (cnpjs.size === 0) return [];
+  for (const ref of mesesRecentes(ctx.hoje, 2)) {
+    const url = urlInformeDiarioFi(ref);
+    const arq = await obterArquivo(ctx.prisma, url, {
+      cacheDir,
+      condicional: false,
+      registrar: false,
+      naoPublicadoSe404: true,
+    });
+    try {
+      if (!arq.caminho) continue;
+      const r = await lerInformeDiarioZip(arq.caminho, { arquivo: path.basename(url), cnpjs });
+      if (r.fechamentos.size > 0) return candidatosDiario(r);
+    } finally {
+      await arq.descartar();
+    }
+  }
+  return [];
+}
 
 export async function sincronizarFiiCadastro(
   ctx: JobContexto,
@@ -76,7 +160,7 @@ export async function sincronizarFiiCadastro(
   // 1. lista B3
   const lista = opts.listaB3 ?? (await baixarListaB3Fii());
   ctx.contar('linhasLidas', lista.length);
-  const listaFii = lista.filter((i) => ehItemFii(paraItemRegra(i, null)));
+  const listaFii = lista.filter((i) => tipoFundoDoItem(paraItemRegra(i, null)) !== null);
 
   // 2. candidatos do Informe Mensal
   const anos = opts.anos ?? anosDoCron(ctx.hoje, 2);
@@ -117,7 +201,9 @@ export async function sincronizarFiiCadastro(
   const rolante: ItemListaB3Bruto[] = [];
   for (const item of listaFii) {
     const v = vigentes.get(tickerDoItem(paraItemRegra(item, null)));
-    if (!v || !cnpjsCandidatos.has(v.cnpj)) prioridade.push(item);
+    // Fiagro/FI-Infra não estão no informe de FII: prioridade só quando novos
+    const foraDoInformeFii = (item.tipoFundo ?? 'FII') !== 'FII';
+    if (!v || (!foraDoInformeFii && !cnpjsCandidatos.has(v.cnpj))) prioridade.push(item);
     else if (v.origem !== 'manual') rolante.push(item);
   }
   // lote rolante: não conferidos primeiro (a B3 pode confirmar o CNPJ), depois os mais antigos
@@ -161,19 +247,12 @@ export async function sincronizarFiiCadastro(
     if (opts.pausaDetalheMs) await dormir(opts.pausaDetalheMs);
   }
 
-  // 4. casamento
-  const tickers = listaFii.map((i) => tickerDoItem(paraItemRegra(i, null)));
-  const cotacoes = new Map(
-    (await resumoCotacoes(ctx.prisma, tickers)).map((c) => [c.symbol, c.closeRaw]),
-  );
-  const manuais = mapaManuaisVigentes();
-  const porCnpj = new Map(candidatos.map((c) => [c.cnpj, c]));
-  const casamentos: CasamentoParaMapa[] = [];
+  // 4. casamento (itens com o tipo final, depois do detalhe)
+  const itens: Array<{ bruto: ItemListaB3Bruto; item: ReturnType<typeof paraItemRegra> }> = [];
   let excluidosTipo = 0;
   for (const bruto of listaFii) {
-    const detalhe = detalhes.get(bruto.acronym) ?? null;
-    const item = paraItemRegra(bruto, detalhe);
-    if (!ehItemFii(item)) {
+    const item = paraItemRegra(bruto, detalhes.get(bruto.acronym) ?? null);
+    if (tipoFundoDoItem(item) === null) {
       excluidosTipo++;
       continue;
     }
@@ -182,12 +261,52 @@ export async function sincronizarFiiCadastro(
       const v = vigentes.get(tickerDoItem(item));
       if (v?.origem === 'b3_cnpj') item.cnpjB3 = v.cnpj;
     }
-    const r = casarTickerCnpj(item, candidatos, manuais, ctx.params, cotacoes);
+    itens.push({ bruto, item });
+  }
+  const doTipo = (t: TipoFundoMapa) => itens.filter((i) => tipoFundoDoItem(i.item) === t);
+  // Fiagro: informe de Fiagro (o recente) + o de FII (Fiagros que ainda entregam o de FII)
+  const candFiagro =
+    doTipo('FIAGRO').length === 0
+      ? []
+      : (opts.candidatosFiagro ?? (await lerFiagroRecente(ctx, opts.cacheDir)));
+  const cnpjsInfra = new Set(
+    doTipo('FI-INFRA')
+      .map((i) => formatarCnpj(i.item.cnpjB3))
+      .filter((c): c is string => Boolean(c)),
+  );
+  const candInfra =
+    cnpjsInfra.size === 0
+      ? []
+      : await (opts.candidatosFiInfra ?? ((c) => lerFiInfraRecente(ctx, c, opts.cacheDir)))(
+          cnpjsInfra,
+        );
+  const cnpjsFiagro = new Set(candFiagro.map((c) => c.cnpj));
+  const candidatosPorTipo: Record<TipoFundoMapa, FundoCvm[]> = {
+    FII: candidatos,
+    FIAGRO: [...candFiagro, ...candidatos.filter((c) => !cnpjsFiagro.has(c.cnpj))],
+    'FI-INFRA': candInfra,
+  };
+
+  const tickers = itens.map((i) => tickerDoItem(i.item));
+  const cotacoes = new Map(
+    (await resumoCotacoes(ctx.prisma, tickers)).map((c) => [c.symbol, c.closeRaw]),
+  );
+  const manuais = mapaManuaisVigentes();
+  const isinPorCnpj = new Map(
+    [...candidatos, ...candFiagro].filter((c) => c.isin).map((c) => [c.cnpj, c.isin]),
+  );
+  const casamentos: CasamentoParaMapa[] = [];
+  const porTipo: Record<string, number> = {};
+  for (const { bruto, item } of itens) {
+    const tipoFundo = tipoFundoDoItem(item)!;
+    porTipo[tipoFundo] = (porTipo[tipoFundo] ?? 0) + 1;
+    const r = casarTickerCnpj(item, candidatosPorTipo[tipoFundo], manuais, ctx.params, cotacoes);
     casamentos.push({
       ...r,
       nomeB3: bruto.tradingName || null,
       razaoSocialB3: bruto.fundName || null,
-      isin: r.cnpj ? (porCnpj.get(r.cnpj)?.isin ?? null) : null,
+      isin: r.cnpj ? (isinPorCnpj.get(r.cnpj) ?? null) : null,
+      tipoFundo,
     });
   }
 
@@ -215,8 +334,11 @@ export async function sincronizarFiiCadastro(
     detalhes: {
       listaB3: lista.length,
       fiis: listaFii.length,
+      porTipo,
       excluidosTipo,
       candidatosCvm: candidatos.length,
+      candidatosFiagro: candFiagro.length,
+      candidatosFiInfra: candInfra.length,
       detalhesConsultados: detalhes.size,
       falhasDetalhe,
       casados: casados.length,

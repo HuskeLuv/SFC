@@ -12,9 +12,9 @@
 import { ErroFonte, ErroLayoutFonte } from '@/services/analiseAtivos/fontes/erros';
 import { linhasDaEntrada, listarEntradasZip } from '@/services/analiseAtivos/fontes/zipStream';
 import {
-  CODBDI_ANALISE,
   TPMERC_VISTA,
-  filtrarRegistro,
+  bdiAceito,
+  filtrarRegistroComBdi14,
   lerTrailerCotahist,
   parseLinhaCotahist,
   validarCabecalhoCotahist,
@@ -26,7 +26,7 @@ export interface EstatisticaCotahist {
   linhas: number;
   /** registros 01 que passaram no filtro de mercado/BDI/data e foram emitidos */
   emitidos: number;
-  /** registros 01 de 010 + BDI 02/12 que não parsearam (campo inválido) */
+  /** registros 01 de 010 + BDI 02/12 (e 14 dos tickers pedidos) que não parsearam */
   rejeitados: number;
   dataGeracao: string | null;
   totalDeclarado: number | null;
@@ -53,15 +53,18 @@ export interface OpcoesLeituraCotahist {
   /** filtro de data na linha crua, 'AAAAMMDD' (antes do parse) */
   aceitarDataBruta?: (aaaammdd: string) => boolean;
   estat?: EstatisticaCotahist;
+  /** tickers aceitos também no BDI 14 (Fiagro/FI-Infra do FiiTickerMap) */
+  simbolosBdi14?: ReadonlySet<string>;
+  /** só os registros do BDI 14 desses tickers (backfill dos fundos novos sem reler o resto) */
+  soBdi14?: boolean;
 }
 
-/** Filtro barato na linha crua: TIPREG 01, TPMERC 010, CODBDI 02/12. */
-function passaPreFiltro(l: string): boolean {
-  return (
-    l.startsWith('01') &&
-    l.slice(24, 27) === TPMERC_VISTA &&
-    CODBDI_ANALISE.includes(l.slice(10, 12))
-  );
+/** Filtro barato na linha crua: TIPREG 01, TPMERC 010, CODBDI 02/12 (14 dos tickers pedidos). */
+function passaPreFiltro(l: string, opts: OpcoesLeituraCotahist): boolean {
+  if (!l.startsWith('01') || l.slice(24, 27) !== TPMERC_VISTA) return false;
+  const bdi = l.slice(10, 12);
+  if (opts.soBdi14 && bdi !== '14') return false;
+  return bdiAceito(bdi, l.slice(12, 24).trim(), opts.simbolosBdi14);
 }
 
 export async function* lerCotahistZip(
@@ -94,14 +97,14 @@ export async function* lerCotahistZip(
       estat.totalDeclarado = trailer.totalRegistros;
       continue;
     }
-    if (!passaPreFiltro(l)) continue;
+    if (!passaPreFiltro(l, opts)) continue;
     if (opts.aceitarDataBruta && !opts.aceitarDataBruta(l.slice(2, 10))) continue;
     const r = parseLinhaCotahist(l);
     if (!r) {
       estat.rejeitados++;
       continue;
     }
-    if (!filtrarRegistro(r)) continue;
+    if (!filtrarRegistroComBdi14(r, opts.simbolosBdi14)) continue;
     estat.emitidos++;
     if (estat.primeiraData === null || r.data < estat.primeiraData) estat.primeiraData = r.data;
     if (estat.ultimaData === null || r.data > estat.ultimaData) estat.ultimaData = r.data;

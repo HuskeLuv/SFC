@@ -31,6 +31,7 @@ type Linha = {
 /** Prisma falso com as operações que a fatia C usa, em memória. */
 function criarPrisma(
   eventos: Array<{ symbol: string; date: string; type: string; factor: number }> = [],
+  tickersBdi14: string[] = [],
 ) {
   const quotes = new Map<string, Linha>();
   const resumo = { updateMany: vi.fn(), deleteMany: vi.fn(), createMany: vi.fn() };
@@ -85,6 +86,7 @@ function criarPrisma(
       ),
     },
     analiseFonteArquivo: { upsert: vi.fn(), update: vi.fn(), findUnique: vi.fn() },
+    fiiTickerMap: { findMany: vi.fn(async () => tickersBdi14.map((ticker) => ({ ticker }))) },
     $transaction: vi.fn(async (ops: unknown[]) => Promise.all(ops)),
   };
   return { prisma, quotes, resumo };
@@ -204,6 +206,29 @@ describe('sincronizarCotahist', () => {
     ]);
     expect(prisma.analiseFonteArquivo.upsert).toHaveBeenCalledTimes(1);
     expect(prisma.analiseFonteArquivo.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('BDI 14: grava o Fiagro do FiiTickerMap e deixa o ETF de fora', async () => {
+    const { prisma, quotes } = criarPrisma([], ['RZAG11']);
+    const hoje = '2026-09-29';
+    for (const d of ultimosPregoes(hoje, 5)) {
+      const aaaammdd = d.replace(/-/g, '');
+      rotas[urlCotahistDiario(d)] = zipCotahist([
+        comData(linhaDe('HGLG11', '20161229'), aaaammdd),
+        comData(linhaDe('BOVA11', '20161229'), aaaammdd),
+        comData(linhaDe('RZAG11', '20260803'), aaaammdd),
+      ]);
+    }
+    stubFetch(rotas);
+    const { ctx } = criarCtx(prisma, hoje);
+
+    await sincronizarCotahist(ctx);
+
+    const simbolos = new Set([...quotes.values()].map((q) => q.symbol));
+    expect(simbolos).toEqual(new Set(['HGLG11', 'RZAG11']));
+    expect(prisma.fiiTickerMap.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { tipoFundo: { in: ['FIAGRO', 'FI-INFRA'] } } }),
+    );
   });
 
   it('pregão já gravado não é rebaixado; 2ª execução é idempotente (nada baixado, nada gravado)', async () => {

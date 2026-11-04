@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { assertUrlPermitida } from '@/services/analiseAtivos/fontes/allowlist';
 import { ErroLayoutFonte } from '@/services/analiseAtivos/fontes/erros';
 import {
+  juntarListas,
   lerDetalheFundo,
   lerPaginaLista,
   paraItemRegra,
+  tipoDoDetalhe,
   urlDetalheFundo,
   urlListaFundos,
+  type ItemListaB3Bruto,
 } from '@/services/analiseAtivos/fii/listaB3Fii';
 import {
   historicosManuais,
@@ -49,6 +52,7 @@ describe('lista pública de FIIs da B3', () => {
           fundName: 'PÁTRIA LOG',
           tradingName: 'FII HGLG PAX',
           typeName: null,
+          tipoFundo: 'FII',
         },
       ],
     });
@@ -64,6 +68,65 @@ describe('lista pública de FIIs da B3', () => {
     ).toEqual({ cnpj: '11728688000147', tradingCode: 'HGLG11', typeName: 'FII' });
     expect(lerDetalheFundo('')).toBeNull();
     expect(() => lerDetalheFundo('{"x":1}')).toThrow(ErroLayoutFonte);
+  });
+
+  it('listas FIAGRO e FI-INFRA: typeFund da lista vai no payload da lista e do detalhe', () => {
+    const tf = (u: string) =>
+      (
+        JSON.parse(Buffer.from(u.split('/').pop()!, 'base64').toString('utf8')) as {
+          typeFund: string;
+        }
+      ).typeFund;
+    expect(tf(urlListaFundos(1, 100, 'FIAGRO'))).toBe('FIAGRO');
+    expect(tf(urlListaFundos(1, 100, 'FI-INFRA'))).toBe('FI-INFRA');
+    // Fiagro consultado como FII volta sem código de negociação: o detalhe usa o tipo da lista
+    expect(tf(urlDetalheFundo({ id: 6627, acronym: 'KNCA', tipoFundo: 'FIAGRO' }))).toBe('FIAGRO');
+    expect(tf(urlDetalheFundo({ id: 27, acronym: 'KDIF', tipoFundo: 'FI-INFRA' }))).toBe(
+      'FI-INFRA',
+    );
+    // item da lista FII marcado FIAGRO pela B3
+    expect(tipoDoDetalhe({ tipoFundo: 'FII', typeName: 'FIAGRO' })).toBe('FIAGRO');
+    expect(tipoDoDetalhe({ typeName: null })).toBe('FII');
+    const pag = lerPaginaLista(
+      JSON.stringify({
+        page: { totalPages: 1 },
+        results: [
+          { id: 27, acronym: 'KDIF', fundName: 'KINEA', tradingName: 'X', typeName: 'FI-INFRA' },
+        ],
+      }),
+      'FI-INFRA',
+    );
+    expect(pag.itens[0]).toMatchObject({ acronym: 'KDIF', tipoFundo: 'FI-INFRA' });
+  });
+
+  it('juntarListas: sigla repetida fica uma; o tipo específico vence o FII', () => {
+    const base = { fundName: 'X', tradingName: 'X', typeName: null };
+    const itens: ItemListaB3Bruto[] = [
+      { ...base, id: 1, acronym: 'HGLG', tipoFundo: 'FII' },
+      { ...base, id: 2, acronym: 'AAAA', tipoFundo: 'FII' },
+      { ...base, id: 1, acronym: 'HGLG', tipoFundo: 'FII' },
+      { ...base, id: 3, acronym: 'AAAA', tipoFundo: 'FIAGRO' },
+      { ...base, id: 27, acronym: 'KDIF', tipoFundo: 'FI-INFRA' },
+    ];
+    expect(juntarListas(itens).map((i) => [i.acronym, i.tipoFundo, i.id])).toEqual([
+      ['HGLG', 'FII', 1],
+      ['AAAA', 'FIAGRO', 3],
+      ['KDIF', 'FI-INFRA', 27],
+    ]);
+  });
+
+  it('paraItemRegra: item de lista FIAGRO/FI-INFRA mantém o tipo da lista', () => {
+    const b: ItemListaB3Bruto = {
+      id: 6627,
+      acronym: 'KNCA',
+      fundName: 'KINEA CRÉDITO AGRO',
+      tradingName: 'FIAGRO KINEA',
+      typeName: null,
+      tipoFundo: 'FIAGRO',
+    };
+    expect(
+      paraItemRegra(b, { cnpj: '41745701000137', tradingCode: 'KNCA11', typeName: 'FII' }),
+    ).toMatchObject({ typeName: 'FIAGRO', tipoLista: 'FIAGRO', cnpjB3: '41745701000137' });
   });
 
   it('paraItemRegra: sem ISIN na lista; tipo do detalhe prevalece (FIAGRO sai)', () => {
