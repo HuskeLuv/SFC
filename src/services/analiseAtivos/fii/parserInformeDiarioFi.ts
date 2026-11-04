@@ -121,7 +121,9 @@ export function mesDoFechamento(f: FechamentoDiario): FiiMesBruto {
     vpCota: f.vlQuota,
     pl: f.pl,
     cotas: cotasDoFechamento(f),
-    cotistas: f.cotistas,
+    // 1 cotista = classe master de FIC (o único cotista é o fundo feeder negociado na bolsa):
+    // o número não é o dos investidores (XPID11, RBIF11, OGIN11) ⇒ sem dado.
+    cotistas: f.cotistas !== null && f.cotistas <= 1 ? null : f.cotistas,
     dyMesCvmPct: null,
     rentEfetivaMesPct: null,
     taxaAdmPct: null,
