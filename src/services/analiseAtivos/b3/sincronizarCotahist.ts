@@ -5,7 +5,7 @@
  *    (regras/comum/pregoes — 20/11 desde 2024 e Carnaval não são pregão), os que não têm nenhuma
  *    linha em asset_quotes_daily.
  * 2. Para cada lacuna baixa COTAHIST_D{DDMMAAAA}.ZIP (~0,5–2 MB), lê em streaming e grava só
- *    TPMERC 010 com BDI 02/12. 404 = ainda não publicado: info no dia e no seguinte; aviso quando o
+ *    TPMERC 010 com BDI 02/12 e o BDI 14 dos Fiagro/FI-Infra do FiiTickerMap. 404 = ainda não publicado: info no dia e no seguinte; aviso quando o
  *    pregão já tem 2+ pregões (a B3 publica ~20h30 BRT do próprio dia).
  * 3. Recalcula AssetQuoteResumo: 1 consulta dos últimos 30 pregões gravados (todos os símbolos),
  *    liquidez de 21 pregões (regra 29), negociado nos últimos 30 (decisão 14) e salto > 40% sem
@@ -45,6 +45,7 @@ import {
 } from '@/services/analiseAtivos/repositorio/fontesArquivo';
 import { paraData } from '@/services/analiseAtivos/repositorio/conversao';
 import { eventosCorporativosBrutos } from '@/services/analiseAtivos/repositorio/proventos';
+import { tickersBdi14 } from '@/services/analiseAtivos/repositorio/universo';
 import type {
   AlertaJob,
   JobContexto,
@@ -87,6 +88,10 @@ export interface OpcoesArquivoCotahist {
   aceitarDataBruta?: (aaaammdd: string) => boolean;
   /** job gravado em AnaliseFonteArquivo.jobUltimo */
   job: string;
+  /** tickers aceitos também no BDI 14 (Fiagro/FI-Infra do FiiTickerMap) */
+  simbolosBdi14?: ReadonlySet<string>;
+  /** só o BDI 14 desses tickers (backfill dos fundos novos) */
+  soBdi14?: boolean;
 }
 
 export interface ResultadoArquivoCotahist {
@@ -138,6 +143,8 @@ export async function processarArquivoCotahist(
         arquivo: o.nome,
         aceitarDataBruta: o.aceitarDataBruta,
         estat,
+        simbolosBdi14: o.simbolosBdi14,
+        soBdi14: o.soBdi14,
       })) {
         await gravador.adicionar(r);
       }
@@ -311,6 +318,7 @@ export async function sincronizarCotahist(
   );
   const arquivos: Array<Record<string, unknown>> = [];
   let parcial = false;
+  const simbolosBdi14 = faltando.length > 0 ? await tickersBdi14(ctx.prisma) : new Set<string>();
 
   for (const data of faltando) {
     if (ctx.estourouPrazo()) {
@@ -328,6 +336,7 @@ export async function sincronizarCotahist(
       timeoutMs: Math.min(LIMITES_B3.timeoutMs, Math.max(5_000, ctx.restanteMs())),
       cacheDir: opts.cacheDir,
       job: 'cotahist',
+      simbolosBdi14,
       // arquivo diário só pode ter o próprio pregão; linha de outra data é rejeitada
       aceitarDataBruta: (d) => {
         if (d === aaaammdd) {

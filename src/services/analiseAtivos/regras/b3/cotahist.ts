@@ -3,8 +3,9 @@
  *
  * Parser NOVO: não altera `services/pricing/cotahistB3Parser.ts` (que segue alimentando
  * asset_price_history). Diferenças: guarda preço CRU dividido por FATCOT, volume financeiro (VOLTOT),
- * quantidade (QUATOT), nº de negócios (TOTNEG) e ESPECI; filtra só TPMERC 010 com CODBDI 02/12
- * (BDI 14 = ETFs/FIAGRO/FI-Infra fica de fora; fracionário TPMERC 020 também).
+ * quantidade (QUATOT), nº de negócios (TOTNEG) e ESPECI; filtra só TPMERC 010 com CODBDI 02/12 e,
+ * desde 04/11/2026, o BDI 14 SÓ dos tickers pedidos (Fiagro/FI-Infra do FiiTickerMap; o BDI 14
+ * também tem os ETFs, que seguem de fora; fracionário TPMERC 020 também).
  *
  * Layout (posições 1-indexadas do "SeriesHistoricas_Layout.pdf" da B3; linhas de 245 caracteres):
  *   1-2 TIPREG · 3-10 DATPRE · 11-12 CODBDI · 13-24 CODNEG · 25-27 TPMERC · 28-39 NOMRES ·
@@ -19,6 +20,8 @@ import { ErroLayoutFonte } from '@/services/analiseAtivos/fontes/erros';
 export const TAMANHO_LINHA_COTAHIST = 245;
 export const TPMERC_VISTA = '010';
 export const CODBDI_ANALISE: readonly string[] = ['02', '12'];
+/** BDI 14 (cotas de fundos: ETF, Fiagro, FI-Infra…) — aceito só para os tickers pedidos. */
+export const CODBDI_FUNDOS = '14';
 
 export interface RegistroCotahist {
   /** DATPRE em 'AAAA-MM-DD' */
@@ -109,9 +112,31 @@ export function parseLinhaCotahist(linha: string): RegistroCotahist | null {
   };
 }
 
+/** BDI aceito: 02/12 sempre; 14 só para os tickers do conjunto (Fiagro/FI-Infra). */
+export function bdiAceito(
+  codBdi: string,
+  symbol: string,
+  simbolosBdi14?: ReadonlySet<string>,
+): boolean {
+  if (CODBDI_ANALISE.includes(codBdi)) return true;
+  return codBdi === CODBDI_FUNDOS && simbolosBdi14 !== undefined && simbolosBdi14.has(symbol);
+}
+
 /** Só mercado à vista (TPMERC 010) nos BDIs 02 (lote-padrão) e 12 (fundos imobiliários). */
 export function filtrarRegistro(r: RegistroCotahist): boolean {
-  return r.tpMerc === TPMERC_VISTA && CODBDI_ANALISE.includes(r.codBdi) && r.preultCentavos > 0;
+  return filtrarRegistroComBdi14(r, undefined);
+}
+
+/** filtrarRegistro mais o BDI 14 dos tickers de `simbolosBdi14` (Fiagro/FI-Infra). */
+export function filtrarRegistroComBdi14(
+  r: RegistroCotahist,
+  simbolosBdi14: ReadonlySet<string> | undefined,
+): boolean {
+  return (
+    r.tpMerc === TPMERC_VISTA &&
+    bdiAceito(r.codBdi, r.symbol, simbolosBdi14) &&
+    r.preultCentavos > 0
+  );
 }
 
 /**

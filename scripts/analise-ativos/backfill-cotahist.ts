@@ -16,8 +16,13 @@
  * Dry-run por padrão: não escreve nada (nem AnaliseJobRun); com o zip no --cache-dir, lê e conta as
  * linhas que gravaria; sem cache, só mostra o que baixaria.
  *
+ * Fiagro/FI-Infra (04/11/2026): o BDI 14 dos tickers do FiiTickerMap com tipoFundo FIAGRO/FI-INFRA
+ * entra sempre; --so-fundos-bdi14 lê SÓ esse BDI 14 (histórico dos fundos novos sem regravar o
+ * resto; ignora a retomada por ano — retomada própria em 'backfill:cotahist-bdi14:<modo>').
+ *
  * Uso:
  *   npx tsx --env-file=.env scripts/analise-ativos/backfill-cotahist.ts --anos=2015-2026 --modo=dev --cache-dir=$CACHE
+ *   npx tsx --env-file=.env scripts/analise-ativos/backfill-cotahist.ts --anos=2021-2026 --modo=completo --so-fundos-bdi14 [--apply]
  *   npx tsx --env-file=.env scripts/analise-ativos/backfill-cotahist.ts --anos=2016 --modo=dev --cache-dir=$CACHE --apply
  *   npx tsx --env-file=.env scripts/analise-ativos/backfill-cotahist.ts --so-cadastro --apply
  *   npx tsx --env-file=.env scripts/analise-ativos/backfill-cotahist.ts --como-cron --apply   # = cron cotahist
@@ -45,6 +50,7 @@ import { obterScoringParams } from '../../src/services/analiseAtivos/params/obte
 import { SCORING_PARAMS_V1 } from '../../src/services/analiseAtivos/params/scoringParamsV1';
 import { pregoesEntre } from '../../src/services/analiseAtivos/regras/comum/pregoes';
 import { obterFonteArquivo } from '../../src/services/analiseAtivos/repositorio/fontesArquivo';
+import { tickersBdi14 } from '../../src/services/analiseAtivos/repositorio/universo';
 import type {
   AlertaJob,
   JobContexto,
@@ -67,6 +73,7 @@ interface Args {
   comoCron: boolean;
   forcar: boolean;
   semResumo: boolean;
+  soFundosBdi14: boolean;
 }
 
 function valor(nome: string): string | undefined {
@@ -102,6 +109,7 @@ function lerArgs(): Args {
     comoCron: process.argv.includes('--como-cron'),
     forcar: process.argv.includes('--forcar'),
     semResumo: process.argv.includes('--sem-resumo'),
+    soFundosBdi14: process.argv.includes('--so-fundos-bdi14'),
   };
   if (!args.soCadastro && !args.comoCron && args.anos.length === 0) {
     throw new Error('informe --anos=AAAA[-AAAA] (ou --so-cadastro / --como-cron)');
@@ -178,6 +186,12 @@ async function contextoDryRun(prisma: PrismaClient): Promise<JobContexto> {
 async function backfillAnos(ctx: JobContexto, args: Args): Promise<ResultadoJob> {
   const anoAtual = Number(ctx.hoje.slice(0, 4));
   const porAno: Array<Record<string, unknown>> = [];
+  const simbolosBdi14 = await tickersBdi14(ctx.prisma);
+  console.log(`  BDI 14 (Fiagro/FI-Infra do mapa): ${simbolosBdi14.size} tickers`);
+  if (args.soFundosBdi14 && simbolosBdi14.size === 0) {
+    console.log('  --so-fundos-bdi14 sem tickers no mapa: rode o fii-cadastro antes');
+    return { detalhes: { porAno, simbolosBdi14: 0 } };
+  }
   let rssPico = rssMb();
   const amostrador = setInterval(() => {
     rssPico = Math.max(rssPico, rssMb());
@@ -192,13 +206,15 @@ async function backfillAnos(ctx: JobContexto, args: Args): Promise<ResultadoJob>
       // Retomada: ano fechado cujo arquivo já foi processado ATÉ O FIM (trailer conferido e último
       // lote gravado) neste modo ou no completo. "Último pregão gravado" não basta: uma falha no
       // trailer deixa o último lote (até 999 linhas do último pregão) sem gravar.
-      const jobAno = `backfill:cotahist:${args.modo}`;
+      const jobAno = args.soFundosBdi14
+        ? `backfill:cotahist-bdi14:${args.modo}`
+        : `backfill:cotahist:${args.modo}`;
       if (!args.forcar && ano < anoAtual) {
         const fonte = await obterFonteArquivo(ctx.prisma, url);
-        if (
-          fonte?.processadoEm &&
-          (fonte.jobUltimo === jobAno || fonte.jobUltimo === 'backfill:cotahist:completo')
-        ) {
+        const completo = args.soFundosBdi14
+          ? 'backfill:cotahist-bdi14:completo'
+          : 'backfill:cotahist:completo';
+        if (fonte?.processadoEm && (fonte.jobUltimo === jobAno || fonte.jobUltimo === completo)) {
           console.log(
             `- ${ano}: ${nome} já processado em ${fonte.processadoEm.toISOString()} — pulado`,
           );
@@ -230,6 +246,8 @@ async function backfillAnos(ctx: JobContexto, args: Args): Promise<ResultadoJob>
           cacheDir: args.cacheDir,
           aceitarDataBruta: filtroDev ? (d) => filtroDev.has(d) : undefined,
           job: jobAno,
+          simbolosBdi14,
+          soBdi14: args.soFundosBdi14,
         });
         const seg = (Date.now() - t0) / 1000;
         const linha = {
