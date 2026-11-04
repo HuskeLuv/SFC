@@ -525,6 +525,60 @@ describe('importarInvestimento', () => {
     });
   });
 
+  it('CRI que já amortizou (saldo bem abaixo do aplicado) entra pela posição', async () => {
+    const providerDate = new Date('2026-11-03T00:00:00Z');
+    const st = await importarInvestimento({
+      ...base,
+      providerDate,
+      type: 'FIXED_INCOME',
+      subtype: 'CRI',
+      name: 'CRI - HABITASEC SECURITIZADORA S.A.',
+      balance: 37776.32,
+      quantity: 128,
+      amountOriginal: 118517.76,
+      rate: 100,
+      rateType: 'IPCA',
+      fixedAnnualRate: 4.248,
+      issueDate: new Date('2018-12-18T03:00:00Z'),
+      dueDate: new Date('2029-01-21T03:00:00Z'),
+    });
+    expect(st).toBe('importado');
+    expect(mockPrisma.tx.fixedIncomeAsset.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: 'CRI_HIB',
+        investedAmount: 37776.32,
+        startDate: providerDate,
+        annualRate: 4.248,
+        taxExempt: true,
+      }),
+    });
+    expect(mockPrisma.tx.stockTransaction.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ total: 37776.32, date: providerDate }),
+    });
+  });
+
+  it('CDB com saldo abaixo do aplicado segue a curva desde a emissão (regra é só de quem paga fluxo)', async () => {
+    await importarInvestimento({
+      ...base,
+      providerDate: new Date('2026-11-03T00:00:00Z'),
+      type: 'FIXED_INCOME',
+      subtype: 'CDB',
+      name: 'CDB - BANCO PINE S/A',
+      balance: 10000,
+      amountOriginal: 42000,
+      rate: 0,
+      fixedAnnualRate: 14.85,
+      issueDate: new Date('2026-06-25T03:00:00Z'),
+      dueDate: new Date('2028-06-26T03:00:00Z'),
+    });
+    expect(mockPrisma.tx.fixedIncomeAsset.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        investedAmount: 42000,
+        startDate: new Date('2026-06-25T03:00:00Z'),
+      }),
+    });
+  });
+
   it('debênture sem data da compra usa a emissão', async () => {
     await importarInvestimento({
       ...base,

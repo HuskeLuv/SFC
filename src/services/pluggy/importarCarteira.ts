@@ -166,9 +166,15 @@ const RF_BANCARIA = new Set([
   ...SUBTIPOS_DEBENTURE,
 ]);
 const ISENTOS = new Set(['LCI', 'LCA', 'CRI', 'CRA', 'LIG']);
+/**
+ * Renda fixa que paga juros/amortização no caminho: debênture, e CRI/CRA (amortização mensal
+ * comum — Habitasec, Opea). O saldo do banco cai abaixo do aplicado, e a curva desde a compra
+ * sobre o aplicado inflava a posição (QA lunny, 04/11/2026: 3 CRIs ~R$ 160 mil acima do banco).
+ */
+export const SUBTIPOS_PAGAM_FLUXO = new Set([...SUBTIPOS_DEBENTURE, 'CRI', 'CRA']);
 
 /**
- * Debênture paga cupom (e às vezes amortiza): o saldo do banco fica perto do valor aplicado
+ * Debênture paga cupom (e às vezes amortiza; CRI/CRA também): o saldo do banco fica perto do valor aplicado
  * enquanto a curva sem fluxos cresce. Se o saldo está mais de 5% abaixo do mínimo que a curva
  * daria só com a taxa fixa (sem IPCA/CDI), houve pagamento e a curva desde a compra inflaria o
  * valor. `taxaAa` em % a.a.
@@ -643,10 +649,11 @@ export async function importarInvestimento(
       const debenture = SUBTIPOS_DEBENTURE.has(inv.subtype ?? '');
       const compra =
         (debenture ? inv.purchaseDate : null) ?? inv.issueDate ?? inv.providerDate ?? agora;
-      // Debênture que já pagou juros/amortização (NTEN11, ENAT11): a curva desde a compra sobre o
-      // valor aplicado fica muito acima do saldo do banco. Entra pela posição de hoje (saldo).
+      // Debênture/CRI/CRA que já pagou juros/amortização (NTEN11, ENAT11, CRI Habitasec): a curva
+      // desde a compra sobre o valor aplicado fica muito acima do saldo do banco. Entra pela
+      // posição de hoje (saldo).
       const pelaPosicao =
-        debenture &&
+        SUBTIPOS_PAGAM_FLUXO.has(inv.subtype ?? '') &&
         debentureJaPagouFluxo(investido, Number(inv.balance ?? 0), annualRate, compra, agora);
       const start = pelaPosicao ? (inv.providerDate ?? agora) : compra;
       const investidoRf = pelaPosicao ? Number(inv.balance) : investido;
