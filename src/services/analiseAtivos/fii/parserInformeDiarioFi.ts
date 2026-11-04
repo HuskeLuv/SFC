@@ -78,13 +78,18 @@ export async function lerInformeDiarioLinhas(
     const k = `${cnpj}|${inicioDoMes(data)}`;
     const atual = fechamentos.get(k);
     if (atual && atual.data >= data) continue;
-    const cotistas = numeroCvm(l.get('NR_COTST'));
+    const lido = numeroCvm(l.get('NR_COTST'));
+    // alguns fundos informam 0 cotistas em dias soltos: fica o último número positivo do mês
+    const cotistas =
+      lido !== null && lido > 0
+        ? Math.round(lido)
+        : (atual?.cotistas ?? (lido === null ? null : 0));
     fechamentos.set(k, {
       cnpj,
       data,
       vlQuota: numeroCvm(l.get('VL_QUOTA')),
       pl: numeroCvm(l.get('VL_PATRIM_LIQ')),
-      cotistas: cotistas === null ? null : Math.round(cotistas),
+      cotistas,
     });
   }
   return { fechamentos, linhasLidas: lidas, rejeitadas };
