@@ -380,6 +380,7 @@ export async function lerMapa(
     conferidoPor: l.conferidoPor,
     motivo: l.motivo,
     nomeB3: l.nomeB3,
+    tipoFundo: l.tipoFundo,
     fetchedAt: l.fetchedAt,
   }));
 }

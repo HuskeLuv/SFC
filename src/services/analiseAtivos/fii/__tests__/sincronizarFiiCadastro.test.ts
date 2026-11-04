@@ -91,6 +91,7 @@ describe('sincronizarFiiCadastro', () => {
       anos: [2026],
       baixarDetalhe,
       maxDetalhes: 10,
+      candidatosFiagro: [],
     });
 
     expect(baixarDetalhe).toHaveBeenCalledTimes(6); // todos novos ⇒ prioridade
@@ -108,13 +109,26 @@ describe('sincronizarFiiCadastro', () => {
     expect(por.TRXF11).toMatchObject({ cnpj: CNPJ.TRXF, origem: 'manual' });
     // KNRI casa pelo nome; sem cotação (COTAHIST ainda não rodou) ⇒ não conferido
     expect(por.KNRI11).toMatchObject({ cnpj: CNPJ.KNRI, origem: 'b3_nome', conferido: false });
-    // FIAGRO nunca entra; IRDM11 entra fechado (histórico manual)
-    expect(por.AGRO11).toBeUndefined();
+    // FIAGRO (pelo detalhe da B3) entra com o tipo; sem informe recente do CNPJ ⇒ não conferido.
+    // IRDM11 entra fechado (histórico manual)
+    expect(por.AGRO11).toMatchObject({
+      cnpj: '00000000000191',
+      origem: 'b3_cnpj',
+      conferido: false,
+      tipoFundo: 'FIAGRO',
+      motivo: 'cnpj_b3_sem_informe_recente',
+    });
+    expect(por.HGLG11).toMatchObject({ tipoFundo: 'FII' });
     expect(por.IRDM11.validTo).toEqual(new Date('2025-10-31T00:00:00Z'));
 
-    expect(r.detalhes).toMatchObject({ fiis: 6, excluidosTipo: 1, casados: 5 });
+    expect(r.detalhes).toMatchObject({
+      fiis: 6,
+      excluidosTipo: 0,
+      casados: 6,
+      porTipo: { FII: 5, FIAGRO: 1 },
+    });
     expect(cont.linhasLidas).toBe(6);
-    expect(alertas.filter((a) => a.codigo === 'fii_sigla_nova')).toHaveLength(5);
+    expect(alertas.filter((a) => a.codigo === 'fii_sigla_nova')).toHaveLength(6);
   });
 
   it('dry-run (aplicar=false) não grava', async () => {
@@ -125,6 +139,7 @@ describe('sincronizarFiiCadastro', () => {
       cacheDir,
       anos: [2026],
       baixarDetalhe: async (i) => detalhes[i.acronym] ?? null,
+      candidatosFiagro: [],
     });
     expect(prisma.fiiTickerMap.createMany).not.toHaveBeenCalled();
     expect(prisma.$transaction).not.toHaveBeenCalled();
@@ -175,9 +190,93 @@ describe('sincronizarFiiCadastro', () => {
       anos: [2026],
       baixarDetalhe,
       maxDetalhes: 2,
+      candidatosFiagro: [],
     });
-    expect(r.detalhes).toMatchObject({ plano: { abrir: 0, fechar: 0, atualizar: 0 } });
+    // só o AGRO11 (Fiagro pelo detalhe, antes excluído) abre; o resto fica igual
+    expect(r.detalhes).toMatchObject({ plano: { abrir: 1, fechar: 0, atualizar: 0 } });
     // prioridade = AGRO (sem vigente); rolante: KNRI (não conferido) antes de HGLG; manuais nunca
     expect(baixarDetalhe.mock.calls.map(([i]) => i.acronym)).toEqual(['AGRO', 'KNRI']);
+  });
+
+  it('listas FIAGRO e FI-INFRA: CNPJ da B3 conferido com o informe de Fiagro / o diário', async () => {
+    const prisma = prismaFalso();
+    prisma.assetQuoteResumo.findMany.mockResolvedValue([
+      { symbol: 'KNCA11', closeRaw: { toNumber: () => 83.6 }, ultimoPregao: new Date() },
+      { symbol: 'KDIF11', closeRaw: { toNumber: () => 104.9 }, ultimoPregao: new Date() },
+    ]);
+    const { ctx } = ctxFalso(prisma);
+    const fundos: ItemListaB3Bruto[] = [
+      {
+        id: 6627,
+        acronym: 'KNCA',
+        fundName: 'KINEA CRÉDITO AGRO FIAGRO',
+        tradingName: 'FIAGRO KINEA',
+        typeName: null,
+        tipoFundo: 'FIAGRO',
+      },
+      {
+        id: 27,
+        acronym: 'KDIF',
+        fundName: 'KINEA INFRA',
+        tradingName: 'KINEA INFRAF',
+        typeName: 'FI-INFRA',
+        tipoFundo: 'FI-INFRA',
+      },
+    ];
+    const det: Record<string, DetalheFundoB3> = {
+      KNCA: { cnpj: '41745701000137', tradingCode: 'KNCA11', typeName: 'FIAGRO' },
+      KDIF: { cnpj: '26324298000189', tradingCode: 'KDIF11', typeName: 'FI-INFRA' },
+    };
+    const candidatosFiInfra = vi.fn(async (cnpjs: Set<string>) =>
+      [...cnpjs].map((cnpj) => ({
+        cnpj,
+        nomes: [],
+        isin: null,
+        ultimoMes: '2026-09-01',
+        bolsa: true,
+        pl: 2771158833.09,
+        cotas: 23484769.3431,
+      })),
+    );
+    const r = await sincronizarFiiCadastro(ctx, {
+      listaB3: [...lista, ...fundos],
+      cacheDir,
+      anos: [2026],
+      baixarDetalhe: async (i) => det[i.acronym] ?? detalhes[i.acronym] ?? null,
+      maxDetalhes: 20,
+      candidatosFiagro: [
+        {
+          cnpj: '41745701000137',
+          nomes: ['KINEA CRÉDITO AGRO FIAGRO-IMOBILIÁRIO'],
+          isin: 'BRKNCACTF014',
+          ultimoMes: '2026-09-01',
+          bolsa: true,
+          pl: 2164726036.54,
+          cotas: 21599919,
+        },
+      ],
+      candidatosFiInfra,
+    });
+    expect(candidatosFiInfra).toHaveBeenCalledWith(new Set(['26324298000189']));
+    const criadas = prisma.fiiTickerMap.createMany.mock.calls[0][0].data as Array<{
+      ticker: string;
+      tipoFundo: string;
+      conferido: boolean;
+      conferidoPor: string | null;
+      isin: string | null;
+    }>;
+    const por = Object.fromEntries(criadas.map((c) => [c.ticker, c]));
+    expect(por.KNCA11).toMatchObject({
+      tipoFundo: 'FIAGRO',
+      conferido: true,
+      conferidoPor: 'auto_pl_cotacao',
+      isin: 'BRKNCACTF014',
+    });
+    expect(por.KDIF11).toMatchObject({
+      tipoFundo: 'FI-INFRA',
+      conferido: true,
+      conferidoPor: 'auto_pl_cotacao',
+    });
+    expect(r.detalhes).toMatchObject({ candidatosFiagro: 1, candidatosFiInfra: 1 });
   });
 });
