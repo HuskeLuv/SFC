@@ -40,6 +40,7 @@ import {
   chaveEmprestimo,
   emprestimoRotativo,
   chaveInvestimento,
+  debentureJaPagouFluxo,
   importarEmprestimo,
   importarInvestimento,
   indexadorRendaFixa,
@@ -106,6 +107,30 @@ beforeEach(() => {
   mockPrisma.fixedIncomeAsset.findFirst.mockResolvedValue(null);
   mockPrisma.tesouroDiretoPrice.findFirst.mockResolvedValue(null);
   mockPrisma.institution.findMany.mockResolvedValue([]);
+});
+
+describe('debentureJaPagouFluxo', () => {
+  const agora = new Date('2026-11-03T00:00:00Z');
+  it('debênture antiga com cupom/amortização (NTEN11, ENAT11) → entra pela posição', () => {
+    expect(debentureJaPagouFluxo(29_584.21, 23_813.7, 8.55, new Date('2023-09-12'), agora)).toBe(
+      true,
+    );
+    expect(debentureJaPagouFluxo(54_287.05, 55_019.05, 9.07, new Date('2023-09-04'), agora)).toBe(
+      true,
+    );
+  });
+  it('compra recente sem fluxo pago (BTGL62, BTGL32) → segue a curva desde a compra', () => {
+    expect(debentureJaPagouFluxo(50_000, 52_226.02, 7.52, new Date('2026-07-28'), agora)).toBe(
+      false,
+    );
+    expect(debentureJaPagouFluxo(25_000, 25_049.12, 13.99, new Date('2026-07-28'), agora)).toBe(
+      false,
+    );
+  });
+  it('sem valor aplicado ou sem saldo → curva (não decide)', () => {
+    expect(debentureJaPagouFluxo(0, 1000, 8, new Date('2020-01-01'), agora)).toBe(false);
+    expect(debentureJaPagouFluxo(1000, 0, 8, new Date('2020-01-01'), agora)).toBe(false);
+  });
 });
 
 describe('mapeamentos', () => {
@@ -438,7 +463,8 @@ describe('importarInvestimento', () => {
       code: 'NTEN11',
       isin: 'BRNTENDBS005',
       issuer: 'BANCO BTG PACTUAL S.A.',
-      balance: 23813.7,
+      // saldo acima da curva mínima: sem cupom pago, segue a curva desde a compra
+      balance: 60000,
       quantity: 24,
       amountOriginal: 29584.21,
       rate: 100,
@@ -462,6 +488,40 @@ describe('importarInvestimento', () => {
         // a corretora (BTG) não é emissora da debênture
         emissorInstitutionId: null,
       }),
+    });
+  });
+
+  it('debênture que já pagou cupom/amortização (saldo abaixo da curva) entra pela posição', async () => {
+    const providerDate = new Date('2026-11-03T00:00:00Z');
+    const st = await importarInvestimento({
+      ...base,
+      providerDate,
+      type: 'FIXED_INCOME',
+      subtype: 'DEBENTURES',
+      name: 'DEBENTURES - BANCO BTG PACTUAL S.A.',
+      code: 'NTEN11',
+      issuer: 'BANCO BTG PACTUAL S.A.',
+      balance: 23813.7,
+      quantity: 24,
+      amountOriginal: 29584.21,
+      rate: 100,
+      rateType: 'IPCA',
+      fixedAnnualRate: 8.55,
+      issueDate: new Date('2020-05-15T03:00:00Z'),
+      purchaseDate: new Date('2023-03-10T03:00:00Z'),
+      dueDate: new Date('2030-05-15T03:00:00Z'),
+    });
+    expect(st).toBe('importado');
+    expect(mockPrisma.tx.fixedIncomeAsset.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        investedAmount: 23813.7,
+        startDate: providerDate,
+        indexer: 'IPCA',
+        annualRate: 8.55,
+      }),
+    });
+    expect(mockPrisma.tx.stockTransaction.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ total: 23813.7, date: providerDate }),
     });
   });
 

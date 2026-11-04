@@ -167,6 +167,25 @@ const RF_BANCARIA = new Set([
 ]);
 const ISENTOS = new Set(['LCI', 'LCA', 'CRI', 'CRA', 'LIG']);
 
+/**
+ * Debênture paga cupom (e às vezes amortiza): o saldo do banco fica perto do valor aplicado
+ * enquanto a curva sem fluxos cresce. Se o saldo está mais de 5% abaixo do mínimo que a curva
+ * daria só com a taxa fixa (sem IPCA/CDI), houve pagamento e a curva desde a compra inflaria o
+ * valor. `taxaAa` em % a.a.
+ */
+export function debentureJaPagouFluxo(
+  aplicado: number,
+  saldo: number,
+  taxaAa: number,
+  compra: Date,
+  agora: Date,
+): boolean {
+  if (!(aplicado > 0) || !(saldo > 0)) return false;
+  const anos = Math.max(0, (agora.getTime() - compra.getTime()) / (365.25 * 86_400_000));
+  const minimo = aplicado * Math.pow(1 + Math.max(0, taxaAa) / 100, anos);
+  return saldo < minimo * 0.95;
+}
+
 export function tipoRendaFixa(subtype: string | null, rateType: string | null): FixedIncomeType {
   const base =
     subtype && RF_BANCARIA.has(subtype) && !SUBTIPOS_DEBENTURE.has(subtype) ? subtype : 'CDB';
@@ -622,8 +641,15 @@ export async function importarInvestimento(
       // Debênture é comprada no secundário: issueDate é a emissão do papel (NTEN11 = 2020),
       // não a compra do cliente. Curva a partir da emissão inflava o valor.
       const debenture = SUBTIPOS_DEBENTURE.has(inv.subtype ?? '');
-      const start =
+      const compra =
         (debenture ? inv.purchaseDate : null) ?? inv.issueDate ?? inv.providerDate ?? agora;
+      // Debênture que já pagou juros/amortização (NTEN11, ENAT11): a curva desde a compra sobre o
+      // valor aplicado fica muito acima do saldo do banco. Entra pela posição de hoje (saldo).
+      const pelaPosicao =
+        debenture &&
+        debentureJaPagouFluxo(investido, Number(inv.balance ?? 0), annualRate, compra, agora);
+      const start = pelaPosicao ? (inv.providerDate ?? agora) : compra;
+      const investidoRf = pelaPosicao ? Number(inv.balance) : investido;
       let maturity = inv.dueDate;
       if (!maturity || maturity <= start) {
         maturity = new Date(start);
@@ -649,7 +675,7 @@ export async function importarInvestimento(
       const symbol = `PLUGGY-${tesouro ? 'TD' : 'RF'}-${inv.providerInvestmentId.slice(0, 8).toUpperCase()}`;
       // Tesouro guarda a quantidade de títulos: o pricer usa investido/qty como PU de compra.
       const quantidade = tesouro && inv.quantity && inv.quantity > 0 ? inv.quantity : 1;
-      const preco = Math.round((investido / quantidade) * 1_000_000) / 1_000_000;
+      const preco = Math.round((investidoRf / quantidade) * 1_000_000) / 1_000_000;
       // Banco emissor (FGC): só CDB/LC/LCI/LCA/RDB/LIG fora do Tesouro. Debênture, LF, CRI e CRA
       // não têm emissor coberto. Sem certeza (CNPJ/nome/apelido), fica null = usar a corretora.
       let emissorInstitutionId: string | null = null;
@@ -670,7 +696,7 @@ export async function importarInvestimento(
             type: 'compra',
             quantity: quantidade,
             price: preco,
-            total: investido,
+            total: investidoRf,
             date: start,
             fees: 0,
             notes: NOTA_IMPORTACAO,
@@ -682,7 +708,7 @@ export async function importarInvestimento(
             assetId: asset.id,
             quantity: quantidade,
             avgPrice: preco,
-            totalInvested: investido,
+            totalInvested: investidoRf,
             lastUpdate: agora,
           },
         });
@@ -694,7 +720,7 @@ export async function importarInvestimento(
             description: inv.name,
             startDate: start,
             maturityDate: maturity,
-            investedAmount: investido,
+            investedAmount: investidoRf,
             annualRate,
             indexer,
             indexerPercent,
