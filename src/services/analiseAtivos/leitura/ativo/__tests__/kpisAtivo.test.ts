@@ -175,4 +175,16 @@ describe('montarKpis — FIIs', () => {
     });
     expect(k[7].sub).toBeNull();
   });
+
+  it('Fiagro/FI-Infra (segmento dos jobs dedicados): vacância n/a com o texto do fundo de papel', () => {
+    for (const segmentoCvm of ['Fiagro', 'FI-Infra']) {
+      const linha = { ...paraLinhaQuadroApi(LINHA_HCTR11), segmentoCvm };
+      const k = montarKpis({ linha, atuais: null, pares: [] });
+      expect(k[7].valor).toEqual({
+        estado: 'nao_se_aplica',
+        motivo: 'papel_sem_imoveis',
+        texto: 'Fiagro e FI-Infra são analisados como fundo de papel: sem imóveis',
+      });
+    }
+  });
 });

@@ -24,6 +24,16 @@ export function tipoFiiExibido(
   return tipoCvm === 'tijolo' ? 'tijolo' : 'papel';
 }
 
+/**
+ * Segmento gravado pelos jobs fiagro-mensal / fi-infra-mensal (FiiMonthly.segmentoCvm): Fiagro e
+ * FI-Infra listados, analisados como FII de papel (o segmento é o rótulo e a faceta do Quadro).
+ */
+export const SEGMENTOS_FUNDO_PAPEL = ['Fiagro', 'FI-Infra'] as const;
+
+export function ehSegmentoFundoPapel(segmentoCvm: string | null | undefined): boolean {
+  return (SEGMENTOS_FUNDO_PAPEL as readonly string[]).includes(segmentoCvm ?? '');
+}
+
 /** Prefixo do segmento pelo tipo CVM bruto ('fof' | 'hibrido'); senão null. */
 export function segmentoTipoDe(tipoCvm: string | null | undefined): SegmentoTipoFii | null {
   return tipoCvm === 'fof' || tipoCvm === 'hibrido' ? tipoCvm : null;

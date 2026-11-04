@@ -8,6 +8,8 @@ import {
   type EntradaQuadro,
   type MultiplosQuadro,
 } from '../montarLinhasQuadro';
+import { SCORING_PARAMS_V6 } from '@/services/analiseAtivos/params/scoringParamsV6';
+import { ehSegmentoFundoPapel } from '@/services/analiseAtivos/quadro/tipoFiiExibido';
 import type { CriteriosCompactos } from '@/types/analiseAtivosCriterios';
 
 const DATA_REF = new Date('2026-09-29T00:00:00.000Z');
@@ -291,6 +293,24 @@ describe('montarLinhasQuadro', () => {
     expect(ehFundoNaoFii('FI-INFRA')).toBe(true);
     expect(ehFundoNaoFii('FII')).toBe(false);
     expect(ehFundoNaoFii(undefined)).toBe(false);
+  });
+
+  it('scoring v6: Fiagro/FI-Infra entram no Quadro (como qualquer FII negociado)', () => {
+    const base = entrada();
+    const rs = montarLinhasQuadro(
+      {
+        ...base,
+        fiis: base.fiis.map((f) => (f.symbol === 'HCTR11' ? { ...f, tipoFundo: 'FI-INFRA' } : f)),
+      },
+      SCORING_PARAMS_V6,
+    );
+    expect(linha(rs, 'HCTR11')).toMatchObject({ noQuadro: true, foraDoQuadroMotivo: null });
+    // o legado pelo nome (FIAGRO no nome de um FII do mapa) também entra
+    expect(linha(rs, 'AGRO11')).toMatchObject({ noQuadro: true, foraDoQuadroMotivo: null });
+    expect(ehSegmentoFundoPapel('Fiagro')).toBe(true);
+    expect(ehSegmentoFundoPapel('FI-Infra')).toBe(true);
+    expect(ehSegmentoFundoPapel('Títulos e Val. Mob.')).toBe(false);
+    expect(ehSegmentoFundoPapel(null)).toBe(false);
   });
 
   it('nome do FII: Asset.name igual ao ticker cede ao nome do cadastro B3', () => {

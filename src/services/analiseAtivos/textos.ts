@@ -29,6 +29,8 @@ export const TEXTOS_ANALISE = {
     sem_fonte_estruturada: 'sem fonte estruturada',
     criterio_desligado: 'critério desligado até a validação da fonte',
     papel_sem_imoveis: 'fundo de papel não tem imóveis',
+    // Fiagro e FI-Infra (04/11/2026): analisados como FII de papel (lastro CRA/LCA, debêntures)
+    fundo_papel_sem_imoveis: 'Fiagro e FI-Infra são analisados como fundo de papel: sem imóveis',
     fora_do_escopo: 'fora do escopo desta fase',
   },
   selos: {

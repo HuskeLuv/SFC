@@ -21,7 +21,8 @@
  * (VALID_FROM_SCORING_V3, nunca new Date()). Ativar = UPDATE do validFrom com OK, depois do dry-run
  * recalcular-analise --versao-params=3 (docs/analise-ativos/fundamentei-regras/ATIVACAO.md). A v4
  * (21/10/2026) e a v5 (24/10/2026, igual ao Fundamentei) nascem inertes do mesmo jeito
- * (VALID_FROM_SCORING_V4/V5).
+ * (VALID_FROM_SCORING_V4/V5). A v6 (04/11/2026) = v5 com Fiagro e FI-Infra no Quadro
+ * (universo.fiagroForaDoMvp false), inerte do mesmo jeito (VALID_FROM_SCORING_V6).
  *
  * Uso:
  *   npx tsx --env-file=.env scripts/analise-ativos/seed-scoring-params.ts                    # v1 dry-run
@@ -32,6 +33,7 @@
  *   npx tsx --env-file=.env scripts/analise-ativos/seed-scoring-params.ts --versao=3 --apply # v3 inerte (2099)
  *   npx tsx --env-file=.env scripts/analise-ativos/seed-scoring-params.ts --versao=4 --apply # v4 inerte (2099)
  *   npx tsx --env-file=.env scripts/analise-ativos/seed-scoring-params.ts --versao=5 --apply # v5 inerte (2099)
+ *   npx tsx --env-file=.env scripts/analise-ativos/seed-scoring-params.ts --versao=6 --apply # v6 inerte (2099)
  */
 import { isDeepStrictEqual } from 'util';
 import { PrismaClient, type Prisma } from '@prisma/client';
@@ -50,6 +52,10 @@ import {
   SCORING_PARAMS_V5,
   VALID_FROM_SCORING_V5,
 } from '../../src/services/analiseAtivos/params/scoringParamsV5';
+import {
+  SCORING_PARAMS_V6,
+  VALID_FROM_SCORING_V6,
+} from '../../src/services/analiseAtivos/params/scoringParamsV6';
 import { validarScoringParams } from '../../src/services/analiseAtivos/params/obterScoringParams';
 
 export interface DefVersao {
@@ -105,6 +111,16 @@ export const VERSOES: Record<number, DefVersao> = {
     notas:
       'v5 = v4 + proventos.jcpLiquido, multiplos.lucroPlTotais e multiplos.valorMercadoComTesouraria ' +
       '(igual ao Fundamentei; decisão do Wellington de 24/10/2026)',
+  },
+  6: {
+    params: SCORING_PARAMS_V6,
+    rotulo: 'SCORING_PARAMS_V6',
+    // inerte como a v5; ativar = UPDATE do validFrom com OK
+    validFromPadrao: () => new Date(VALID_FROM_SCORING_V6),
+    createdBy: 'seed-fiagro-fi-infra',
+    notas:
+      'v6 = v5 + universo.fiagroForaDoMvp false: Fiagro e FI-Infra listados no Quadro, analisados ' +
+      'como FII de papel (decisão de produto de 04/11/2026)',
   },
 };
 

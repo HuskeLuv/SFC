@@ -30,6 +30,7 @@ import {
 import { ehCampoTela } from '@/services/analiseAtivos/regras/comum/conferencia';
 import { TEXTOS_CRITERIOS } from '@/services/analiseAtivos/textosCriterios';
 import { rotuloEuaEn } from '@/services/analiseAtivos/textosEuaEn';
+import { ehSegmentoFundoPapel } from '@/services/analiseAtivos/quadro/tipoFiiExibido';
 import { TEXTOS_EUA_TELAS } from '@/services/analiseAtivos/textosEuaTelas';
 import type { Estado, KpiAtivo, LinhaQuadroApi, PontoSerieAnual } from '@/types/analiseAtivosApi';
 import type { IdCriterio, PontoCriterio } from '@/types/analiseAtivosCriterios';
@@ -302,7 +303,12 @@ function kpisFii(e: EntradaKpis): KpiAtivo[] {
       ? {
           estado: 'nao_se_aplica',
           motivo: 'papel_sem_imoveis',
-          texto: textoNaoSeAplica('papel_sem_imoveis'),
+          // Fiagro/FI-Infra: o texto diz por que o fundo é "de papel"
+          texto: textoNaoSeAplica(
+            ehSegmentoFundoPapel(linha.segmentoCvm)
+              ? 'fundo_papel_sem_imoveis'
+              : 'papel_sem_imoveis',
+          ),
         }
       : linha.vacanciaCvm;
   return [
