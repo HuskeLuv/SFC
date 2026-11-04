@@ -80,7 +80,8 @@ async function ler(page: Page): Promise<Leitura> {
   const numeros = new Set<string>();
   for (const m of texto.matchAll(new RegExp(REGEX_NUMERO))) {
     const depois = texto.slice((m.index ?? 0) + m[0].length).trimStart();
-    if (!depois.startsWith('%')) numeros.add(m[0]);
+    // "/" depois: número de lei (Lei 15.270/2025), não valor da posição.
+    if (!depois.startsWith('%') && !depois.startsWith('/')) numeros.add(m[0]);
   }
   return {
     numeros: [...numeros],
