@@ -47,6 +47,10 @@
   {
    "name": "Come-cotas",
    "className": "bg-transparent border-b-2 border-transparent dark:hover:text-gray-200 dark:text-gray-400 duration-200 ease-in-out font-medium hover:text-gray-700 inline-flex items-center px-3 py-3 text-gray-500 text-sm transition-colors whitespace-nowrap"
+  },
+  {
+   "name": "PGBL Novo",
+   "className": "bg-transparent border-b-2 border-transparent dark:hover:text-gray-200 dark:text-gray-400 duration-200 ease-in-out font-medium hover:text-gray-700 inline-flex items-center px-3 py-3 text-gray-500 text-sm transition-colors whitespace-nowrap"
   }
  ],
  "tables": [],

@@ -109,6 +109,25 @@ export interface IRComecotasResponse {
   proximaCobrancaGlobal: string | null;
 }
 
+/** Plano de previdência da carteira com os aportes do ano (aba PGBL). */
+export interface IRPlanoPrevidencia {
+  assetId: string;
+  nome: string;
+  cnpj: string | null;
+  /** Palpite pelo nome; null = a carteira não sabe se é PGBL ou VGBL. */
+  tipoSugerido: 'pgbl' | 'vgbl' | null;
+  aportesQuantidade: number;
+  aportesTotal: number;
+  resgatesTotal: number;
+  saldoAtual: number;
+}
+
+export interface IRPgblResponse {
+  year: number;
+  asOf: string;
+  planos: IRPlanoPrevidencia[];
+}
+
 async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(url, { credentials: 'include', signal });
   if (!res.ok) throw new Error(`Erro ao carregar ${url}`);
@@ -147,5 +166,12 @@ export function useIRComecotas() {
   return useQuery<IRComecotasResponse>({
     queryKey: queryKeys.ir.comecotas(),
     queryFn: ({ signal }) => fetchJson('/api/analises/ir-comecotas', signal),
+  });
+}
+
+export function useIRPgbl(year: number) {
+  return useQuery<IRPgblResponse>({
+    queryKey: queryKeys.ir.pgbl(year),
+    queryFn: ({ signal }) => fetchJson(`/api/analises/ir-pgbl?year=${year}`, signal),
   });
 }

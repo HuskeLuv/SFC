@@ -6,6 +6,7 @@ import IRMensalRendaVariavel from './ir/IRMensalRendaVariavel';
 import IRStocksUs from './ir/IRStocksUs';
 import IRCripto from './ir/IRCripto';
 import IRComecotas from './ir/IRComecotas';
+import IRPgbl from './ir/IRPgbl';
 
 interface TabContentProps {
   isActive: boolean;
@@ -23,7 +24,14 @@ const tabs = [
   { id: 'stocks-us', label: 'Stocks US' },
   { id: 'cripto', label: 'Cripto' },
   { id: 'come-cotas', label: 'Come-cotas' },
+  { id: 'pgbl', label: 'PGBL', badge: 'Novo' },
 ];
+
+/** Pílula "Novo" da aba PGBL (HTML do Pedro, 03/11/2026): azul da paleta, não contagem. */
+const BADGE_NOVO = {
+  active: 'bg-brand-50 text-mf-patrimonio dark:bg-white/[0.08] dark:text-mf-tranquilidade',
+  inactive: 'bg-brand-50 text-mf-patrimonio dark:bg-white/[0.06] dark:text-mf-tranquilidade',
+};
 
 export default function IRTabs() {
   const [activeTab, setActiveTab] = useState('resumo-anual');
@@ -37,13 +45,14 @@ export default function IRTabs() {
           onChange={setActiveTab}
           ariaLabel="Imposto de renda"
           variant="underline"
+          badgeClassNames={BADGE_NOVO}
           navClassName="-mb-px flex space-x-2 overflow-x-auto [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-600 [&::-webkit-scrollbar]:h-1.5"
         />
       </div>
 
       <div className="p-6 max-lg:p-0">
         <TabContent isActive={activeTab === 'resumo-anual'}>
-          <IRResumoAnual />
+          <IRResumoAnual onAbrirPgbl={() => setActiveTab('pgbl')} />
         </TabContent>
         <TabContent isActive={activeTab === 'mensal-rv'}>
           <IRMensalRendaVariavel />
@@ -56,6 +65,9 @@ export default function IRTabs() {
         </TabContent>
         <TabContent isActive={activeTab === 'come-cotas'}>
           <IRComecotas />
+        </TabContent>
+        <TabContent isActive={activeTab === 'pgbl'}>
+          <IRPgbl />
         </TabContent>
       </div>
     </div>

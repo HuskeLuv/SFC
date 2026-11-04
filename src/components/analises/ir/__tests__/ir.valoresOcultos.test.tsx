@@ -132,6 +132,23 @@ vi.mock('@/hooks/useIR', () => {
           },
         ],
       }),
+    useIRPgbl: () =>
+      ok({
+        year: 2026,
+        asOf: '2026-10-31',
+        planos: [
+          {
+            assetId: 'prev1',
+            nome: 'Renda Futura PGBL',
+            cnpj: null,
+            tipoSugerido: 'pgbl',
+            aportesQuantidade: 3,
+            aportesTotal: S.saldo,
+            resgatesTotal: 0,
+            saldoAtual: S.aplicado,
+          },
+        ],
+      }),
     useIRComecotas: () =>
       ok({
         asOf: '2026-10-31',
@@ -159,6 +176,7 @@ import IRMensalRendaVariavel from '../IRMensalRendaVariavel';
 import IRStocksUs from '../IRStocksUs';
 import IRCripto from '../IRCripto';
 import IRComecotas from '../IRComecotas';
+import IRPgbl from '../IRPgbl';
 
 afterEach(() => {
   estado.belowLg = false;
@@ -205,6 +223,16 @@ const TELAS: Array<[string, React.ComponentType, (texto: string) => void]> = [
     (t) => {
       expect(t).toContain('15%');
       expect(t).toContain('120 dias na carteira');
+    },
+  ],
+  [
+    'PGBL',
+    IRPgbl,
+    (t) => {
+      // Regras públicas (limites legais) e percentuais ficam legíveis.
+      expect(t).toMatch(/R\$\s3\.561,50/);
+      expect(t).toMatch(/R\$\s2\.275,08/);
+      expect(t).toContain('Limite dedutível (12%)');
     },
   ],
 ];

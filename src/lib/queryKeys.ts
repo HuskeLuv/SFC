@@ -119,6 +119,7 @@ export const queryKeys = {
     stocksUs: () => [...queryKeys.ir.all, 'stocksUs'] as const,
     cripto: () => [...queryKeys.ir.all, 'cripto'] as const,
     comecotas: () => [...queryKeys.ir.all, 'comecotas'] as const,
+    pgbl: (year: number) => [...queryKeys.ir.all, 'pgbl', year] as const,
   },
   // Mover investimentos entre abas/seções (out/2026): opções do diálogo e categoria do ativo
   carteiraMover: {

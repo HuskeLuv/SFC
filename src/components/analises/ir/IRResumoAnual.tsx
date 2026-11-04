@@ -1,18 +1,59 @@
 'use client';
 import React, { useState } from 'react';
-import { useIRResumoAnual } from '@/hooks/useIR';
+import { useIRPgbl, useIRResumoAnual } from '@/hooks/useIR';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import IRSummaryCard from './IRSummaryCard';
 import IRStateMessage from './IRStateMessage';
 import { formatBRL, jcpIrrfRateLabel } from './irFormatters';
 import { Sensivel } from '@/components/common/valores/Sensivel';
+import { REGRAS_IRPF_2026 } from '@/services/ir/irpfAnual';
+import { tipoDoPlano, usePlanosMarcados } from './pgblMarcacoes';
 
 function buildYearOptions(): number[] {
   const current = new Date().getFullYear();
   return [current, current - 1, current - 2, current - 3];
 }
 
-export default function IRResumoAnual() {
+/**
+ * Card "Dedução PGBL" (HTML do Pedro, 03/11/2026): aportes do ano nos planos marcados como PGBL e
+ * atalho para a aba PGBL. Só no ano que a simulação cobre (tabela de 2026).
+ */
+function CardPgbl({ onAbrir }: { onAbrir?: () => void }) {
+  const { data } = useIRPgbl(REGRAS_IRPF_2026.anoCalendario);
+  const { marcas } = usePlanosMarcados();
+  const planos = data?.planos ?? [];
+  const pgbl = planos.filter((p) => tipoDoPlano(p, marcas) === 'pgbl');
+  const total = pgbl.reduce((s, p) => s + p.aportesTotal, 0);
+  const semTipo = planos.some((p) => tipoDoPlano(p, marcas) === null);
+  return (
+    <button
+      type="button"
+      onClick={onAbrir}
+      className="flex w-full flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-200 bg-brand-50/60 p-5 text-left transition-colors hover:bg-brand-50 dark:border-brand-900/40 dark:bg-brand-900/10 dark:hover:bg-brand-900/20 max-lg:p-4"
+    >
+      <span className="min-w-0">
+        <span className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+          Dedução PGBL
+          <span className="rounded-full bg-white px-1.5 py-px text-[10px] font-bold text-mf-patrimonio dark:bg-white/10 dark:text-mf-tranquilidade">
+            Novo
+          </span>
+        </span>
+        <span className="mt-1 block text-sm text-gray-700 dark:text-gray-300">
+          <strong className="text-gray-900 dark:text-white">
+            <Sensivel>{formatBRL(total)}</Sensivel>
+          </strong>{' '}
+          aportados em PGBL no ano · até 12% da renda tributável reduzem o IR no modelo completo
+          {semTipo && ' · confirme o tipo dos planos'}
+        </span>
+      </span>
+      <span className="text-sm font-semibold text-mf-outside dark:text-mf-tranquilidade">
+        Simular benefício →
+      </span>
+    </button>
+  );
+}
+
+export default function IRResumoAnual({ onAbrirPgbl }: { onAbrirPgbl?: () => void } = {}) {
   const [year, setYear] = useState(new Date().getFullYear());
   const { data, isLoading, error } = useIRResumoAnual(year);
   const yearOptions = buildYearOptions();
@@ -112,6 +153,8 @@ export default function IRResumoAnual() {
               subtext={`Tributação exclusiva — ${jcpIrrfRateLabel(year)} retidos na fonte`}
             />
           </div>
+
+          {year === REGRAS_IRPF_2026.anoCalendario && <CardPgbl onAbrir={onAbrirPgbl} />}
 
           <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] max-lg:p-4">
             <h4 className="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">
