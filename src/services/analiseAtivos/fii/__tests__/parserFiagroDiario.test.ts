@@ -140,6 +140,13 @@ describe('informe diário de fundos (FI-Infra leve)', () => {
     expect(cotasDoFechamento({ pl: 100, vlQuota: 10 })).toBe(10);
   });
 
+  it('1 cotista (classe master de FIC) ⇒ cotistas sem dado', () => {
+    const base = { cnpj: KDIF, data: '2026-09-30', vlQuota: 10, pl: 1000 };
+    expect(mesDoFechamento({ ...base, cotistas: 1 }).cotistas).toBeNull();
+    expect(mesDoFechamento({ ...base, cotistas: 0 }).cotistas).toBeNull();
+    expect(mesDoFechamento({ ...base, cotistas: 2 }).cotistas).toBe(2);
+  });
+
   it('0 cotistas num dia solto: fica o último número positivo do mês', async () => {
     const zerado = DIARIO.replace(';2771158833.09;0.00;0.00;55632', ';2771158833.09;0.00;0.00;0');
     const r = await lerInformeDiarioLinhas(linhas(zerado), {
