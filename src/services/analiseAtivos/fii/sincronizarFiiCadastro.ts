@@ -24,7 +24,12 @@ import {
   alertaAnoNaoPublicado,
   anoPodeNaoEstarPublicado,
 } from '@/services/analiseAtivos/fontes/anoNaoPublicado';
-import { anosDoCron, obterArquivo, urlInformeFii } from '@/services/analiseAtivos/fii/fiiArquivos';
+import {
+  anosDoCron,
+  mesesRecentes,
+  obterArquivo,
+  urlInformeFii,
+} from '@/services/analiseAtivos/fii/fiiArquivos';
 import { aplicarPlanoMapa, lerMapa } from '@/services/analiseAtivos/fii/gravarFii';
 import { AgregadorAlertas } from '@/services/analiseAtivos/fii/sincronizarFiiMensal';
 import {
@@ -89,15 +94,6 @@ export interface OpcoesFiiCadastro {
 }
 
 const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-/** Meses de referência ('AAAA-MM-01') de `hoje` para trás: o corrente primeiro, `n` ao todo. */
-export function mesesRecentes(hoje: string, n: number): string[] {
-  const ano = Number(hoje.slice(0, 4));
-  const mes = Number(hoje.slice(5, 7));
-  return Array.from({ length: n }, (_, i) =>
-    new Date(Date.UTC(ano, mes - 1 - i, 1)).toISOString().slice(0, 10),
-  );
-}
 
 /** Quantos meses do informe de Fiagro o cadastro lê (o do mês M sai em M+1/M+2). */
 const MESES_FIAGRO_CADASTRO = 4;

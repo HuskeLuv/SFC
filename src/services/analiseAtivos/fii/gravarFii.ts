@@ -385,10 +385,57 @@ export async function lerMapa(
   }));
 }
 
-/** CNPJs com alguma linha no mapa (universo B3 da ingestão mensal/trimestral). */
-export async function cnpjsDoMapa(prisma: PrismaClient): Promise<string[]> {
-  const linhas = await prisma.fiiTickerMap.findMany({ select: { cnpj: true }, distinct: ['cnpj'] });
+/**
+ * CNPJs com alguma linha no mapa (universo B3 da ingestão mensal/trimestral); `tipos` restringe ao
+ * tipoFundo (ex.: ['FIAGRO'] no fiagro-mensal).
+ */
+export async function cnpjsDoMapa(
+  prisma: PrismaClient,
+  tipos?: readonly string[],
+): Promise<string[]> {
+  const linhas = await prisma.fiiTickerMap.findMany({
+    ...(tipos ? { where: { tipoFundo: { in: [...tipos] } } } : {}),
+    select: { cnpj: true },
+    distinct: ['cnpj'],
+  });
   return linhas.map((l) => l.cnpj).sort();
+}
+
+/** Tipos do mapa analisados como FII de papel (decisão de produto de 04/11/2026). */
+export const TIPOS_FUNDO_PAPEL = ['FIAGRO', 'FI-INFRA'] as const;
+
+/**
+ * Overrides de tipo com Fiagro/FI-Infra forçados a 'papel': mesma análise do FII de papel, só muda o
+ * lastro (CRA/LCA, debêntures). Override manual (FiiTipoOverride) do CNPJ continua valendo.
+ */
+export function comFundosPapel<T extends string>(
+  overrides: Map<string, T>,
+  cnpjsPapel: Iterable<string>,
+): Map<string, T | 'papel'> {
+  const out = new Map<string, T | 'papel'>(overrides);
+  for (const c of cnpjsPapel) if (!out.has(c)) out.set(c, 'papel');
+  return out;
+}
+
+/**
+ * Linha gravada a partir de um informe dedicado (Fiagro da CVM ou informe diário de FI-Infra): o
+ * fii-mensal (informe de FII) nunca a sobrescreve — o dedicado é a fonte oficial desde a CVM 175.
+ */
+export function ehFonteDedicada(sourceUrl: string | null | undefined): boolean {
+  return /\/dados\/FIAGRO\/|\/dados\/FI\/DOC\/INF_DIARIO\//.test(sourceUrl ?? '');
+}
+
+/**
+ * Para o gravador de uma fonte dedicada: linha gravada por OUTRA fonte (informe de FII) não bloqueia
+ * pela versão (as versões das duas fontes não se comparam) — fica com versão 0 na comparação.
+ */
+export function existentesDeOutraFonte(
+  existentes: Map<string, LinhaFiiMensal>,
+  daFonte: (sourceUrl: string) => boolean,
+): Map<string, LinhaFiiMensal> {
+  const out = new Map<string, LinhaFiiMensal>();
+  for (const [k, e] of existentes) out.set(k, daFonte(e.sourceUrl) ? e : { ...e, versao: 0 });
+  return out;
 }
 
 export async function aplicarPlanoMapa(

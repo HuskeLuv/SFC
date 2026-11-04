@@ -291,6 +291,8 @@ export type NomeJob =
   | 'cvm-ipe'
   | 'fii-mensal'
   | 'fii-trimestral'
+  // Fiagro (04/11/2026): informe mensal de Fiagro ⇒ FiiMonthly
+  | 'fiagro-mensal'
   | 'cotahist'
   | 'derivados'
   /** D6-a: nome antigo do 'derivados' (alias na rota/CLI; histórico de AnaliseJobRun) */

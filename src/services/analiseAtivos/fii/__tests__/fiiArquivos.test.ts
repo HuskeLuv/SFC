@@ -94,6 +94,8 @@ describe('virada do ano (M13): a CVM só cria o zip do ano no 1º informe', () =
     const prisma = {
       analiseFonteArquivo,
       fiiTipoOverride: { findMany: vi.fn(async () => []) },
+      // Fiagro/FI-Infra do mapa (tipo forçado a papel no fii-mensal)
+      fiiTickerMap: { findMany: vi.fn(async () => []) },
     } as unknown as PrismaClient;
     stubFetch({ [urlInformeFii(tipo, 2026)]: corpo });
     const alertas: AlertaJob[] = [];
