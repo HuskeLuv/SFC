@@ -11,6 +11,9 @@
  *   (obrigações ÷ ativo total).
  * - Rendimento/DY/meses seguidos NÃO saem daqui (fatia D, base de proventos): dyMesCvmPct é só
  *   checagem.
+ * - Fiagro/FI-Infra do mapa (04/11/2026): tipo forçado a 'papel' (comFundosPapel; o informe de FII
+ *   traz o histórico dos Fiagros até mai–ago/2025) e o mês já gravado por um informe dedicado
+ *   (fiagro-mensal / fi-infra-mensal) nunca é sobrescrito daqui (ehFonteDedicada).
  */
 import { fiiOverrides } from '@/services/analiseAtivos/repositorio/fii';
 import {
@@ -19,7 +22,10 @@ import {
 } from '@/services/analiseAtivos/fontes/anoNaoPublicado';
 import { anosDoCron, obterArquivo, urlInformeFii } from '@/services/analiseAtivos/fii/fiiArquivos';
 import {
+  TIPOS_FUNDO_PAPEL,
   cnpjsDoMapa,
+  comFundosPapel,
+  ehFonteDedicada,
   gravarMensal,
   lerMensalGravado,
   type LinhaFiiMensal,
@@ -316,7 +322,10 @@ export async function sincronizarFiiMensal(
   }
   const filtro = new Set(cnpjs);
   const anos = opts.anos ?? anosDoCron(ctx.hoje, 2);
-  const overrides = await fiiOverrides(ctx.prisma);
+  const overrides = comFundosPapel(
+    await fiiOverrides(ctx.prisma),
+    await cnpjsDoMapa(ctx.prisma, TIPOS_FUNDO_PAPEL),
+  );
   const arquivos: Array<Record<string, unknown>> = [];
   const total: ResultadoGravacao = { criadas: 0, atualizadas: 0, iguais: 0, versaoMenor: 0 };
   let distribuicao: ReturnType<typeof distribuicaoTipos> | null = null;
@@ -359,10 +368,14 @@ export async function sincronizarFiiMensal(
               refs[refs.length - 1],
             )
           : new Map();
-      const { linhas, alertas } = processarMesesFii(lido.meses, gravados, overrides, ctx.params, {
+      const processado = processarMesesFii(lido.meses, gravados, overrides, ctx.params, {
         todosOsMeses: opts.todosOsMeses ?? false,
         sourceUrl: url,
       });
+      const alertas = processado.alertas;
+      const linhas = processado.linhas.filter(
+        (l) => !ehFonteDedicada(gravados.get(`${l.cnpj}|${l.refMonth}`)?.sourceUrl),
+      );
       alertas.forEach(agregador.add);
       const g = await gravarMensal(ctx.prisma, linhas, gravados, ctx.aplicar);
       ctx.contar('linhasGravadas', g.criadas + g.atualizadas);
