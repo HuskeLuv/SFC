@@ -42,6 +42,15 @@ export function anosDoCron(hoje: string, mesesAnoAnterior: number): number[] {
   return mes <= mesesAnoAnterior ? [ano - 1, ano] : [ano];
 }
 
+/** Meses de referência ('AAAA-MM-01') de `hoje` para trás: o corrente primeiro, `n` ao todo. */
+export function mesesRecentes(hoje: string, n: number): string[] {
+  const ano = Number(hoje.slice(0, 4));
+  const mes = Number(hoje.slice(5, 7));
+  return Array.from({ length: n }, (_, i) =>
+    new Date(Date.UTC(ano, mes - 1 - i, 1)).toISOString().slice(0, 10),
+  );
+}
+
 export interface ArquivoObtido {
   url: string;
   /** 'nao_publicado' = 404 com `naoPublicadoSe404` (arquivo do ano corrente ainda não criado) */

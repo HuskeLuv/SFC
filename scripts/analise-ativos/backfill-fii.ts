@@ -12,7 +12,10 @@
  *   --reconferir    refaz só a conferência valor de mercado/PL (depois do COTAHIST; sem detalhes)
  *   (padrão)        cadastro ⇒ mensal ⇒ trimestral
  *   --sem-cadastro  pula o cadastro (usa o mapa gravado)
- *   --como-cron=fii-cadastro|fii-mensal|fii-trimestral  roda exatamente a função do cron
+ *   --so-fiagro     só o informe mensal de Fiagro (todos os meses desde 202505; Fiagros do mapa)
+ *   --como-cron=fii-cadastro|fii-mensal|fii-trimestral|fiagro-mensal  roda exatamente a função do cron
+ * O padrão (cadastro ⇒ mensal ⇒ trimestral) roda também o informe de Fiagro no fim: o histórico de
+ * FII dos Fiagros (mesmo CNPJ, até mai–ago/2025) vem do mensal de FII; dali em diante, do de Fiagro.
  *
  * Uso:
  *   npx tsx --env-file=.env scripts/analise-ativos/backfill-fii.ts --desde=2016 --cache-dir=$CACHE
@@ -31,6 +34,10 @@ import {
 } from '../../src/services/analiseAtivos/fii/fiiArquivos';
 import type { ItemListaB3Bruto } from '../../src/services/analiseAtivos/fii/listaB3Fii';
 import { COLUNAS_MENSAL } from '../../src/services/analiseAtivos/fii/parserInformeMensal';
+import {
+  mesesDesdeInicioFiagro,
+  sincronizarFiagroMensal,
+} from '../../src/services/analiseAtivos/fii/sincronizarFiagroMensal';
 import { sincronizarFiiCadastro } from '../../src/services/analiseAtivos/fii/sincronizarFiiCadastro';
 import { sincronizarFiiMensal } from '../../src/services/analiseAtivos/fii/sincronizarFiiMensal';
 import { sincronizarFiiTrimestral } from '../../src/services/analiseAtivos/fii/sincronizarFiiTrimestral';
@@ -129,6 +136,17 @@ async function rodar(
   return r;
 }
 
+/** Informe mensal de Fiagro: todos os meses publicados (desde 202505). */
+async function rodarFiagro() {
+  const meses = mesesDesdeInicioFiagro(hoje);
+  console.log(`# informe mensal de Fiagro (${meses[0]}…${meses[meses.length - 1]})`);
+  await rodar(
+    nomeBackfill('fiagro-mensal'),
+    (ctx) => sincronizarFiagroMensal(ctx, { meses, cacheDir, condicional: false }),
+    { meses: meses.length },
+  );
+}
+
 async function main() {
   console.log(
     `=== backfill FII (${aplicar ? 'APPLY' : 'dry-run'}) anos ${anos[0]}–${anos[anos.length - 1]}` +
@@ -145,6 +163,7 @@ async function main() {
       'fii-cadastro': sincronizarFiiCadastro,
       'fii-mensal': sincronizarFiiMensal,
       'fii-trimestral': sincronizarFiiTrimestral,
+      'fiagro-mensal': sincronizarFiagroMensal,
     } as const;
     if (!(comoCron in fns)) throw new Error(`--como-cron inválido: ${comoCron}`);
     const f = fns[comoCron as keyof typeof fns];
@@ -157,6 +176,8 @@ async function main() {
       ? await prisma.analiseJobRun.findUnique({ where: { id: r.id }, select: { detalhes: true } })
       : null;
     imprimir(r, run?.detalhes);
+  } else if (arg('so-fiagro') === 'true') {
+    await rodarFiagro();
   } else {
     const reconferir = arg('reconferir') === 'true';
     const soCadastro = arg('so-cadastro') === 'true' || reconferir;
@@ -191,6 +212,7 @@ async function main() {
         (ctx) => sincronizarFiiTrimestral(ctx, { anos, cacheDir, condicional: false }),
         { anos },
       );
+      await rodarFiagro();
     }
   }
   console.log(
