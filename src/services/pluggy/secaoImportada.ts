@@ -71,8 +71,10 @@ export async function origemTipoFiiImportado(
   const mapa = await prisma.fiiTickerMap.findFirst({
     where: { ticker, validTo: null },
     orderBy: { validFrom: 'desc' },
-    select: { cnpj: true },
+    select: { cnpj: true, tipoFundo: true },
   });
+  // FI-Infra listado (lista FI-INFRA da B3) é a seção Infra mesmo sem "infra" no nome
+  if (mapa?.tipoFundo === 'FI-INFRA') return { tipoFii: 'infra', via: 'catalogo' };
   if (mapa) {
     const mensal = await prisma.fiiMonthly.findFirst({
       where: { cnpj: mapa.cnpj, tipoVigente: { not: null } },

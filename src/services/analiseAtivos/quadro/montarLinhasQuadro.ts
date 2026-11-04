@@ -4,7 +4,9 @@
  *
  * Regras (spec fatia A + decisões 3, 4 e 5 do Wellington):
  * - UNIVERSO = cadastro: ações (CvmCompanyTicker vigente) ∪ FIIs (FiiTickerMap vigente).
- * - noQuadro = negociado nos últimos 30 pregões E não é Fiagro E não está deslistada. Fora do
+ * - noQuadro = negociado nos últimos 30 pregões E não é Fiagro/FI-Infra (enquanto
+ *   params.universo.fiagroForaDoMvp: tipoFundo do FiiTickerMap ou, nos FIIs, 'FIAGRO' no nome) E
+ *   não está deslistada. Fora do
  *   Quadro = só na busca. Deslistada (ação): a raiz não está na ClassifSetorial VIGENTE da B3 (sem
  *   linha em AssetSetorB3 ou presenteUltimoArquivo = false) e o último negócio tem mais de
  *   DESLISTADA_SEM_PREGOES pregões — SHOW3 (T4F) teve o registro cancelado pela CVM em 01/09/2026
@@ -161,7 +163,13 @@ export interface EntradaQuadro {
    * (P/VP, patrimônio, valor de mercado, vacância...) podem ser de outro CNPJ ⇒ ficam 'em conferência'
    * e o fundo não serve de par. Ausente = conferido.
    */
-  fiis: Array<{ symbol: string; cnpj: string; conferido?: boolean }>;
+  fiis: Array<{
+    symbol: string;
+    cnpj: string;
+    conferido?: boolean;
+    /** FiiTickerMap.tipoFundo (FII | FIAGRO | FI-INFRA); ausente = FII */
+    tipoFundo?: string;
+  }>;
   /** D6-a: financeira pelo segmento B3 (listarEmissores com os params do job) ⇒ régua da ação */
   emissores?: Array<{ cnpj: string; ehFinanceira: boolean }>;
   multiplos: MultiplosQuadro[];
@@ -218,9 +226,14 @@ export interface ResultadoMontagem {
 const raiz = (s: string) => s.slice(0, 4);
 const diaIso = (d: Date) => d.toISOString().slice(0, 10);
 
-/** Fiagro não entra no Quadro nesta fase (o cadastro de FIIs já exclui; dupla checagem pelo nome). */
+/** Fiagro pelo nome (dupla checagem das linhas FII do mapa: antes o cadastro os excluía). */
 export function ehFiagro(nome: string | null | undefined): boolean {
   return !!nome && /\bFI[\s-]?AGRO\b/i.test(nome);
+}
+
+/** Fiagro/FI-Infra pelo tipo do mapa (listas FIAGRO/FI-INFRA da B3). */
+export function ehFundoNaoFii(tipoFundo: string | null | undefined): boolean {
+  return tipoFundo === 'FIAGRO' || tipoFundo === 'FI-INFRA';
 }
 
 function agrupar<T, K>(itens: readonly T[], chave: (t: T) => K): Map<K, T[]> {
@@ -270,6 +283,7 @@ export function montarLinhasQuadro(
       cnpj: f.cnpj,
       classe: 'fii' as const,
       cnpjEmConferencia: f.conferido === false,
+      tipoFundo: f.tipoFundo,
     })),
   ];
 
@@ -337,8 +351,10 @@ export function montarLinhasQuadro(
         ? legado.fiiTipo
         : (mensal?.tipoVigente ?? null);
 
-    // universo
-    const fiagro = !ehAcao && ehFiagro(nomeB3);
+    // universo: Fiagro/FI-Infra fora enquanto os params mandam (v1–v5: sim)
+    const tipoFundo = 'tipoFundo' in u ? u.tipoFundo : undefined;
+    const fiagro =
+      !ehAcao && p.universo.fiagroForaDoMvp && (ehFundoNaoFii(tipoFundo) || ehFiagro(nomeB3));
     const negociado = r?.negociadoUltimos30 ?? false;
     const naListaB3 = setor !== undefined && setor.presenteUltimoArquivo !== false;
     const deslistada =
