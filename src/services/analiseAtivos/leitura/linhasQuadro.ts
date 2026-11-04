@@ -53,6 +53,7 @@ import { CRITERIA_PARAMS_CODIGO } from '@/services/analiseAtivos/params/criteria
 import type { CriteriaParams } from '@/services/analiseAtivos/params/criteriaParamsSchema';
 import { projetarCriteriosCompactos } from '@/services/analiseAtivos/leitura/criterios/lerCriterios';
 import { TEXTOS_TELA, motivoTela, textoNaoSeAplica } from '@/services/analiseAtivos/textosTela';
+import { ehSegmentoFundoPapel } from '@/services/analiseAtivos/quadro/tipoFiiExibido';
 import { BOLSAS_EUA, type BolsaEua } from '@/types/analiseAtivosEua';
 import type {
   ClasseQuadro,
@@ -310,7 +311,12 @@ function estadoCampo(
     naoSeAplica.get(coluna) ??
     (campo === 'vacanciaCvm' && row.fiiTipo === 'papel' ? 'papel_sem_imoveis' : undefined);
   if (motivoNa) {
-    return { estado: 'nao_se_aplica', motivo: motivoNa, texto: textoNaoSeAplica(motivoNa) };
+    // Fiagro/FI-Infra (segmento dos jobs dedicados): mesmo motivo, texto que explica o "papel"
+    const chaveTexto =
+      motivoNa === 'papel_sem_imoveis' && ehSegmentoFundoPapel(row.segmentoCvm)
+        ? 'fundo_papel_sem_imoveis'
+        : motivoNa;
+    return { estado: 'nao_se_aplica', motivo: motivoNa, texto: textoNaoSeAplica(chaveTexto) };
   }
   const v = row[coluna];
   const valor: Estado<number> | null =

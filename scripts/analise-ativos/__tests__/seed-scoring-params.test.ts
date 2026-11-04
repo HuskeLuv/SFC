@@ -106,3 +106,22 @@ describe('seed-scoring-params --versao=5', () => {
     expect('multiplos' in VERSOES[4].params).toBe(false);
   });
 });
+
+describe('seed-scoring-params --versao=6', () => {
+  it('inerte em 2099-01-01 e = v5 com Fiagro/FI-Infra dentro do Quadro', () => {
+    expect(lerArgs(['--versao=6'])).toEqual({ versao: 6, aplicar: false, validoAPartir: null });
+    expect(validFromDoSeed(6, null).toISOString()).toBe('2099-01-01T00:00:00.000Z');
+    const v6 = validarScoringParams(VERSOES[6].params, 'v6');
+    const v5 = validarScoringParams(VERSOES[5].params, 'v5');
+    expect(v6.versao).toBe(6);
+    expect(v6.universo.fiagroForaDoMvp).toBe(false);
+    const { versao: _v, descricao: _d, universo: u6, ...resto6 } = v6;
+    const { versao: _v5, descricao: _d5, universo: u5, ...resto5 } = v5;
+    expect(resto6).toEqual(resto5);
+    expect(u6).toEqual({ ...u5, fiagroForaDoMvp: false });
+  });
+
+  it('as versões registradas não mudam: v1–v5 seguem com Fiagro fora do Quadro', () => {
+    for (const v of [1, 2, 3, 4, 5]) expect(VERSOES[v].params.universo.fiagroForaDoMvp).toBe(true);
+  });
+});
