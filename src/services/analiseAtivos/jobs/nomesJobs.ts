@@ -17,6 +17,8 @@ export const NOMES_JOBS = [
   'fii-trimestral',
   // Fiagro (04/11/2026): informe mensal de Fiagro da CVM ⇒ FiiMonthly (analisado como FII de papel)
   'fiagro-mensal',
+  // FI-Infra (04/11/2026): fechamento do mês do informe diário de fundos ⇒ FiiMonthly (sem composição)
+  'fi-infra-mensal',
   'cotahist',
   // D6-a: 'derivados' é o job (ex-'scores'); 'scores' fica como alias da rota/CLI (CATALOGO_JOBS)
   'derivados',

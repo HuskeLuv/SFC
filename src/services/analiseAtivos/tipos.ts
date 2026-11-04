@@ -293,6 +293,8 @@ export type NomeJob =
   | 'fii-trimestral'
   // Fiagro (04/11/2026): informe mensal de Fiagro ⇒ FiiMonthly
   | 'fiagro-mensal'
+  // FI-Infra (04/11/2026): informe diário de fundos ⇒ FiiMonthly (fechamento do mês)
+  | 'fi-infra-mensal'
   | 'cotahist'
   | 'derivados'
   /** D6-a: nome antigo do 'derivados' (alias na rota/CLI; histórico de AnaliseJobRun) */

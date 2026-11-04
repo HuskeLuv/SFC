@@ -33,6 +33,7 @@ import {
   ingerirFontes,
 } from '@/services/analiseAtivos/fontes/fundamentos/ingerirFontes';
 import { sincronizarFiagroMensal } from '@/services/analiseAtivos/fii/sincronizarFiagroMensal';
+import { sincronizarFiInfraMensal } from '@/services/analiseAtivos/fii/sincronizarFiInfraMensal';
 import { sincronizarFiiCadastro } from '@/services/analiseAtivos/fii/sincronizarFiiCadastro';
 import { sincronizarFiiMensal } from '@/services/analiseAtivos/fii/sincronizarFiiMensal';
 import { sincronizarFiiTrimestral } from '@/services/analiseAtivos/fii/sincronizarFiiTrimestral';
@@ -139,6 +140,12 @@ export const CATALOGO_JOBS: Record<NomeJobCron, DefinicaoJob> = {
     prazoMs: 120_000,
     pesado: false,
     executar: (ctx) => sincronizarFiagroMensal(ctx),
+  },
+  'fi-infra-mensal': {
+    nome: 'fi-infra-mensal',
+    prazoMs: 180_000,
+    pesado: false,
+    executar: (ctx) => sincronizarFiInfraMensal(ctx),
   },
   cotahist: {
     nome: 'cotahist',
