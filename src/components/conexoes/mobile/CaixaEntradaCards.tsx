@@ -128,9 +128,7 @@ export default function CaixaEntradaCards({
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     {dataCurta(p.date)}
-                    {p.competencia ? ` · fatura ${rotuloCompetencia(p.competencia)}` : ''} ·{' '}
-                    {p.banco} · {p.contaNome}
-                    {p.providerCategory ? ` · ${p.providerCategory}` : ''}
+                    {p.competencia ? ` · fatura ${rotuloCompetencia(p.competencia)}` : ''}
                   </p>
                 </div>
                 <span
@@ -146,6 +144,12 @@ export default function CaixaEntradaCards({
                   </Sensivel>
                 </span>
               </div>
+              {/* Banco · conta · categoria na largura toda: não disputa espaço com o valor (a altura
+                  do cartão não muda com o olho fechado, decisão 6). */}
+              <p className="mt-0.5 pl-10 text-xs text-gray-500 [overflow-wrap:anywhere] dark:text-gray-400">
+                {p.banco} · {p.contaNome}
+                {p.providerCategory ? ` · ${p.providerCategory}` : ''}
+              </p>
 
               <button
                 type="button"
