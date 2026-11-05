@@ -14,6 +14,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const parsed = idsSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return validationError(parsed);
   const ids = await ignorar(user.id, parsed.data.ids, true);
-  await registrarAcaoBanco(request, user, 'banco.ignorar', { ids }, ids.length);
+  await registrarAcaoBanco(request, user, 'banco.ignorar', { ids }, ids.length, { ids });
   return NextResponse.json({ ignoradas: ids.length, ids });
 });

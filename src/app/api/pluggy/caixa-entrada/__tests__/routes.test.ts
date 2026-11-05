@@ -12,7 +12,10 @@ const mockSvc = vi.hoisted(() => ({
 vi.mock('@/services/pluggy/caixaEntrada', () => mockSvc);
 const mockRecord = vi.hoisted(() => vi.fn());
 vi.mock('@/services/changeHistory/recordChange', () => ({ recordChange: mockRecord }));
-const mockPrisma = vi.hoisted(() => ({ bankTransaction: { findMany: vi.fn() } }));
+const mockPrisma = vi.hoisted(() => ({
+  bankTransaction: { findMany: vi.fn() },
+  cashflowItem: { findMany: vi.fn() },
+}));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 
 import { GET as listar } from '../route';
@@ -22,6 +25,19 @@ import { POST as desaplicar } from '../desaplicar/route';
 
 const T1 = '11111111-1111-4111-8111-111111111111';
 const T2 = '22222222-2222-4222-8222-222222222222';
+/** Linha que o detalhe do histórico lê (bancoTransacoesHelpers.carregarTransacoesBanco). */
+const detalheRow = (id: string, over: Record<string, unknown> = {}) => ({
+  id,
+  date: new Date('2026-08-01T00:00:00.000Z'),
+  description: 'PADARIA',
+  amount: -5,
+  type: 'DEBIT',
+  competenciaAno: null,
+  competenciaMes: null,
+  cashflowItemId: null,
+  account: { name: 'Conta corrente', connection: { connectorName: 'Nubank' } },
+  ...over,
+});
 const req = (url: string, method = 'GET', body?: unknown) =>
   new NextRequest(`http://localhost${url}`, {
     method,
@@ -42,6 +58,8 @@ describe('rotas /api/pluggy/caixa-entrada', () => {
       actingClient: null,
     });
     mockRecord.mockResolvedValue(undefined);
+    mockPrisma.bankTransaction.findMany.mockResolvedValue([]);
+    mockPrisma.cashflowItem.findMany.mockResolvedValue([]);
   });
   afterEach(() => {
     process.env = { ...env };
@@ -91,6 +109,17 @@ describe('rotas /api/pluggy/caixa-entrada', () => {
       celulas: [{ itemId: 'i', year: 2026, month: 7, value: 305 }],
       ids: [T1, T2],
     });
+    mockPrisma.bankTransaction.findMany.mockResolvedValue([
+      detalheRow(T1, { cashflowItemId: 'it-1' }),
+      detalheRow(T2, {
+        cashflowItemId: 'it-1',
+        date: new Date('2026-08-03T00:00:00.000Z'),
+        description: 'SALARIO',
+        amount: 300,
+        type: 'CREDIT',
+      }),
+    ]);
+    mockPrisma.cashflowItem.findMany.mockResolvedValue([{ id: 'it-1', name: 'Mercado' }]);
     const res = await aplicar(
       req('/api/pluggy/caixa-entrada/aplicar', 'POST', {
         aplicacoes: [
@@ -107,8 +136,35 @@ describe('rotas /api/pluggy/caixa-entrada', () => {
         action: 'banco.aplicar',
         entityLabel: '2 transações',
         snapshot: { v: 1, kind: 'banco-transacoes', data: { ids: [T1, T2] } },
+        changes: [
+          {
+            field: `banco:${T1}`,
+            label: '01/08/2026 · PADARIA · Nubank, Conta corrente',
+            before: -5,
+            after: 'entrou em Mercado (agosto de 2026)',
+            format: 'currency',
+          },
+          {
+            field: `banco:${T2}`,
+            label: '03/08/2026 · SALARIO · Nubank, Conta corrente',
+            before: 300,
+            after: 'entrou em Mercado (agosto de 2026)',
+            format: 'currency',
+          },
+        ],
       }),
     );
+  });
+
+  it('sem detalhe (leitura falhou) registra só a contagem, como antes', async () => {
+    mockSvc.aplicar.mockResolvedValue({ aplicadas: 1, celulas: [], ids: [T1] });
+    mockPrisma.bankTransaction.findMany.mockRejectedValue(new Error('db'));
+    const res = await aplicar(
+      req('/api/pluggy/caixa-entrada/aplicar', 'POST', { aplicacoes: [{ id: T1, itemId: 'i' }] }),
+    );
+    expect(res.status).toBe(200);
+    expect(mockRecord.mock.calls[0][0].changes).toBeUndefined();
+    expect(mockRecord.mock.calls[0][0].entityLabel).toBe('1 transação');
   });
 
   it('ignorar registra só quando algo mudou', async () => {
@@ -118,15 +174,31 @@ describe('rotas /api/pluggy/caixa-entrada', () => {
     expect(mockRecord).not.toHaveBeenCalled();
 
     mockSvc.ignorar.mockResolvedValue([T1]);
+    mockPrisma.bankTransaction.findMany.mockResolvedValue([detalheRow(T1)]);
     await ignorar(req('/api/pluggy/caixa-entrada/ignorar', 'POST', { ids: [T1] }));
     expect(mockSvc.ignorar).toHaveBeenLastCalledWith('user-1', [T1], true);
     expect(mockRecord).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'banco.ignorar', entityLabel: '1 transação' }),
+      expect.objectContaining({
+        action: 'banco.ignorar',
+        entityLabel: '1 transação',
+        changes: [
+          {
+            field: `banco:${T1}`,
+            label: '01/08/2026 · PADARIA · Nubank, Conta corrente',
+            before: -5,
+            after: null,
+            format: 'currency',
+          },
+        ],
+      }),
     );
   });
 
   it('desaplicar guarda o item de origem no snapshot para o desfazer', async () => {
-    mockPrisma.bankTransaction.findMany.mockResolvedValue([{ id: T1, cashflowItemId: 'it-1' }]);
+    mockPrisma.bankTransaction.findMany
+      .mockResolvedValueOnce([{ id: T1, cashflowItemId: 'it-1' }])
+      .mockResolvedValueOnce([detalheRow(T1)]);
+    mockPrisma.cashflowItem.findMany.mockResolvedValue([{ id: 'it-1', name: 'Padaria' }]);
     mockSvc.desaplicar.mockResolvedValue({ aplicadas: 1, celulas: [], ids: [T1] });
     const res = await desaplicar(
       req('/api/pluggy/caixa-entrada/desaplicar', 'POST', { ids: [T1] }),
@@ -140,7 +212,16 @@ describe('rotas /api/pluggy/caixa-entrada', () => {
           kind: 'banco-transacoes',
           data: { aplicacoes: [{ id: T1, itemId: 'it-1' }] },
         },
+        changes: [
+          expect.objectContaining({
+            field: `banco:${T1}`,
+            after: 'saiu de Padaria (agosto de 2026)',
+          }),
+        ],
       }),
+    );
+    expect(mockPrisma.cashflowItem.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: ['it-1'] } } }),
     );
   });
 });

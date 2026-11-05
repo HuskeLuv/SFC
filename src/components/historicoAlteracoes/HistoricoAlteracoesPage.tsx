@@ -21,10 +21,17 @@ import MobileTabRail from '@/components/ui/tabs/MobileTabRail';
 import MobilePageState from '@/components/ui/mobile/MobilePageState';
 import MobileSaveToast from '@/components/ui/sheet/MobileSaveToast';
 import { useResponsiveConfirm } from '@/components/ui/sheet/useResponsiveConfirm';
-import { SECTION_LABELS, renderRichDescription } from './renderChange';
+import {
+  SECTION_LABELS,
+  isListaBanco,
+  itensBanco,
+  partesItemBanco,
+  renderRichDescription,
+} from './renderChange';
 import {
   HistoricoEntryRow,
   HistoricoEntryCard,
+  ResumoAlteracao,
   TituloAlteracao,
   ValorAlteracao,
 } from './HistoricoEntryRow';
@@ -41,12 +48,28 @@ const UndoConfirmMessage: React.FC<{ entry: HistoricoAlteracaoEntry; title: stri
 }) => {
   const changes = entry.changes ?? [];
   const shown = changes.slice(0, MAX_CAMPOS_CONFIRM);
+  const banco = isListaBanco(entry) ? itensBanco(changes, MAX_CAMPOS_CONFIRM) : null;
   return (
     <div className="space-y-2">
       <p className="font-medium text-gray-800 [overflow-wrap:anywhere] dark:text-white/90">
         <TituloAlteracao title={title} />
       </p>
-      {shown.length > 0 ? (
+      {/* Transações do banco: a lista do que o desfazer devolve (não há "volta para"). */}
+      {banco && banco.shown.length > 0 ? (
+        <ul className="space-y-0.5 [overflow-wrap:anywhere]">
+          {banco.shown.map((c) => (
+            <li key={c.field}>
+              <ResumoAlteracao partes={partesItemBanco(c)} />
+            </li>
+          ))}
+          {banco.restantes > 0 ? (
+            <li>
+              e mais {banco.restantes} {banco.restantes === 1 ? 'transação' : 'transações'}.
+            </li>
+          ) : null}
+        </ul>
+      ) : null}
+      {!banco && shown.length > 0 ? (
         <ul className="space-y-0.5 [overflow-wrap:anywhere]">
           {shown.map((c) => (
             <li key={c.field}>

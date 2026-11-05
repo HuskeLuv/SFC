@@ -14,6 +14,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const parsed = aplicacoesSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return validationError(parsed);
   const r = await aplicar(user.id, parsed.data.aplicacoes);
-  await registrarAcaoBanco(request, user, 'banco.aplicar', { ids: r.ids }, r.aplicadas);
+  await registrarAcaoBanco(request, user, 'banco.aplicar', { ids: r.ids }, r.aplicadas, {
+    ids: r.ids,
+  });
   return NextResponse.json(r);
 });

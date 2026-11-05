@@ -26,6 +26,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     'banco.desaplicar',
     { aplicacoes: antes.map((t) => ({ id: t.id, itemId: t.cashflowItemId })) },
     r.aplicadas,
+    { ids: r.ids, linhaPorId: new Map(antes.map((t) => [t.id, t.cashflowItemId])) },
   );
   return NextResponse.json(r);
 });
