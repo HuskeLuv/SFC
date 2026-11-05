@@ -166,6 +166,7 @@ describe('resumirMes', () => {
       entradas: 9000,
       despesas: 1310,
       sobra: 7690,
+      indicePoupancaPct: 85.4,
       despesasPorGrupo: {
         Habitação: 1295,
         'Despesas > Despesas Fixas > Outros': 10,
@@ -179,7 +180,12 @@ describe('resumirMes', () => {
       acumuladoAteMesAtual: unknown;
       porMes: Record<string, unknown>;
     };
-    expect(ano.acumuladoAteMesAtual).toEqual({ entradas: 9000, despesas: 1510, sobra: 7490 });
+    expect(ano.acumuladoAteMesAtual).toEqual({
+      entradas: 9000,
+      despesas: 1510,
+      sobra: 7490,
+      indicePoupancaPct: 83.2,
+    });
     expect(Object.keys(ano.porMes)).toHaveLength(9);
     expect(ano.porMes.agosto).toEqual({ entradas: 0, despesas: 200, sobra: -200 });
     expect(ano.porMes.setembro).toEqual({ entradas: 9000, despesas: 1310, sobra: 7690 });
@@ -191,6 +197,7 @@ describe('resumirMes', () => {
       entradas: 0,
       despesas: 0,
       sobra: 0,
+      indicePoupancaPct: null,
       despesasPorGrupo: {},
     });
   });
@@ -350,6 +357,7 @@ describe('montarContexto', () => {
       entradas: 0,
       despesas: 0,
       sobra: 0,
+      indicePoupancaPct: null,
       despesasPorGrupo: {},
     });
     expect(ctx.fluxoDeCaixa).toEqual([]);
