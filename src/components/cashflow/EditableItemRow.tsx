@@ -218,7 +218,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
         </div>
       </FixedCell>
 
-      <FixedCell col={1} className={`text-gray-500 dark:text-gray-400 ${rowBg}`}>
+      <FixedCell col={1} className={`${GRID.porque} ${rowBg}`}>
         {canEditStructure ? (
           <input
             type="text"
@@ -227,7 +227,7 @@ export const EditableItemRow: React.FC<EditableItemRowProps> = ({
             onChange={(e) => onUpdateField(item.id, 'significado', e.target.value || null)}
             placeholder="O seu porquê"
             aria-label="O seu porquê"
-            className={GRID.input}
+            className={GRID.inputPorque}
           />
         ) : (
           <span className="truncate block">{displayData.significado || ''}</span>

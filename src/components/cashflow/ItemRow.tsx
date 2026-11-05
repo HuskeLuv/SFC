@@ -126,7 +126,7 @@ const ItemRowComponent: React.FC<ItemRowProps> = ({
       </FixedCell>
       <FixedCell
         col={1}
-        className={`text-gray-500 dark:text-gray-400 ${GRID.rowBg}`}
+        className={`${GRID.porque} ${GRID.rowBg}`}
         title={item.significado || undefined}
       >
         <span className="cursor-default truncate block">{item.significado || ''}</span>

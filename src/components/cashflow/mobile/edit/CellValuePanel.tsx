@@ -3,6 +3,7 @@
 import React, { useId, useRef, useState } from 'react';
 import Link from 'next/link';
 import { twMerge } from 'tailwind-merge';
+import { GRID } from '@/components/cashflow/cashflowGridStyles';
 import type { CashflowValue } from '@/types/cashflow';
 import type { CashflowValueChange } from '@/hooks/useCashflowMutations';
 import { evaluateFormula, isFormula } from '@/utils/formulaParser';
@@ -192,7 +193,13 @@ export function CellValuePanel({
         <ActionRow
           icon={ICONS.edit}
           title="Renomear e porquê"
-          description={item.significado || 'Nome, o seu porquê e nível de prioridade'}
+          description={
+            item.significado ? (
+              <span className={GRID.porque}>{item.significado}</span>
+            ) : (
+              'Nome, o seu porquê e nível de prioridade'
+            )
+          }
           onClick={() => goTo('linha')}
           disabled={saving}
         />

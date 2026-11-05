@@ -2,6 +2,7 @@
 
 import React, { useId, useState } from 'react';
 import { twMerge } from 'tailwind-merge';
+import { GRID } from '@/components/cashflow/cashflowGridStyles';
 import type { CashflowGroup, CashflowItem } from '@/types/cashflow';
 import type { CashflowMutations } from '@/hooks/useCashflowMutations';
 import { validateNewRow } from '@/utils/validation';
@@ -111,7 +112,7 @@ export function AddItemSheet({ group, mutations, onBack, onCreated, setBusy }: A
             rows={3}
             disabled={saving}
             onChange={(e) => setSignificado(e.target.value)}
-            className={twMerge(MOBILE_FIELD_CLASS, 'h-auto min-h-[80px] py-3')}
+            className={twMerge(MOBILE_FIELD_CLASS, 'h-auto min-h-[80px] py-3', GRID.porqueField)}
           />
           <p className={MOBILE_FIELD_HINT_CLASS}>
             A linha começa sem valores. Depois é só preencher o mês.

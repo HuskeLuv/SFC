@@ -38,7 +38,7 @@ export const AddRowForm: React.FC<AddRowFormProps> = ({
     <FixedCell col={1} className={GRID.editingBg}>
       <input
         size={1}
-        className={GRID.input}
+        className={GRID.inputPorque}
         value={newRow.significado || ''}
         onChange={(e) => onUpdateField('significado', e.target.value)}
         placeholder="O seu porquê"

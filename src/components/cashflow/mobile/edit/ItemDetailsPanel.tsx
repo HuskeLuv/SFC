@@ -2,6 +2,7 @@
 
 import React, { useId, useState } from 'react';
 import { twMerge } from 'tailwind-merge';
+import { GRID } from '@/components/cashflow/cashflowGridStyles';
 import type { CashflowItemUpdate } from '@/hooks/useCashflowMutations';
 import { validateNewRow } from '@/utils/validation';
 import {
@@ -155,7 +156,7 @@ export function ItemDetailsPanel({
             disabled={saving}
             placeholder="Por que esse gasto existe? Ex.: contrato até mar/2027"
             onChange={(e) => setSignificado(e.target.value)}
-            className={twMerge(MOBILE_FIELD_CLASS, 'h-auto min-h-[88px] py-3')}
+            className={twMerge(MOBILE_FIELD_CLASS, 'h-auto min-h-[88px] py-3', GRID.porqueField)}
           />
         </div>
         <div>
