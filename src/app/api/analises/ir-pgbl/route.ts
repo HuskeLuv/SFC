@@ -3,6 +3,9 @@ import { requireAuthWithActing } from '@/utils/auth';
 import { prisma } from '@/lib/prisma';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { sugerirTipoPlanoPrevidencia, type TipoPlanoPrevidencia } from '@/services/ir/irpfAnual';
+import { getMergedCashflowGroups } from '@/services/cashflow/getCashflowTree';
+import type { CashGroupLike } from '@/services/cashflow/linhasEditaveis';
+import { sugerirDoFluxo, type SugestaoFluxoIr } from '@/services/ir/sugestaoFluxoIr';
 
 /**
  * Aba PGBL do IR (HTML do Pedro, 03/11/2026): aportes do ano nos planos de previdência da
@@ -27,6 +30,8 @@ interface IRPgblResponse {
   year: number;
   asOf: string;
   planos: PlanoPrevidenciaIR[];
+  /** Renda e deduções do Fluxo de Caixa do ano, para o botão "Preencher com o fluxo de caixa". */
+  sugestaoFluxo: SugestaoFluxoIr | null;
 }
 
 const arred = (v: number) => Math.round(v * 100) / 100;
@@ -112,6 +117,15 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     }))
     .sort((a, b) => b.aportesTotal - a.aportesTotal || a.nome.localeCompare(b.nome));
 
-  const body: IRPgblResponse = { year, asOf: new Date().toISOString(), planos: lista };
+  // Sugestão do fluxo: falha aqui não derruba a aba (os aportes da carteira continuam).
+  const sugestaoFluxo = await getMergedCashflowGroups(targetUserId, year)
+    .then((g) => sugerirDoFluxo(g as unknown as CashGroupLike[]))
+    .catch(() => null);
+  const body: IRPgblResponse = {
+    year,
+    asOf: new Date().toISOString(),
+    planos: lista,
+    sugestaoFluxo,
+  };
   return NextResponse.json(body);
 });

@@ -20,7 +20,7 @@ function buildYearOptions(): number[] {
  */
 function CardPgbl({ onAbrir }: { onAbrir?: () => void }) {
   const { data } = useIRPgbl(REGRAS_IRPF_2026.anoCalendario);
-  const { marcas } = usePlanosMarcados();
+  const { marcas } = usePlanosMarcados(REGRAS_IRPF_2026.anoCalendario);
   const planos = data?.planos ?? [];
   const pgbl = planos.filter((p) => tipoDoPlano(p, marcas) === 'pgbl');
   const total = pgbl.reduce((s, p) => s + p.aportesTotal, 0);
