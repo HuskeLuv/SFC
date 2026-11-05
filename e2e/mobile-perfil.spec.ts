@@ -204,7 +204,7 @@ test('Notificações (nunca pediu): Ativar visível, categorias inertes, sem ped
   await stubPushApi(page);
   await stubPushBrowser(page, { permission: 'default', subscribed: false });
   await abrirNotificacoes(page);
-  const ativar = sheet(page).getByRole('button', { name: 'Ativar neste aparelho' });
+  const ativar = sheet(page).getByRole('button', { name: 'Ativar notificações' });
   await expect(ativar).toBeVisible();
   await expectMinTarget(ativar);
   const categoria = sheet(page).getByRole('switch', { name: /Orçamento/ });

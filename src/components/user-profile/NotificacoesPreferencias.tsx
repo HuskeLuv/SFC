@@ -28,7 +28,7 @@ import { TEXTOS_ALERTAS } from '@/services/analiseAtivos/textosAlertas';
  * Preferências de categoria valem POR USUÁRIO; a assinatura de push é POR APARELHO.
  *
  * REGRA: `Notification.requestPermission()` só acontece dentro de `assinarPush`, chamado
- * exclusivamente pelo clique em "Ativar neste aparelho" / "Já liberei" — nunca na carga.
+ * exclusivamente pelo clique em "Ativar notificações" / "Já liberei" — nunca na carga.
  */
 
 const PREFERENCIAS_URL = '/api/push/preferencias';
@@ -443,8 +443,8 @@ export default function NotificacoesPreferencias() {
         Notificações
       </h3>
       <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-        Os avisos do sino também podem chegar no aparelho — celular ou computador — mesmo com o app
-        fechado.
+        Receba no celular (ou no computador) os lembretes da Agenda, os proventos do dia e os avisos
+        do orçamento, mesmo com o app fechado. A ativação vale para cada aparelho.
       </p>
 
       {erro ? (
@@ -602,8 +602,17 @@ export default function NotificacoesPreferencias() {
             disabled={ocupado}
             className={btnPrimario}
           >
-            {ocupado ? 'Ativando…' : 'Ativar neste aparelho'}
+            {ocupado ? 'Ativando…' : 'Ativar notificações'}
           </button>
+          <p
+            data-notif-dica=""
+            className="text-xs leading-relaxed text-gray-500 dark:text-gray-400"
+          >
+            Quando aparecer a pergunta, toque em <b className="font-semibold">Permitir</b>. No
+            iPhone, instale o app antes: <b className="font-semibold">Compartilhar</b> ›{' '}
+            <b className="font-semibold">Adicionar à Tela de Início</b>, abra pelo ícone My Finance
+            e ative aqui.
+          </p>
         </section>
       ) : null}
 

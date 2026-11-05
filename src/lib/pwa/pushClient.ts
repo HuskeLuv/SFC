@@ -16,6 +16,13 @@ export type CsrfFetch = (input: RequestInfo | URL, init?: RequestInit) => Promis
 
 export const PUSH_SUBSCRIPTIONS_URL = '/api/push/subscriptions';
 
+/**
+ * Atalho "Notificações no celular" do painel Mais: abre o Perfil já no sheet de notificações
+ * (`?abrir=notificacoes`). Se o Perfil já está aberto, o evento faz o mesmo sem recarregar.
+ */
+export const PERFIL_NOTIFICACOES_HREF = '/profile?abrir=notificacoes';
+export const ABRIR_NOTIFICACOES_EVENT = 'mf:abrir-notificacoes';
+
 export type ResultadoAssinatura = 'ok' | 'negado' | 'erro';
 
 export function isPushSupported(): boolean {
@@ -59,6 +66,20 @@ export function isIosSemPwa(): boolean {
 export function permissaoAtual(): NotificationPermission | 'unsupported' {
   if (typeof Notification === 'undefined') return 'unsupported';
   return Notification.permission;
+}
+
+/**
+ * Este aparelho já recebe avisos? (permissão concedida + assinatura local). Só LÊ o estado —
+ * nunca pede permissão. Usado pelo atalho "Notificações no celular" do painel Mais.
+ */
+export async function pushAtivoNesteAparelho(): Promise<boolean> {
+  if (!isPushSupported() || Notification.permission !== 'granted') return false;
+  try {
+    const registration = await navigator.serviceWorker.getRegistration();
+    return Boolean(await registration?.pushManager.getSubscription());
+  } catch {
+    return false;
+  }
 }
 
 /** Chave VAPID base64url → Uint8Array (formato que o PushManager exige). */

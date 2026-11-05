@@ -7,6 +7,7 @@ import {
   isIosSemPwa,
   isPushSupported,
   permissaoAtual,
+  pushAtivoNesteAparelho,
   sincronizarAssinaturaSeAtiva,
 } from '../pushClient';
 
@@ -240,5 +241,27 @@ describe('sincronizarAssinaturaSeAtiva', () => {
     const fetchMock = csrfFetchStub();
     await sincronizarAssinaturaSeAtiva(fetchMock);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('pushAtivoNesteAparelho', () => {
+  it('permissão concedida + assinatura local → true, sem pedir permissão', async () => {
+    const { requestPermission } = stubNotification('granted');
+    fakeRegistration({ existente: fakeSubscription('https://push/local') });
+    expect(await pushAtivoNesteAparelho()).toBe(true);
+    expect(requestPermission).not.toHaveBeenCalled();
+  });
+
+  it('permissão ainda não pedida → false, sem pedir permissão', async () => {
+    const { requestPermission } = stubNotification('default');
+    fakeRegistration({ existente: fakeSubscription('https://push/local') });
+    expect(await pushAtivoNesteAparelho()).toBe(false);
+    expect(requestPermission).not.toHaveBeenCalled();
+  });
+
+  it('permissão concedida sem assinatura local → false', async () => {
+    stubNotification('granted');
+    fakeRegistration({ existente: null });
+    expect(await pushAtivoNesteAparelho()).toBe(false);
   });
 });

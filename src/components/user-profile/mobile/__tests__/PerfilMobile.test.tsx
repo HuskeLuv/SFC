@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { ABRIR_NOTIFICACOES_EVENT } from '@/lib/pwa/pushClient';
 
 const mockCsrfFetch = vi.hoisted(() => vi.fn());
 vi.mock('@/hooks/useCsrf', () => ({ useCsrf: () => ({ csrfFetch: mockCsrfFetch }) }));
@@ -112,6 +113,26 @@ describe('PerfilMobile', () => {
     await waitFor(() =>
       expect(within(dialog()).getByLabelText('Receber lembretes da Agenda')).not.toBeDisabled(),
     );
+  });
+
+  it('atalho do painel Mais: ?abrir=notificacoes abre o sheet e sai da URL', () => {
+    window.history.replaceState(null, '', '/profile?abrir=notificacoes');
+    render(<PerfilMobile user={USER} />);
+    expect(
+      within(dialog()).getByRole('heading', { name: 'Notificações no celular' }),
+    ).toBeInTheDocument();
+    expect(dialog().querySelector('[data-perfil-sheet="notificacoes"]')).not.toBeNull();
+    expect(window.location.search).toBe('');
+    window.history.replaceState(null, '', '/');
+  });
+
+  it('atalho do painel Mais com o Perfil já aberto: o evento abre o sheet', () => {
+    render(<PerfilMobile user={USER} />);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    act(() => {
+      window.dispatchEvent(new Event(ABRIR_NOTIFICACOES_EVENT));
+    });
+    expect(dialog().querySelector('[data-perfil-sheet="notificacoes"]')).not.toBeNull();
   });
 
   it('um sheet por vez: fechar e abrir outro troca o conteúdo', () => {
