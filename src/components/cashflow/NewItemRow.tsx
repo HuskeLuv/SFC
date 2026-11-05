@@ -20,7 +20,7 @@ export const NewItemRow: React.FC<NewItemRowProps> = ({ item }) => (
     >
       <span className="cursor-default truncate block">{item.name || ''}</span>
     </FixedCell>
-    <FixedCell col={1} className={`text-gray-500 dark:text-gray-400 ${GRID.editingBg}`}>
+    <FixedCell col={1} className={`${GRID.porque} ${GRID.editingBg}`}>
       <span className="cursor-default truncate block">{item.significado || ''}</span>
     </FixedCell>
     <FixedCell col={2} className={`text-center text-gray-500 dark:text-gray-400 ${GRID.editingBg}`}>

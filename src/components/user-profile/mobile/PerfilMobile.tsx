@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import BottomSheet from '@/components/ui/sheet/BottomSheet';
 import UserMetaCard from '@/components/user-profile/UserMetaCard';
 import PrivacyControls, { type PrivacySection } from '@/components/user-profile/PrivacyControls';
 import { TwoFactorAuthAutoLoad } from '@/components/user-profile/TwoFactorAuth';
 import AgendaPreferencias from '@/components/user-profile/AgendaPreferencias';
 import NotificacoesPreferencias from '@/components/user-profile/NotificacoesPreferencias';
+import { ABRIR_NOTIFICACOES_EVENT } from '@/lib/pwa/pushClient';
 
 /**
  * Perfil no celular (PWA fase 3, U1–U3): lista de ajustes em grupos. Cada linha abre, num sheet, o
@@ -60,8 +61,8 @@ const GRUPOS: { titulo: string; itens: Item[] }[] = [
     itens: [
       {
         id: 'notificacoes',
-        label: 'Notificações',
-        hint: 'Avisos no aparelho e categorias',
+        label: 'Notificações no celular',
+        hint: 'Lembretes e avisos mesmo com o app fechado',
       },
     ],
   },
@@ -125,6 +126,24 @@ export default function PerfilMobile({ user }: { user: PerfilMobileUser }) {
   const [aberto, setAberto] = useState<ItemId | null>(null);
   const itemAberto = TODOS_ITENS.find((i) => i.id === aberto) ?? null;
   const secao = aberto ? SECAO_PRIVACIDADE[aberto] : undefined;
+
+  // Atalho do painel Mais: `?abrir=notificacoes` na chegada (o parâmetro sai da URL) ou o evento,
+  // quando o Perfil já estava aberto. Só abre o sheet — a permissão continua sendo pedida no toque.
+  useEffect(() => {
+    const abrir = () => setAberto('notificacoes');
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('abrir') === 'notificacoes') {
+        abrir();
+        url.searchParams.delete('abrir');
+        window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+      }
+    } catch {
+      // URL inválida/sem history: o atalho só não abre sozinho
+    }
+    window.addEventListener(ABRIR_NOTIFICACOES_EVENT, abrir);
+    return () => window.removeEventListener(ABRIR_NOTIFICACOES_EVENT, abrir);
+  }, []);
 
   return (
     <div data-mf-mobile="" data-mf-perfil-mobile="" className="space-y-5">

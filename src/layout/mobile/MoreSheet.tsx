@@ -1,12 +1,17 @@
 'use client';
 
-import React, { useEffect, useRef, useSyncExternalStore } from 'react';
+import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import BottomSheet from '@/components/ui/sheet/BottomSheet';
 import { ThemeToggleButton } from '@/components/common/ThemeToggleButton';
 import InstallAppCard from '@/components/pwa/InstallAppCard';
 import { useAuth } from '@/hooks/useAuth';
+import {
+  ABRIR_NOTIFICACOES_EVENT,
+  PERFIL_NOTIFICACOES_HREF,
+  pushAtivoNesteAparelho,
+} from '@/lib/pwa/pushClient';
 import { groupMoreItems, useMainNavItems } from '@/layout/navigation';
 import { SELO_NOVO } from '@/constants/analiseAtivosVisual';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
@@ -113,9 +118,73 @@ function MoonIcon() {
   );
 }
 
+function BellIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M6 16.5V11a6 6 0 1 1 12 0v5.5l1.5 1.5h-15zM10 20.5a2 2 0 0 0 4 0"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/**
+ * Atalho "Notificações no celular" (só leitura do estado; a ativação em si — e o pedido de
+ * permissão — continua no Perfil › Notificações, em resposta ao toque em "Ativar notificações").
+ */
+function NotificacoesRow({ open, className }: { open: boolean; className: string }) {
+  // null = ainda não sabe (sem selo); true/false depois da leitura.
+  const [ativo, setAtivo] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    let cancelado = false;
+    void pushAtivoNesteAparelho().then((v) => {
+      if (!cancelado) setAtivo(v);
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [open]);
+
+  return (
+    <Link
+      href={PERFIL_NOTIFICACOES_HREF}
+      onClick={() => {
+        closeMoreSheet();
+        // Já no Perfil, a navegação não remonta a página: o evento abre o sheet.
+        window.dispatchEvent(new Event(ABRIR_NOTIFICACOES_EVENT));
+      }}
+      data-more-notificacoes={ativo === null ? undefined : ativo ? 'ativas' : 'desligadas'}
+      className={`${className} py-2 active:bg-gray-100 dark:active:bg-white/5`}
+    >
+      <span className="text-gray-500 dark:text-gray-400">
+        <BellIcon />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block">Notificações no celular</span>
+        <span className="block text-[13px] font-normal text-gray-500 dark:text-gray-400">
+          Lembretes e avisos mesmo com o app fechado
+        </span>
+      </span>
+      {ativo === false ? (
+        <span className="shrink-0 rounded-full bg-mf-outside/10 px-2.5 py-1 text-xs font-semibold text-mf-patrimonio dark:bg-mf-tranquilidade/15 dark:text-mf-tranquilidade">
+          Ativar
+        </span>
+      ) : ativo ? (
+        <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">Ligadas</span>
+      ) : null}
+    </Link>
+  );
+}
+
 /**
  * Painel Mais (bottom sheet): seções do menu que não viraram aba, agrupadas, e a seção Conta
- * (perfil, tema, instalar app, sair). Mesmos itens da sidebar via useMainNavItems().
+ * (perfil, tema, notificações no celular, instalar app, sair). Mesmos itens da sidebar via
+ * useMainNavItems().
  */
 export default function MoreSheet() {
   const { open, section } = useMoreSheetState();
@@ -230,6 +299,7 @@ export default function MoreSheet() {
           <span className="flex-1">Modo escuro</span>
           <ThemeToggleButton />
         </div>
+        <NotificacoesRow open={open} className={row} />
         <InstallAppCard variant="row" />
         <button
           type="button"

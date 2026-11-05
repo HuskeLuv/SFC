@@ -132,7 +132,7 @@ describe('estados', () => {
   it('P1 nunca pediu: botão Ativar, categorias visíveis porém inertes, sem assinarPush na carga', async () => {
     render(<NotificacoesPreferencias />);
     await esperaCarregar();
-    expect(screen.getByRole('button', { name: 'Ativar neste aparelho' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ativar notificações' })).toBeInTheDocument();
     const categoria = screen.getByRole('switch', { name: /Orçamento/ });
     expect(categoria).toHaveAttribute('aria-disabled', 'true');
     expect(categoria).toHaveAttribute('aria-checked', 'false');
@@ -180,7 +180,7 @@ describe('estados', () => {
     await esperaCarregar();
     expect(screen.getByText('Falta instalar')).toBeInTheDocument();
     expect(screen.getByText('Adicionar à Tela de Início')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Ativar neste aparelho' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Ativar notificações' })).toBeNull();
   });
 
   it('indisponível (flag desligada / rota fora do ar): aviso e categorias inertes', async () => {
@@ -201,7 +201,7 @@ describe('gestos', () => {
     await esperaCarregar();
     expect(mocks.assinarPush).not.toHaveBeenCalled();
     stubServiceWorker(ENDPOINT_LOCAL); // o subscribe do navegador criou a assinatura
-    fireEvent.click(screen.getByRole('button', { name: 'Ativar neste aparelho' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ativar notificações' }));
     await waitFor(() => expect(mocks.assinarPush).toHaveBeenCalledTimes(1));
     expect(mocks.assinarPush).toHaveBeenCalledWith('BChaveExemplo', mocks.csrfFetch);
     await waitFor(() =>
@@ -213,7 +213,7 @@ describe('gestos', () => {
     mocks.assinarPush.mockResolvedValue('erro');
     render(<NotificacoesPreferencias />);
     await esperaCarregar();
-    fireEvent.click(screen.getByRole('button', { name: 'Ativar neste aparelho' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ativar notificações' }));
     await waitFor(() => expect(screen.getByText('Falta instalar')).toBeInTheDocument());
   });
 
@@ -344,7 +344,7 @@ describe('ativas: aparelhos, categorias e teste', () => {
     fireEvent.click(master);
     await waitFor(() => expect(mocks.cancelarAssinatura).toHaveBeenCalledTimes(1));
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Ativar neste aparelho' })).toBeInTheDocument(),
+      expect(screen.getByRole('button', { name: 'Ativar notificações' })).toBeInTheDocument(),
     );
     // a linha local sai da lista junto
     const lista = screen.queryByText('Chrome · celular');

@@ -87,6 +87,19 @@ export const GRID = {
   /** Input de texto dentro da grade (nome, porquê, nível). */
   input:
     'w-full rounded border border-gray-300 bg-white px-2 text-xs text-gray-800 focus:border-[#0079F2] focus:outline-none focus:ring-1 focus:ring-[#0079F2] dark:border-gray-600 dark:bg-gray-800 dark:text-white h-6 leading-6',
+
+  /**
+   * "O seu porquê" em azul da marca (`patrimonio` no claro, `tranquilidade` no escuro), exibido
+   * ou digitado. Cor de texto à parte (não somar ao `input`/`text-gray-*`: a ordem alfabética do
+   * Tailwind v4 decidiria qual vence) — por isso o input do porquê tem string própria.
+   */
+  porque: 'text-mf-patrimonio dark:text-mf-tranquilidade',
+  /** Placeholder do porquê fica cinza (sem isso herdaria o azul a 50%). */
+  inputPorque:
+    'w-full rounded border border-gray-300 bg-white px-2 text-xs text-mf-patrimonio placeholder:text-gray-400 focus:border-[#0079F2] focus:outline-none focus:ring-1 focus:ring-[#0079F2] dark:border-gray-600 dark:bg-gray-800 dark:text-mf-tranquilidade dark:placeholder:text-gray-500 h-6 leading-6',
+  /** Textarea do porquê no celular (somar ao MOBILE_FIELD_CLASS via twMerge). */
+  porqueField:
+    'text-mf-patrimonio placeholder:text-gray-400 dark:text-mf-tranquilidade dark:placeholder:text-gray-500',
 } as const;
 
 /**
