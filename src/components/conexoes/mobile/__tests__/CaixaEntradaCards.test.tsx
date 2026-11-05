@@ -70,6 +70,10 @@ function Harness(over: Partial<CaixaEntradaCardsProps>) {
       sugeridas={['t1']}
       transferencias={[]}
       rotuloSugestao={() => 'Sugestão: Mercado'}
+      todasMarcadas={false}
+      onAlternarTodas={vi.fn()}
+      notas={{}}
+      setNota={vi.fn()}
       {...over}
     />
   );
@@ -133,5 +137,16 @@ describe('CaixaEntradaCards', () => {
     expect(onIgnorar).toHaveBeenCalledWith(['t1', 't2']);
     fireEvent.click(within(barra).getByRole('button', { name: 'Lançar marcadas' }));
     expect(onLancar).toHaveBeenCalledWith(['t1', 't2']);
+  });
+  it('"Selecionar todas" e o comentário de cada transação chamam os handlers', () => {
+    const onAlternarTodas = vi.fn();
+    const setNota = vi.fn();
+    render(<Harness onAlternarTodas={onAlternarTodas} setNota={setNota} />);
+    fireEvent.click(screen.getByRole('button', { name: /Selecionar todas \(2\)/ }));
+    expect(onAlternarTodas).toHaveBeenCalled();
+    const campos = screen.getAllByPlaceholderText('Comentário (opcional)');
+    expect(campos).toHaveLength(2);
+    fireEvent.change(campos[0], { target: { value: 'churrasco' } });
+    expect(setNota).toHaveBeenCalledWith('t1', 'churrasco');
   });
 });
