@@ -73,7 +73,7 @@ describe('PerfilMobile', () => {
 
   it.each([
     ['nome', 'Informações pessoais', 'Nome completo'],
-    ['senha', 'Alterar senha', 'Nova senha (mín. 8 caracteres)'],
+    ['senha', 'Alterar senha', 'Nova senha'],
     ['dados', 'Baixar meus dados', 'Baixar JSON'],
     ['excluir', 'Excluir minha conta', 'Senha atual (pra confirmar)'],
   ])('linha %s abre o sheet "%s" com o formulário de hoje', (id, titulo, texto) => {

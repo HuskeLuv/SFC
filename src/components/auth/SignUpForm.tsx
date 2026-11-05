@@ -3,7 +3,8 @@ import Checkbox from '@/components/form/input/Checkbox';
 import Input from '@/components/form/input/InputField';
 import Label from '@/components/form/Label';
 import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from '@/icons';
-import { passwordRequirements, unmetPasswordRequirements } from '@/utils/passwordRequirements';
+import { unmetPasswordRequirements } from '@/utils/passwordRequirements';
+import PasswordChecklist from './PasswordChecklist';
 import { isValidEmail } from '@/utils/isValidEmail';
 import Link from 'next/link';
 import React, { useState } from 'react';
@@ -289,35 +290,7 @@ export default function SignUpForm({
                   </div>
                   {/* Checklist de requisitos — fica verde em tempo real conforme
                       o usuário digita, deixando claro o que falta. */}
-                  {showRequirements && (
-                    <ul className="mt-2 space-y-1.5">
-                      {passwordRequirements.map((req) => {
-                        const ok = req.test(password);
-                        return (
-                          <li
-                            key={req.id}
-                            className={`flex items-center gap-2 text-xs ${
-                              ok
-                                ? 'text-success-600 dark:text-success-500'
-                                : 'text-gray-500 dark:text-gray-400'
-                            }`}
-                          >
-                            <span
-                              aria-hidden="true"
-                              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold leading-none ${
-                                ok
-                                  ? 'bg-success-500 text-white'
-                                  : 'border border-gray-300 text-transparent dark:border-gray-600'
-                              }`}
-                            >
-                              ✓
-                            </span>
-                            {req.label}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
+                  {showRequirements && <PasswordChecklist password={password} />}
                 </div>
                 {/* <!-- Checkbox --> */}
                 <div className="flex items-center gap-3">

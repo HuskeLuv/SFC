@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { logger } from '@/lib/logger';
 import { useCsrf } from '@/hooks/useCsrf';
 import SairTodosDispositivos from '@/components/user-profile/SairTodosDispositivos';
+import PasswordChecklist from '@/components/auth/PasswordChecklist';
+import { PASSWORD_MIN_LENGTH, unmetPasswordRequirements } from '@/utils/passwordRequirements';
 
 /**
  * Controles de privacidade do usuário (LGPD Fase 2, Art. 18):
@@ -197,12 +199,12 @@ export default function PrivacyControls({
         />
       </label>
       <label className="block text-sm">
-        <span className="text-gray-600 dark:text-gray-400">Nova senha (mín. 8 caracteres)</span>
+        <span className="text-gray-600 dark:text-gray-400">Nova senha</span>
         <input
           type="password"
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
-          minLength={8}
+          minLength={PASSWORD_MIN_LENGTH}
           autoComplete="new-password"
           className={noSheet(
             'mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-white',
@@ -210,10 +212,17 @@ export default function PrivacyControls({
           )}
         />
       </label>
+      {/* Mesma regra do cadastro: o que falta fica claro antes de enviar. */}
+      <PasswordChecklist password={newPassword} className="space-y-1.5" />
       <div className={noSheet('flex items-center gap-3', 'flex-wrap')}>
         <button
           type="submit"
-          disabled={savingPwd || !currentPassword || !newPassword}
+          disabled={
+            savingPwd ||
+            !currentPassword ||
+            !newPassword ||
+            unmetPasswordRequirements(newPassword).length > 0
+          }
           className={noSheet(
             'rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-60',
             'min-h-11 flex-1',
