@@ -55,6 +55,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     planningAssetTargets,
     analiseSalvos,
     csatRespostas,
+    irPgblSimulacoes,
   ] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
@@ -100,6 +101,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     salvosParaExportacao(userId),
     // Pesquisa de satisfação (CSAT): notas, comentários e "Agora não".
     csatParaExportacao(userId),
+    // Imposto de Renda › PGBL: simulação salva por ano (renda, deduções, tipo dos planos).
+    prisma.irPgblSimulacao.findMany({ where: { userId } }),
   ]);
 
   if (!user) {
@@ -156,6 +159,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       alertasEnviados: analiseSalvos.alertasEnviados,
     },
     pesquisaSatisfacao: csatRespostas,
+    impostoDeRenda: { simulacoesPgbl: irPgblSimulacoes },
   };
 
   const json = JSON.stringify(payload_, null, 2);

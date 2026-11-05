@@ -247,6 +247,10 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
   // (User anonimizado, cascade não roda).
   await apagarCsatDoUsuario(me.id);
 
+  // Imposto de Renda › PGBL: renda, INSS e deduções digitados na simulação (dado pessoal) —
+  // apagados aqui (User anonimizado, cascade não roda).
+  await prisma.irPgblSimulacao.deleteMany({ where: { userId: me.id } });
+
   // Derruba todas as sessões e limpa o cookie de auth da resposta.
   await bumpSessionVersion(me.id);
   const response = NextResponse.json({ success: true });

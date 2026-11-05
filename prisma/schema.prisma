@@ -147,6 +147,7 @@ model User {
   // Web push (PWA fase 5)
   pushSubscriptions             PushSubscription[]
   pushPreferencia               PushPreferencia?
+  irPgblSimulacoes              IrPgblSimulacao[]
   // Análise de Ativos — Fase 1 (tese privada e lista do beta)
   analiseTeses                  AnaliseTese[]                 @relation("AnaliseTeseUser")
   featureBetas                  FeatureBetaUser[]             @relation("FeatureBetaUserUser")
@@ -227,6 +228,23 @@ model PushPreferencia {
   updatedAt  DateTime @updatedAt
 
   @@map("push_preferencias")
+}
+
+/// Simulação da aba PGBL do Imposto de Renda, por usuário e ano-calendário (ticket 86e2xnyrg).
+/// `campos`: valores digitados (renda, INSS, deduções...). `planos`: tipo (pgbl | vgbl) e regime
+/// de tributação (progressivo | regressivo) de cada plano de previdência da carteira, por assetId.
+model IrPgblSimulacao {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ano       Int
+  campos    Json     @default("{}")
+  planos    Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, ano])
+  @@map("ir_pgbl_simulacoes")
 }
 
 /**
@@ -2217,27 +2235,27 @@ model AssetStatementLine {
 }
 
 model AssetShareCount {
-  id         String   @id @default(uuid())
-  cnpj       String
+  id           String   @id @default(uuid())
+  cnpj         String
   // fim do exercício (DFP/FRE) ou fim do trimestre (ITR)
-  data       DateTime @db.Date
-  on         Decimal? @db.Decimal(20, 0)
-  pn         Decimal? @db.Decimal(20, 0)
-  tesouraria Decimal? @db.Decimal(20, 0)
+  data         DateTime @db.Date
+  on           Decimal? @db.Decimal(20, 0)
+  pn           Decimal? @db.Decimal(20, 0)
+  tesouraria   Decimal? @db.Decimal(20, 0)
   // tesouraria por classe (composição do DFP/ITR); null nas fontes sem classe
   tesourariaOn Decimal? @db.Decimal(20, 0)
   tesourariaPn Decimal? @db.Decimal(20, 0)
   // ex-tesouraria
-  total      Decimal? @db.Decimal(20, 0)
+  total        Decimal? @db.Decimal(20, 0)
   // dfp | dfp_x1000 | itr | itr_x1000 | fre_f | lpa_implicito | vizinho | limiar | sem_verificacao
-  fonte      String
+  fonte        String
   // Σ(LPA×ações)/lucro
-  razaoLpa   Float?
+  razaoLpa     Float?
   // ok | alerta (>±5%) | nao_verificavel
-  status     String
-  versaoDoc  Int?
-  flags      String[]
-  fetchedAt  DateTime
+  status       String
+  versaoDoc    Int?
+  flags        String[]
+  fetchedAt    DateTime
 
   @@unique([cnpj, data])
   @@index([cnpj])
@@ -2680,78 +2698,78 @@ model AssetEvento {
  * as ~800 linhas em memória por versão (= max(geradoEm)). Séries só com anos FECHADOS.
  */
 model AnaliseQuadroLinha {
-  symbol                String    @id
+  symbol                   String    @id
   // acao | fii | stock | reit (os gravadores deletam POR CLASSE: gerarQuadro.gravarLinhasQuadro)
-  classe                String
-  cnpj                  String
-  dataRef               DateTime  @db.Date
+  classe                   String
+  cnpj                     String
+  dataRef                  DateTime  @db.Date
   // negociadoUltimos30 && !fiagro
-  noQuadro              Boolean
+  noQuadro                 Boolean
   // sem_negociacao_30 | fiagro
-  foraDoQuadroMotivo    String?
-  nome                  String
-  nomeCurto             String?
-  setor                 String?
-  subsetor              String?
-  segmento              String?
-  segmentoListagem      String?
-  fiiTipo               String?
-  segmentoCvm           String?
-  regua                 String?
-  tickerReferencia      String?
-  preco                 Decimal?  @db.Decimal(18, 6)
-  precoData             DateTime? @db.Date
-  variacaoDiaPct        Float?
-  volumeMedio21         Decimal?  @db.Decimal(20, 2)
-  baixaLiquidez         Boolean   @default(false)
-  valorMercado          Decimal?  @db.Decimal(22, 2)
-  patrimonio            Decimal?  @db.Decimal(20, 2)
-  motivosIncompleto     String[]
+  foraDoQuadroMotivo       String?
+  nome                     String
+  nomeCurto                String?
+  setor                    String?
+  subsetor                 String?
+  segmento                 String?
+  segmentoListagem         String?
+  fiiTipo                  String?
+  segmentoCvm              String?
+  regua                    String?
+  tickerReferencia         String?
+  preco                    Decimal?  @db.Decimal(18, 6)
+  precoData                DateTime? @db.Date
+  variacaoDiaPct           Float?
+  volumeMedio21            Decimal?  @db.Decimal(20, 2)
+  baixaLiquidez            Boolean   @default(false)
+  valorMercado             Decimal?  @db.Decimal(22, 2)
+  patrimonio               Decimal?  @db.Decimal(20, 2)
+  motivosIncompleto        String[]
   // ex.: ['lucro:prejuizo','preco:pl_negativo']
-  componentesZeroRegra  String[]
-  anosLucroConsecutivos Int?
-  mesesComRendimento    Int?
-  anosDividendo         Int?
-  roePct                Float?
-  pl                    Float?
-  pvp                   Float?
-  dy12mPct              Float?
-  margemLiquidaPct      Float?
-  divLiqEbitda          Float?
-  divLiqPl              Float?
-  payoutPct             Float?
-  vacanciaFisicaCvmPct  Float?
-  nImoveisCvm           Int?
-  nCri                  Int?
-  obrigacoesPlPct       Float?
-  cotistas              Int?
-  naoSeAplica           String[]
+  componentesZeroRegra     String[]
+  anosLucroConsecutivos    Int?
+  mesesComRendimento       Int?
+  anosDividendo            Int?
+  roePct                   Float?
+  pl                       Float?
+  pvp                      Float?
+  dy12mPct                 Float?
+  margemLiquidaPct         Float?
+  divLiqEbitda             Float?
+  divLiqPl                 Float?
+  payoutPct                Float?
+  vacanciaFisicaCvmPct     Float?
+  nImoveisCvm              Int?
+  nCri                     Int?
+  obrigacoesPlPct          Float?
+  cotistas                 Int?
+  naoSeAplica              String[]
   // [{ano, valor|null, suspeito?}] só anos fechados
-  serie10a              Json
-  serieUlt12m           Float?
-  pares                 String[]
+  serie10a                 Json
+  serieUlt12m              Float?
+  pares                    String[]
   // sem FK (Asset pode não existir para o ticker)
-  assetId               String?
+  assetId                  String?
   // inclui provento_suspeito, proventos_defasados
-  flags                 String[]
-  paramsVersion         Int?
-  geradoEm              DateTime
+  flags                    String[]
+  paramsVersion            Int?
+  geradoEm                 DateTime
   // v2.4 (Filtros de Fundamentos): cópia compacta de criteria_eval por janela,
   // {"3":{n,de,m:[[id,estado,fato]]},"5":…,"10":…} (CriteriosCompactos em
   // src/types/analiseAtivosCriterios.ts). null = job 'criterios' ainda não rodou.
-  criterios             Json?
+  criterios                Json?
   // acao | acao_financeira | fii_tijolo | fii_papel | stock | stock_financeira | reit
-  perfilCriterios       String?
+  perfilCriterios          String?
   // EUA (stocks-reits, fatia 0) — nulas no Brasil. moeda 'USD' nas linhas stock/reit (null = BRL)
-  moeda                 String?
+  moeda                    String?
   // NYSE | Nasdaq
-  bolsa                 String?
+  bolsa                    String?
   // último FY da SEC: dividendo por ação (US$), FCO ÷ média diluída (US$) e dividendos ÷ FCO (%)
-  dpa                   Float?
-  fcoPorAcao            Float?
-  dividendosFcoPct      Float?
+  dpa                      Float?
+  fcoPorAcao               Float?
+  dividendosFcoPct         Float?
   // A6 (fatia 0; gravado pelo quadro da fatia E): obrigações ÷ ativo total do FII, em %
-  obrigacoesAtivoPct    Float?
+  obrigacoesAtivoPct       Float?
   // A2.d (fundamentei-regras, fatia 0; gravadas pelo quadro-eua): último FY do REIT com o FCO
   // ajustado pela SBC (FCO − remuneração em ações) ÷ média diluída (US$) e dividendos ÷ FCO
   // ajustado (%). Nulas sem SBC no ano e no Brasil.
@@ -3510,12 +3528,10 @@ model CiaFreDireitoAcao {
 /**
  * Pesquisa de satisfação (CSAT, ClickUp 86e3vmyv7 / KPI 86e3vmyup): "De 1 a 5, o quanto você está
  * satisfeito com sua experiência com o My Finance?", perguntada no app logado.
- *
  * LGPD — finalidade: medir a satisfação dos clientes e orientar o atendimento (Customer Success).
  * O comentário é texto livre e pode conter dado pessoal: só o admin lê (GET /api/admin/csat), sai no
  * export do usuário e é APAGADO na exclusão de conta (DELETE /api/profile; o User é anonimizado,
  * então o onDelete Cascade nunca roda).
- *
  * Uma linha por evento: nota 1–5 = resposta; nota NULL = "Agora não" (adiamento de 7 dias, não
  * entra no KPI).
  */

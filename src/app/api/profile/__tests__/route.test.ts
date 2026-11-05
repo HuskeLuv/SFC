@@ -25,6 +25,8 @@ const mockPrisma = vi.hoisted(() => ({
   analiseCenario: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
   // Pesquisa de satisfação (CSAT)
   csatResposta: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+  // Imposto de Renda › PGBL: simulação salva
+  irPgblSimulacao: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
   $transaction: vi.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
 }));
 
@@ -249,6 +251,10 @@ describe('DELETE /api/profile', () => {
     });
     // Pesquisa de satisfação: notas e comentários livres apagados
     expect(mockPrisma.csatResposta.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1' },
+    });
+    // Simulação do IR (renda e deduções digitadas) apagada
+    expect(mockPrisma.irPgblSimulacao.deleteMany).toHaveBeenCalledWith({
       where: { userId: 'user-1' },
     });
     // Relatos da Análise de Ativos: texto livre anonimizado e vínculo de cliente removido
