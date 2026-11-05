@@ -4,10 +4,15 @@
  * banco.aplicar    → desaplicar os mesmos ids (células recomputadas)
  * banco.ignorar    → tirar a marca de ignorada (voltam à Caixa de entrada)
  * banco.desaplicar → reaplicar cada id no item de onde saiu
+ *
+ * A entrada "Desfez: …" repete o detalhe das transações da original (bancoTransacoesHelpers):
+ * todas quando o desfazer pegou todas; só as desfeitas (sem o "Mais N") quando pegou parte.
  */
 import { aplicar, desaplicar, ignorar } from '@/services/pluggy/caixaEntrada';
 import { UndoError, type UndoContext, type UndoDefinition, type UndoOutcome } from '../types';
-import { getSnapshot } from '../helpers';
+import { getChanges, getSnapshot } from '../helpers';
+import { BANCO_CAMPO_PREFIXO, BANCO_CAMPO_RESTO } from '../../bancoTransacoesHelpers';
+import type { FieldChange } from '../../types';
 
 function idsDoSnapshot(ctx: UndoContext): string[] {
   const snap = getSnapshot(ctx.entry);
@@ -20,13 +25,31 @@ function idsDoSnapshot(ctx: UndoContext): string[] {
 
 const rotulo = (n: number) => (n === 1 ? '1 transação' : `${n} transações`);
 
+/** Detalhe da entrada original restrito ao que foi desfeito; `undefined` sem detalhe. */
+export function detalheDesfeito(
+  ctx: UndoContext,
+  idsDesfeitos: string[],
+  totalOriginal: number,
+): FieldChange[] | undefined {
+  const changes = getChanges(ctx.entry);
+  if (changes.length === 0) return undefined;
+  if (idsDesfeitos.length >= totalOriginal) return changes;
+  const desfeitos = new Set(idsDesfeitos.map((id) => `${BANCO_CAMPO_PREFIXO}${id}`));
+  const parte = changes.filter((c) => c.field !== BANCO_CAMPO_RESTO && desfeitos.has(c.field));
+  return parte.length > 0 ? parte : undefined;
+}
+
 const bancoAplicar: UndoDefinition = {
   strategy: 'custom',
   requires: { snapshot: true },
   async execute(ctx: UndoContext): Promise<UndoOutcome> {
-    const r = await desaplicar(ctx.auth.targetUserId, idsDoSnapshot(ctx));
+    const ids = idsDoSnapshot(ctx);
+    const r = await desaplicar(ctx.auth.targetUserId, ids);
     if (r.aplicadas === 0) throw new UndoError(409, 'As transações já não estão no fluxo');
-    return { entityLabel: rotulo(r.aplicadas) };
+    return {
+      entityLabel: rotulo(r.aplicadas),
+      changes: detalheDesfeito(ctx, r.ids ?? [], ids.length),
+    };
   },
 };
 
@@ -34,9 +57,10 @@ const bancoIgnorar: UndoDefinition = {
   strategy: 'custom',
   requires: { snapshot: true },
   async execute(ctx: UndoContext): Promise<UndoOutcome> {
-    const ids = await ignorar(ctx.auth.targetUserId, idsDoSnapshot(ctx), false);
+    const pedidos = idsDoSnapshot(ctx);
+    const ids = await ignorar(ctx.auth.targetUserId, pedidos, false);
     if (ids.length === 0) throw new UndoError(409, 'As transações já não estão ignoradas');
-    return { entityLabel: rotulo(ids.length) };
+    return { entityLabel: rotulo(ids.length), changes: detalheDesfeito(ctx, ids, pedidos.length) };
   },
 };
 
@@ -58,7 +82,10 @@ const bancoDesaplicar: UndoDefinition = {
         ctx.auth.targetUserId,
         aplicacoes as Array<{ id: string; itemId: string }>,
       );
-      return { entityLabel: rotulo(r.aplicadas) };
+      return {
+        entityLabel: rotulo(r.aplicadas),
+        changes: detalheDesfeito(ctx, r.ids ?? [], aplicacoes.length),
+      };
     } catch (error: unknown) {
       const status = (error as { statusCode?: number }).statusCode;
       if (status === 409 || status === 404 || status === 400) {
