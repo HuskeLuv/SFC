@@ -51,7 +51,13 @@ describe('rotas /api/pluggy/caixa-entrada', () => {
     mockSvc.listarPendentes.mockResolvedValue({ pendentes: [], total: 0, page: 1, totalPages: 0 });
     const res = await listar(req('/api/pluggy/caixa-entrada?page=abc&limit=20'));
     expect(res.status).toBe(200);
-    expect(mockSvc.listarPendentes).toHaveBeenCalledWith('user-1', { page: 1, limit: 20 });
+    expect(mockSvc.listarPendentes).toHaveBeenCalledWith('user-1', {
+      page: 1,
+      limit: 20,
+      connectionId: null,
+      de: null,
+      ate: null,
+    });
   });
 
   it('403 para consultor personificado', async () => {

@@ -107,7 +107,44 @@ export interface PendenteDTO {
   providerCategory: string | null;
   /** Mês do fluxo em que entra ("2026-10"), quando difere da regra da data (cartão). */
   competencia: string | null;
+  /** Banco da conexão (filtro "Banco"). */
+  connectionId: string;
+  banco: string;
+  /** Comentário que o usuário já escreveu (fica salvo mesmo se ele tirar do fluxo). */
+  nota: string | null;
   sugestao: SugestaoLinha;
+}
+
+/** Banco com transações pendentes, para o filtro da Caixa de entrada. */
+export interface BancoPendente {
+  connectionId: string;
+  banco: string;
+  total: number;
+}
+
+export interface FiltrosCaixa {
+  /** Só as transações deste banco (BankConnection.id). */
+  connectionId?: string | null;
+  /** Período pela data da transação, AAAA-MM-DD, inclusive. */
+  de?: string | null;
+  ate?: string | null;
+}
+
+const DATA_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Filtros → where do Prisma. Datas inválidas são ignoradas (a data é UTC, como na tela). */
+export function whereDosFiltros(f: FiltrosCaixa): Prisma.BankTransactionWhereInput {
+  const where: Prisma.BankTransactionWhereInput = {};
+  if (f.connectionId) where.account = { connectionId: f.connectionId };
+  const date: Prisma.DateTimeFilter = {};
+  if (f.de && DATA_RE.test(f.de)) date.gte = new Date(`${f.de}T00:00:00.000Z`);
+  if (f.ate && DATA_RE.test(f.ate)) {
+    const fim = new Date(`${f.ate}T00:00:00.000Z`);
+    fim.setUTCDate(fim.getUTCDate() + 1);
+    date.lt = fim;
+  }
+  if (date.gte || date.lt) where.date = date;
+  return where;
 }
 
 const PENDENTE_WHERE = {
@@ -119,23 +156,41 @@ const PENDENTE_WHERE = {
 
 export async function listarPendentes(
   userId: string,
-  opts: { page?: number; limit?: number } = {},
-): Promise<{ pendentes: PendenteDTO[]; total: number; page: number; totalPages: number }> {
+  opts: { page?: number; limit?: number } & FiltrosCaixa = {},
+): Promise<{
+  pendentes: PendenteDTO[];
+  total: number;
+  page: number;
+  totalPages: number;
+  /** Bancos com pendentes (sem filtro), para o seletor. */
+  bancos: BancoPendente[];
+}> {
   const page = Math.max(1, opts.page ?? 1);
   const limit = Math.min(200, Math.max(1, opts.limit ?? 50));
-  const where = { userId, ...PENDENTE_WHERE };
-  const [total, rows, estrutura] = await Promise.all([
+  const base = { userId, ...PENDENTE_WHERE };
+  const where = { ...base, ...whereDosFiltros(opts) };
+  const [total, rows, estrutura, porConta] = await Promise.all([
     prisma.bankTransaction.count({ where }),
     prisma.bankTransaction.findMany({
       where,
-      include: { account: { select: { name: true } } },
+      include: {
+        account: {
+          select: {
+            name: true,
+            connectionId: true,
+            connection: { select: { connectorName: true } },
+          },
+        },
+      },
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
       skip: (page - 1) * limit,
       take: limit,
     }),
     getUserCashflowStructure(userId),
+    prisma.bankTransaction.groupBy({ by: ['accountId'], where: base, _count: { _all: true } }),
   ]);
   const idx = indexarEstrutura(estrutura as GrupoEstrutura[]);
+  const bancos = await bancosPendentes(porConta);
   return {
     pendentes: rows.map((t) => ({
       id: t.id,
@@ -148,12 +203,41 @@ export async function listarPendentes(
       type: t.type,
       providerCategory: t.providerCategory,
       competencia: competenciaTexto(t),
+      connectionId: t.account.connectionId,
+      banco: t.account.connection.connectorName,
+      nota: t.nota,
       sugestao: resolverSugestao(t.providerCategory, idx),
     })),
     total,
     page,
     totalPages: Math.ceil(total / limit),
+    bancos,
   };
+}
+
+/** Contagem de pendentes por conta → por banco (conexão), em ordem alfabética. */
+async function bancosPendentes(
+  porConta: Array<{ accountId: string; _count: { _all: number } }>,
+): Promise<BancoPendente[]> {
+  if (porConta.length === 0) return [];
+  const contas = await prisma.bankAccount.findMany({
+    where: { id: { in: porConta.map((c) => c.accountId) } },
+    select: { id: true, connectionId: true, connection: { select: { connectorName: true } } },
+  });
+  const porId = new Map(contas.map((c) => [c.id, c]));
+  const out = new Map<string, BancoPendente>();
+  for (const c of porConta) {
+    const conta = porId.get(c.accountId);
+    if (!conta) continue;
+    const atual = out.get(conta.connectionId) ?? {
+      connectionId: conta.connectionId,
+      banco: conta.connection.connectorName,
+      total: 0,
+    };
+    atual.total += c._count._all;
+    out.set(conta.connectionId, atual);
+  }
+  return [...out.values()].sort((a, b) => a.banco.localeCompare(b.banco, 'pt-BR'));
 }
 
 // ---------------------------------------------------------------------------
@@ -215,7 +299,12 @@ export interface TransacaoComentario {
   date: Date;
   description: string;
   amount: number | { toString(): string };
+  /** Comentário do usuário na Caixa de entrada. */
+  nota?: string | null;
 }
+
+/** Teto do comentário do usuário por transação. */
+export const NOTA_MAX = 200;
 
 /** Mesmo formato do carimbo do assistente ("R$ 1234,50"). */
 const formatarBrl = (n: number) => `R$ ${n.toFixed(2).replace('.', ',')}`;
@@ -226,7 +315,8 @@ export function linhaComentarioBanco(t: TransacaoComentario, receita: boolean): 
   const mes = String(t.date.getUTCMonth() + 1).padStart(2, '0');
   const descricao = t.description.replace(/\s+/g, ' ').trim().slice(0, 120);
   const valor = formatarBrl(Math.abs(Number(t.amount)));
-  return `${receita ? 'Receita' : 'Gasto'} de ${valor} — ${dia}/${mes}${descricao ? ` ${descricao}` : ''} ${SUFIXO_OPEN_FINANCE}`;
+  const nota = (t.nota ?? '').replace(/\s+/g, ' ').trim().slice(0, NOTA_MAX);
+  return `${receita ? 'Receita' : 'Gasto'} de ${valor} — ${dia}/${mes}${descricao ? ` ${descricao}` : ''}${nota ? ` — ${nota}` : ''} ${SUFIXO_OPEN_FINANCE}`;
 }
 
 /**
@@ -279,7 +369,7 @@ export async function recomputarCelula(userId: string, c: Celula): Promise<numbe
         { competenciaAno: null, date: { gte: inicio, lt: fim } },
       ],
     },
-    select: { amount: true, date: true, description: true },
+    select: { amount: true, date: true, description: true, nota: true },
     orderBy: [{ date: 'asc' }, { id: 'asc' }],
   });
   const banco = centavos(rows.reduce((acc, r) => acc + Math.abs(Number(r.amount)), 0));
@@ -361,6 +451,8 @@ async function recomputarCelulas(userId: string, celulas: Map<string, Celula>) {
 export interface Aplicacao {
   id: string;
   itemId: string;
+  /** Comentário do usuário (undefined = mantém o que já estava; '' = apaga). */
+  nota?: string;
 }
 
 export interface AplicarResultado {
@@ -420,9 +512,15 @@ export async function aplicar(userId: string, aplicacoes: Aplicacao[]): Promise<
       const finalId = itemFinal.get(a.itemId)!;
       const c = celulaDe(finalId, txPorId.get(a.id)!);
       celulas.set(chaveCelula(c), c);
+      const nota =
+        a.nota === undefined ? undefined : a.nota.replace(/\s+/g, ' ').trim().slice(0, NOTA_MAX);
       return prisma.bankTransaction.update({
         where: { id: a.id },
-        data: { cashflowItemId: finalId, appliedAt: agora },
+        data: {
+          cashflowItemId: finalId,
+          appliedAt: agora,
+          ...(nota === undefined ? {} : { nota: nota || null }),
+        },
       });
     }),
   );

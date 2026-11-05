@@ -1,7 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockPrisma = vi.hoisted(() => ({
-  bankTransaction: { count: vi.fn(), findMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+  bankTransaction: {
+    count: vi.fn(),
+    findMany: vi.fn(),
+    update: vi.fn(),
+    updateMany: vi.fn(),
+    groupBy: vi.fn(),
+  },
+  bankAccount: { findMany: vi.fn() },
   cashflowGroup: { findUnique: vi.fn() },
   cashflowItem: { findUnique: vi.fn() },
   cashflowValue: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
@@ -27,9 +34,11 @@ import {
   desaplicar,
   ignorar,
   indexarEstrutura,
+  linhaComentarioBanco,
   listarPendentes,
   recomputarCelula,
   resolverSugestao,
+  whereDosFiltros,
 } from '../caixaEntrada';
 
 const estrutura = [
@@ -158,8 +167,13 @@ describe('sugestão sobre a árvore do usuário', () => {
       {
         id: 't1',
         accountId: 'a1',
-        account: { name: 'Conta Corrente' },
+        account: {
+          name: 'Conta Corrente',
+          connectionId: 'c1',
+          connection: { connectorName: 'Nubank' },
+        },
         date: new Date('2026-08-15T00:00:00Z'),
+        nota: 'luz do apê',
         description: 'ELETROBRAS',
         merchantName: null,
         amount: -185,
@@ -168,9 +182,21 @@ describe('sugestão sobre a árvore do usuário', () => {
       },
     ]);
     mockEstrutura.mockResolvedValue(estrutura);
+    mockPrisma.bankTransaction.groupBy.mockResolvedValue([
+      { accountId: 'a1', _count: { _all: 3 } },
+      { accountId: 'a2', _count: { _all: 2 } },
+    ]);
+    mockPrisma.bankAccount.findMany.mockResolvedValue([
+      { id: 'a1', connectionId: 'c1', connection: { connectorName: 'Nubank' } },
+      { id: 'a2', connectionId: 'c1', connection: { connectorName: 'Nubank' } },
+    ]);
     const r = await listarPendentes('u1', { page: 2, limit: 10 });
     expect(r).toMatchObject({ total: 1, page: 2, totalPages: 1 });
+    expect(r.bancos).toEqual([{ connectionId: 'c1', banco: 'Nubank', total: 5 }]);
     expect(r.pendentes[0]).toMatchObject({
+      banco: 'Nubank',
+      connectionId: 'c1',
+      nota: 'luz do apê',
       contaNome: 'Conta Corrente',
       amount: -185,
       sugestao: { itemId: 'it-energia' },
@@ -221,7 +247,7 @@ describe('recomputarCelula', () => {
           },
         ],
       },
-      select: { amount: true, date: true, description: true },
+      select: { amount: true, date: true, description: true, nota: true },
       orderBy: [{ date: 'asc' }, { id: 'asc' }],
     });
     expect(mockPrisma.cashflowValue.create).toHaveBeenCalledWith({
@@ -413,6 +439,28 @@ describe('aplicar / desaplicar / ignorar', () => {
     expect(r.celulas).toEqual([{ itemId: 'it-energia-user', year: 2026, month: 7, value: 305 }]);
   });
 
+  it('grava o comentário do usuário (limpo e com teto); vazio apaga; sem campo, não mexe', async () => {
+    mockPrisma.bankTransaction.findMany
+      .mockResolvedValueOnce([
+        { id: 't1', date: new Date('2026-08-15T00:00:00Z') },
+        { id: 't2', date: new Date('2026-08-16T00:00:00Z') },
+        { id: 't3', date: new Date('2026-08-17T00:00:00Z') },
+      ])
+      .mockResolvedValue([tx(-10)]);
+    mockEnsure.mockResolvedValue({ itemId: 'it-energia', item: { groupId: 'g-hab' } });
+
+    await aplicar('u1', [
+      { id: 't1', itemId: 'it-energia', nota: '  conta   do apê  ' },
+      { id: 't2', itemId: 'it-energia', nota: '' },
+      { id: 't3', itemId: 'it-energia' },
+    ]);
+
+    const dados = mockPrisma.bankTransaction.update.mock.calls.map((c) => c[0].data);
+    expect(dados[0]).toMatchObject({ nota: 'conta do apê' });
+    expect(dados[1]).toMatchObject({ nota: null });
+    expect(dados[2]).not.toHaveProperty('nota');
+  });
+
   it('compra no cartão com competência gravada entra no mês da fatura, não no da data', async () => {
     mockPrisma.bankTransaction.findMany
       .mockResolvedValueOnce([
@@ -482,5 +530,33 @@ describe('aplicar / desaplicar / ignorar', () => {
     });
     mockPrisma.bankTransaction.findMany.mockResolvedValueOnce([]);
     expect(await ignorar('u1', ['t1'], false)).toEqual([]);
+  });
+});
+
+describe('linhaComentarioBanco / whereDosFiltros', () => {
+  it('põe o comentário do usuário na linha da transação, antes do (Open Finance)', () => {
+    const t = { date: new Date('2026-08-15T00:00:00Z'), description: 'MERCADO X', amount: -30 };
+    expect(linhaComentarioBanco(t, false)).toBe(
+      'Gasto de R$ 30,00 — 15/08 MERCADO X (Open Finance)',
+    );
+    expect(linhaComentarioBanco({ ...t, nota: 'churrasco do sábado' }, false)).toBe(
+      'Gasto de R$ 30,00 — 15/08 MERCADO X — churrasco do sábado (Open Finance)',
+    );
+    // A linha com comentário continua sendo reconhecida como do banco (é reescrita no recomputo).
+    expect(
+      comentarioComBanco(
+        'digitado\nGasto de R$ 30,00 — 15/08 MERCADO X — churrasco (Open Finance)',
+        [],
+      ),
+    ).toBe('digitado');
+  });
+
+  it('filtro por banco e período (inclusive, em UTC); data inválida é ignorada', () => {
+    expect(whereDosFiltros({})).toEqual({});
+    expect(whereDosFiltros({ connectionId: 'c1', de: '2026-10-01', ate: '2026-10-31' })).toEqual({
+      account: { connectionId: 'c1' },
+      date: { gte: new Date('2026-10-01T00:00:00Z'), lt: new Date('2026-11-01T00:00:00Z') },
+    });
+    expect(whereDosFiltros({ de: '01/10/2026', ate: null })).toEqual({});
   });
 });
