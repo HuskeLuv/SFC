@@ -102,7 +102,7 @@ test('Perfil: Alterar senha abre o formulário com autocomplete do gerenciador',
     'autocomplete',
     'current-password',
   );
-  await expect(sheet(page).getByLabel('Nova senha (mín. 8 caracteres)')).toHaveAttribute(
+  await expect(sheet(page).getByLabel('Nova senha', { exact: true })).toHaveAttribute(
     'autocomplete',
     'new-password',
   );
