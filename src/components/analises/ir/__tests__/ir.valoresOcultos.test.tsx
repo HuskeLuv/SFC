@@ -21,6 +21,27 @@ const estado = vi.hoisted(() => ({ belowLg: false }));
 
 vi.mock('next/navigation', () => ({ usePathname: () => '/carteira' }));
 vi.mock('@/hooks/useMediaQuery', () => ({ useIsBelowLg: () => estado.belowLg }));
+// Simulação salva (servidor) fora do teste: vazia, sem QueryClient.
+vi.mock('../pgblMarcacoes', async (original) => {
+  const real = await original<typeof import('../pgblMarcacoes')>();
+  const vazio = {
+    carregando: false,
+    campos: {},
+    planos: {},
+    marcas: {},
+    salvoEm: null,
+    estado: 'ocioso' as const,
+    setCampo: () => {},
+    setCampos: () => {},
+    marcar: () => {},
+    marcarRegime: () => {},
+  };
+  return {
+    ...real,
+    useSimulacaoPgbl: () => vazio,
+    usePlanosMarcados: () => ({ marcas: {}, marcar: () => {} }),
+  };
+});
 
 const S = { saldo: 9876543.21, aplicado: 8765432.1 };
 

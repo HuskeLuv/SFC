@@ -122,6 +122,10 @@ export const queryKeys = {
     comecotas: () => [...queryKeys.ir.all, 'comecotas'] as const,
     pgbl: (year: number) => [...queryKeys.ir.all, 'pgbl', year] as const,
   },
+  // Simulação da aba PGBL salva no servidor (ticket 86e2xnyrg). Fora de `ir.all` de propósito: a
+  // invalidação da carteira (invalidatePortfolioDerivedQueries) não pode descartar o que o
+  // usuário acabou de digitar e ainda não foi gravado.
+  irSimulacaoPgbl: (ano: number) => ['irSimulacaoPgbl', ano] as const,
   // Mover investimentos entre abas/seções (out/2026): opções do diálogo e categoria do ativo
   carteiraMover: {
     all: ['carteiraMover'] as const,

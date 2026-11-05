@@ -6,7 +6,14 @@ import Input from '@/components/form/input/InputField';
 import IRSummaryCard from './IRSummaryCard';
 import IRStateMessage from './IRStateMessage';
 import { formatBRL, formatPercent } from './irFormatters';
-import { tipoDoPlano, usePlanosMarcados, type TipoPlanoMarcado } from './pgblMarcacoes';
+import {
+  tipoDoPlano,
+  useSimulacaoPgbl,
+  type PlanoMarcado,
+  type RegimeTributacao,
+  type TipoPlanoMarcado,
+} from './pgblMarcacoes';
+import type { ItemSugerido } from '@/services/ir/sugestaoFluxoIr';
 import { Sensivel, TextoSensivel, ValorVisivel } from '@/components/common/valores/Sensivel';
 import { ResponsiveTable, type ResponsiveColumn } from '@/components/ui/table/ResponsiveTable';
 import { parseCurrencyInput } from '@/utils/parseCurrencyInput';
@@ -21,8 +28,8 @@ import {
  * Aba PGBL do Imposto de Renda (HTML do Pedro, 03/11/2026): benefício do PGBL no ajuste anual.
  *
  * Os aportes vêm da carteira (planos de previdência, com o tipo PGBL/VGBL marcado pelo usuário);
- * renda, INSS e demais deduções o usuário informa — o fluxo de caixa ainda não separa renda bruta
- * tributável nem gastos dedutíveis. Os campos não são salvos (ficam só nesta tela).
+ * renda, INSS e demais deduções o usuário informa, com o atalho "Preencher com o fluxo de caixa"
+ * (renda, saúde e educação do ano, como sugestão). Tudo é salvo na conta, por ano (86e2xnyrg).
  */
 
 const REGRAS = REGRAS_IRPF_2026;
@@ -73,10 +80,35 @@ const pct = (v: number) => formatPercent(v, 1).replace('.', ',');
 
 export default function IRPgbl() {
   const { data, isLoading, error } = useIRPgbl(ANO);
-  const { marcas, marcar } = usePlanosMarcados();
-  const [campos, setCampos] = useState<Record<CampoId, string>>(
-    () => Object.fromEntries(CAMPOS.map((c) => [c.id, ''])) as Record<CampoId, string>,
-  );
+  const sim = useSimulacaoPgbl(ANO);
+  const { marcas, marcar } = sim;
+  const campos = Object.fromEntries(CAMPOS.map((c) => [c.id, sim.campos[c.id] ?? ''])) as Record<
+    CampoId,
+    string
+  >;
+  /** Origem do valor que veio do fluxo (some quando o usuário edita o campo). */
+  const [origem, setOrigem] = useState<Partial<Record<CampoId, ItemSugerido>>>({});
+  const sugestao = data?.sugestaoFluxo ?? null;
+  const temSugestao =
+    !!sugestao &&
+    (sugestao.rendaTributavel.total > 0 || sugestao.saude.total > 0 || sugestao.educacao.total > 0);
+  const preencherComFluxo = () => {
+    if (!sugestao) return;
+    const novos: Record<string, string> = {};
+    const novasOrigens: Partial<Record<CampoId, ItemSugerido>> = {};
+    const pares: Array<[CampoId, ItemSugerido]> = [
+      ['rendaTributavel', sugestao.rendaTributavel],
+      ['saude', sugestao.saude],
+      ['educacao', sugestao.educacao],
+    ];
+    for (const [id, item] of pares) {
+      if (item.total <= 0) continue;
+      novos[id] = formatarCampo(item.total);
+      novasOrigens[id] = item;
+    }
+    sim.setCampos(novos);
+    setOrigem((o) => ({ ...o, ...novasOrigens }));
+  };
 
   const planos = useMemo(() => data?.planos ?? [], [data]);
   const planosPgbl = planos.filter((p) => tipoDoPlano(p, marcas) === 'pgbl');
@@ -150,10 +182,31 @@ export default function IRPgbl() {
 
       <div className={CARD}>
         <div className="mb-4">
-          <h4 className={TITULO}>Seus dados do ano</h4>
-          <p className={SUB}>
-            Valores anuais. Não são salvos — ficam só nesta tela enquanto ela estiver aberta.
-          </p>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <h4 className={TITULO}>Seus dados do ano</h4>
+              <p className={SUB}>
+                Valores anuais, salvos na sua conta. <EstadoSalvo estado={sim.estado} />
+              </p>
+            </div>
+            {temSugestao && (
+              <button
+                type="button"
+                onClick={preencherComFluxo}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-mf-patrimonio hover:bg-gray-50 max-lg:min-h-11 dark:border-gray-700 dark:bg-gray-900 dark:text-mf-tranquilidade dark:hover:bg-white/5"
+              >
+                Preencher com o fluxo de caixa
+              </button>
+            )}
+          </div>
+          {Object.keys(origem).length > 0 && (
+            <p className="mt-2 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-white/5 dark:text-gray-300">
+              Confira antes de usar: no fluxo de caixa o salário costuma estar líquido, e o IR usa o
+              valor bruto (veja o informe de rendimentos). Medicamentos, material escolar e cursos
+              livres não são dedutíveis e ficaram de fora. INSS e IR retido não estão no fluxo:
+              informe à mão.
+            </p>
+          )}
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {CAMPOS.map((c) => (
@@ -169,10 +222,14 @@ export default function IRPgbl() {
                 inputMode={c.inteiro ? 'numeric' : 'decimal'}
                 placeholder={c.inteiro ? '0' : 'R$ 0,00'}
                 value={campos[c.id]}
-                onChange={(e) => setCampos((prev) => ({ ...prev, [c.id]: e.target.value }))}
+                onChange={(e) => {
+                  sim.setCampo(c.id, e.target.value);
+                  if (origem[c.id]) setOrigem(({ [c.id]: _, ...resto }) => resto);
+                }}
                 hint={c.hint}
                 autoComplete="off"
               />
+              {origem[c.id] && <OrigemFluxo item={origem[c.id]!} />}
             </div>
           ))}
         </div>
@@ -187,7 +244,8 @@ export default function IRPgbl() {
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <h4 className={TITULO}>Aportes em previdência no ano</h4>
           <p className={SUB}>
-            Marque o tipo de cada plano — só PGBL deduz. A marcação fica neste navegador.
+            Marque o tipo de cada plano (só PGBL deduz) e a tabela de tributação. Fica salvo na sua
+            conta.
           </p>
         </div>
         {isLoading && <LoadingSpinner text="Carregando planos de previdência..." />}
@@ -210,6 +268,8 @@ export default function IRPgbl() {
             planos={planos}
             marcas={marcas}
             onMarcar={marcar}
+            planosMarcados={sim.planos}
+            onMarcarRegime={sim.marcarRegime}
             totalPgbl={aportesCarteira}
             qtdPgbl={qtdAportes}
           />
@@ -669,16 +729,25 @@ function Simulacao({
 
 const TIPO_LABEL: Record<TipoPlanoMarcado, string> = { pgbl: 'PGBL', vgbl: 'VGBL' };
 
+const REGIME_LABEL: Record<RegimeTributacao, string> = {
+  progressivo: 'Progressiva',
+  regressivo: 'Regressiva',
+};
+
 function TabelaPlanos({
   planos,
   marcas,
   onMarcar,
+  planosMarcados,
+  onMarcarRegime,
   totalPgbl,
   qtdPgbl,
 }: {
   planos: IRPlanoPrevidencia[];
   marcas: Record<string, TipoPlanoMarcado>;
   onMarcar: (assetId: string, tipo: TipoPlanoMarcado) => void;
+  planosMarcados: Record<string, PlanoMarcado>;
+  onMarcarRegime: (assetId: string, regime: RegimeTributacao) => void;
   totalPgbl: number;
   qtdPgbl: number;
 }) {
@@ -713,6 +782,28 @@ function TabelaPlanos({
             {tipo === null && <option value="">Confirmar</option>}
             <option value="pgbl">{TIPO_LABEL.pgbl}</option>
             <option value="vgbl">{TIPO_LABEL.vgbl}</option>
+          </select>
+        );
+      },
+    },
+    {
+      id: 'regime',
+      header: 'Tributação',
+      mobile: 'field',
+      valor: 'visivel',
+      cell: (p) => {
+        const regime = planosMarcados[p.assetId]?.regime;
+        return (
+          <select
+            aria-label={`Tabela de tributação do plano ${p.nome}`}
+            title="Progressiva: IR pela tabela do ano no resgate. Regressiva: cai de 35% para 10% com o tempo."
+            value={regime ?? ''}
+            onChange={(e) => onMarcarRegime(p.assetId, e.target.value as RegimeTributacao)}
+            className="h-9 rounded-lg border border-gray-200 bg-white px-2 text-sm text-gray-700 focus:border-brand-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+          >
+            {!regime && <option value="">Não sei</option>}
+            <option value="progressivo">{REGIME_LABEL.progressivo}</option>
+            <option value="regressivo">{REGIME_LABEL.regressivo}</option>
           </select>
         );
       },
@@ -891,5 +982,40 @@ function GastosDedutiveis({ r, entrada }: { r: ResultadoIrpfAnual; entrada: Entr
         </p>
       </div>
     </div>
+  );
+}
+
+/** "12500.5" → "12.500,50", o formato que o campo aceita (parseCurrencyInput). */
+function formatarCampo(v: number): string {
+  return v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function EstadoSalvo({ estado }: { estado: ReturnType<typeof useSimulacaoPgbl>['estado'] }) {
+  if (estado === 'salvando') return <span>Salvando…</span>;
+  if (estado === 'salvo') return <span>Salvo.</span>;
+  if (estado === 'erro')
+    return (
+      <span className="text-red-600 dark:text-red-400">
+        Não foi possível salvar agora; tente de novo.
+      </span>
+    );
+  return null;
+}
+
+/** De onde veio o valor preenchido pelo fluxo de caixa (até 4 linhas). */
+function OrigemFluxo({ item }: { item: ItemSugerido }) {
+  const primeiras = item.linhas.slice(0, 4);
+  const resto = item.linhas.length - primeiras.length;
+  return (
+    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+      Do fluxo de caixa:{' '}
+      {primeiras.map((l, i) => (
+        <React.Fragment key={`${l.grupo}-${l.linha}`}>
+          {i > 0 ? ', ' : ''}
+          {l.linha} <Sensivel>{formatBRL(l.total)}</Sensivel>
+        </React.Fragment>
+      ))}
+      {resto > 0 ? ` e mais ${resto}` : ''}.
+    </p>
   );
 }
