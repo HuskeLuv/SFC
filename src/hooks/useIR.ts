@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
+import type { SugestaoFluxoIr } from '@/services/ir/sugestaoFluxoIr';
 
 export interface IRResumoAnual {
   year: number;
@@ -126,6 +127,8 @@ export interface IRPgblResponse {
   year: number;
   asOf: string;
   planos: IRPlanoPrevidencia[];
+  /** Renda e deduções do Fluxo de Caixa do ano (sugestão; null se não deu para ler). */
+  sugestaoFluxo?: SugestaoFluxoIr | null;
 }
 
 async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
