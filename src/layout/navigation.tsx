@@ -20,6 +20,7 @@ import {
   LockIcon,
   PlugInIcon,
   GroupIcon,
+  InfoIcon,
 } from '../icons/index';
 
 /**
@@ -107,6 +108,13 @@ export const MAIN_NAV_ITEMS: NavItem[] = [
     icon: <VideoIcon />,
     name: 'Educação',
     path: '/educacao',
+  },
+  // FAQ (05/11/2026, pedido do Pedro): a /ajuda só aparecia no menu do usuário; agora também
+  // logo abaixo de Educação.
+  {
+    icon: <InfoIcon />,
+    name: 'FAQ',
+    path: '/ajuda',
   },
 ];
 
@@ -279,7 +287,7 @@ export const MORE_GROUPS: { label: MoreGroupLabel; names: string[] }[] = [
     names: [ANALISE_ATIVOS_NOME, 'Saúde Financeira', 'Dívidas', 'Conexões bancárias'],
   },
   { label: 'Organização', names: ['Agenda', 'Relatórios', 'Histórico'] },
-  { label: 'Aprender e conversar', names: ['Educação', 'Comunidade', 'Administração'] },
+  { label: 'Aprender e conversar', names: ['Educação', 'FAQ', 'Comunidade', 'Administração'] },
 ];
 
 const TAB_NAMES: string[] = Object.values(TAB_ITEM_NAMES);
