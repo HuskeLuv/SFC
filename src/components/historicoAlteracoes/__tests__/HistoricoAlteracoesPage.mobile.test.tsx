@@ -117,6 +117,38 @@ describe('HistoricoAlteracoesPage — celular', () => {
     expect(confirmSpy).not.toHaveBeenCalled();
   });
 
+  it('transações do banco: o sheet lista as transações (sem "volta para") e quantas faltam', async () => {
+    mocks.historico.entries = [
+      {
+        ...ENTRY,
+        viaConsultant: false,
+        section: 'fluxo-caixa',
+        action: 'banco.ignorar',
+        entity: 'banco-transacoes',
+        entityId: null,
+        entityLabel: '7 transações',
+        changes: [
+          ...['a', 'b', 'c', 'd', 'e'].map((id) => ({
+            field: `banco:${id}`,
+            label: `05/11/2026 · LOJA ${id} · Nubank`,
+            before: -1,
+            after: null,
+            format: 'currency' as const,
+          })),
+          { field: 'banco:resto', label: 'Mais 2 transações', before: null, after: null },
+        ],
+      },
+    ];
+    const { container } = render(<HistoricoAlteracoesPage />);
+    const card = container.querySelector('[data-historico-card]') as HTMLElement;
+    fireEvent.click(within(card).getByRole('button', { name: 'Desfazer' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).queryByText(/volta para/)).toBeNull();
+    expect(within(dialog).getByText(/05\/11\/2026 · LOJA a · Nubank/)).toBeTruthy();
+    expect(within(dialog).queryByText(/LOJA e/)).toBeNull();
+    expect(within(dialog).getByText('e mais 3 transações.')).toBeTruthy();
+  });
+
   it('erro (409) aparece dentro do sheet com "Tentar de novo"; sucesso mostra o aviso', async () => {
     mocks.mutateAsync
       .mockRejectedValueOnce(new Error('O item foi alterado depois desta mudança.'))

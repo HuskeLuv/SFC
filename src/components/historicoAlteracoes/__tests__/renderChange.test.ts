@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import type { HistoricoAlteracaoEntry } from '@/hooks/useHistoricoAlteracoes';
-import { formatChangeValue, renderDescription, renderRichDescription } from '../renderChange';
+import {
+  formatChangeValue,
+  isListaBanco,
+  partesItemBanco,
+  renderDescription,
+  renderRichDescription,
+} from '../renderChange';
 
 const makeEntry = (overrides: Partial<HistoricoAlteracaoEntry>): HistoricoAlteracaoEntry => ({
   id: 'log-1',
@@ -122,5 +128,66 @@ describe('renderRichDescription', () => {
     const { title, summary } = renderRichDescription(entry);
     expect(title).toBe('Desfez: Editou transação de PETR4');
     expect(summary).toContain('Quantidade: 150 → 100');
+  });
+});
+
+describe('renderRichDescription — transações do banco (lista)', () => {
+  const BRL = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const item = (id: string, before: number, after: string | null) => ({
+    field: `banco:${id}`,
+    label: `05/11/2026 · UBER ${id} · Nubank, Conta corrente`,
+    before,
+    after,
+    format: 'currency' as const,
+  });
+
+  it('lançar: resumo com as 2 primeiras e quantas faltam, sem "→"', () => {
+    const entry = makeEntry({
+      section: 'fluxo-caixa',
+      action: 'banco.aplicar',
+      entityLabel: '15 transações',
+      changes: [
+        item('a', -23.9, 'entrou em Transporte (novembro de 2026)'),
+        item('b', 300, 'entrou em Salário (novembro de 2026)'),
+        item('c', -10, 'entrou em Transporte (novembro de 2026)'),
+        { field: 'banco:resto', label: 'Mais 12 transações', before: null, after: null },
+      ],
+    });
+    const { title, summary } = renderRichDescription(entry);
+    expect(title).toBe('Lançou 15 transações do banco no fluxo de caixa');
+    expect(summary).toBe(
+      `05/11/2026 · UBER a · Nubank, Conta corrente: ${BRL(-23.9)} · entrou em Transporte (novembro de 2026)` +
+        ` · 05/11/2026 · UBER b · Nubank, Conta corrente: ${BRL(300)} · entrou em Salário (novembro de 2026)` +
+        ' · +13 outras transações em Detalhes',
+    );
+  });
+
+  it('ignorar (sem destino) e o desfazer usam o mesmo formato', () => {
+    const entry = makeEntry({
+      section: 'fluxo-caixa',
+      action: 'banco.ignorar.desfazer',
+      entityLabel: '1 transação',
+      changes: [item('a', -5, null)],
+    });
+    const { title, summary } = renderRichDescription(entry);
+    expect(title).toBe('Desfez: Ignorou 1 transação do banco na Caixa de entrada');
+    expect(summary).toBe(`05/11/2026 · UBER a · Nubank, Conta corrente: ${BRL(-5)}`);
+  });
+
+  it('isListaBanco só para as ações do banco', () => {
+    expect(isListaBanco({ action: 'banco.desaplicar' })).toBe(true);
+    expect(isListaBanco({ action: 'banco.aplicar.desfazer' })).toBe(true);
+    expect(isListaBanco({ action: 'valor.editar' })).toBe(false);
+  });
+
+  it('partesItemBanco: o "Mais N" é só o rótulo', () => {
+    expect(
+      partesItemBanco({
+        field: 'banco:resto',
+        label: 'Mais 3 transações',
+        before: null,
+        after: null,
+      }),
+    ).toEqual(['Mais 3 transações']);
   });
 });

@@ -15,6 +15,8 @@ import {
   renderRichDescriptionPartes,
   formatChangeValue,
   formatEntryDate,
+  isListaBanco,
+  partesItemBanco,
   textoDasPartes,
   type ParteResumo,
 } from './renderChange';
@@ -101,6 +103,21 @@ export const ChangesList: React.FC<{
   className?: string;
 }> = ({ entry, id, className = '' }) => {
   if (!entry.changes || entry.changes.length === 0) return null;
+  // Transações do banco: uma linha por transação (data · descrição · conta: valor · linha/mês).
+  if (isListaBanco(entry)) {
+    return (
+      <ul id={id} className={`space-y-1 ${className}`}>
+        {entry.changes.map((change) => (
+          <li
+            key={change.field}
+            className="text-xs text-gray-600 max-lg:[overflow-wrap:anywhere] dark:text-gray-300"
+          >
+            <ResumoAlteracao partes={partesItemBanco(change)} />
+          </li>
+        ))}
+      </ul>
+    );
+  }
   return (
     <ul id={id} className={`space-y-1 ${className}`}>
       {entry.changes.map((change) => (

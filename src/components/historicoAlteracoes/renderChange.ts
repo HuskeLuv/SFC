@@ -296,6 +296,70 @@ export interface RichDescriptionPartes {
   resumo?: ParteResumo[];
 }
 
+const ACOES_LISTA_BANCO = new Set(['banco.aplicar', 'banco.ignorar', 'banco.desaplicar']);
+const CAMPO_RESTO_BANCO = 'banco:resto';
+
+const acaoBase = (action: string) =>
+  action.endsWith(UNDO_SUFFIX) ? action.slice(0, -UNDO_SUFFIX.length) : action;
+
+/**
+ * Entradas da Caixa de entrada do banco (lançar / ignorar / tirar do fluxo, e o desfazer delas):
+ * `changes` é uma lista de transações, não um antes → depois. Cada par vira
+ * "05/11/2026 · UBER · Nubank: -R$ 23,90 · entrou em Transporte (novembro de 2026)"; o par
+ * `banco:resto` ("Mais 12 transações") aparece só com o rótulo (bancoTransacoesHelpers.ts).
+ */
+export function isListaBanco(entry: Pick<HistoricoAlteracaoEntry, 'action'>): boolean {
+  return ACOES_LISTA_BANCO.has(acaoBase(entry.action));
+}
+
+/** Pedaços de um item da lista do banco: "rótulo: valor · destino". */
+export function partesItemBanco(change: FieldChange): ParteResumo[] {
+  if (change.field === CAMPO_RESTO_BANCO) return [change.label];
+  const partes: ParteResumo[] = [
+    `${change.label}: `,
+    { valor: change.before, format: change.format, field: change.field },
+  ];
+  if (change.after !== null && change.after !== undefined && change.after !== '') {
+    partes.push(' · ', { valor: change.after, field: change.field });
+  }
+  return partes;
+}
+
+/** Quantas transações um par representa (o `banco:resto` traz a contagem no rótulo). */
+const transacoesDoPar = (change: FieldChange) => {
+  if (change.field !== CAMPO_RESTO_BANCO) return 1;
+  const n = Number(/\d+/.exec(change.label)?.[0]);
+  return Number.isFinite(n) && n > 0 ? n : 1;
+};
+
+/**
+ * As `max` primeiras transações da lista e quantas ficam de fora (contando as do "Mais N"). Usado
+ * no resumo da linha e no sheet do Desfazer.
+ */
+export function itensBanco(
+  changes: FieldChange[],
+  max: number,
+): { shown: FieldChange[]; restantes: number } {
+  const shown = changes.filter((c) => c.field !== CAMPO_RESTO_BANCO).slice(0, max);
+  const total = changes.reduce((acc, c) => acc + transacoesDoPar(c), 0);
+  return { shown, restantes: Math.max(0, total - shown.length) };
+}
+
+function resumoListaBanco(changes: FieldChange[]): ParteResumo[] {
+  const { shown, restantes } = itensBanco(changes, MAX_SUMMARY_PAIRS);
+  const resumo: ParteResumo[] = [];
+  shown.forEach((change, i) => {
+    if (i > 0) resumo.push(' · ');
+    resumo.push(...partesItemBanco(change));
+  });
+  if (restantes > 0) {
+    resumo.push(
+      ` · +${restantes} ${restantes === 1 ? 'outra transação' : 'outras transações'} em Detalhes`,
+    );
+  }
+  return resumo;
+}
+
 /**
  * Descrição rica em pedaços: título (frase da ação) + resumo com até 2 campos do diff.
  * Edição mostra antes → depois; criação mostra os valores iniciais; exclusão
@@ -306,10 +370,9 @@ export function renderRichDescriptionPartes(entry: HistoricoAlteracaoEntry): Ric
   const title = renderDescription(entry);
   const changes = entry.changes ?? [];
   if (changes.length === 0) return { title };
+  if (isListaBanco(entry)) return { title, resumo: resumoListaBanco(changes) };
 
-  const baseAction = entry.action.endsWith(UNDO_SUFFIX)
-    ? entry.action.slice(0, -UNDO_SUFFIX.length)
-    : entry.action;
+  const baseAction = acaoBase(entry.action);
   const verb = baseAction.split('.').pop() ?? '';
   const style = CREATION_VERBS.has(verb)
     ? 'single-after'
