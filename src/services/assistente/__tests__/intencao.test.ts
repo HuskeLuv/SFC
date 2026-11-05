@@ -27,6 +27,8 @@ describe('classificarIntencao', () => {
     ['Poderia lançar um orçamento de 200 reais em cinema', 'ajuste_fluxo'],
     ['Marca como pago o aluguel de outubro', 'ajuste_fluxo'],
     ['Qual foi minha maior despesa do mês?', 'maior_despesa'],
+    ['Quais contas eu devo cortar?', 'maior_despesa'],
+    ['Onde eu posso economizar sem sofrer?', 'maior_despesa'],
     ['Quanto sobrou no mês passado?', 'sobra_mes'],
     ['Quanto recebi este mês?', 'receitas'],
     ['Quanto gastei com delivery?', 'gasto_categoria'],

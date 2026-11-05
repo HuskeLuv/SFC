@@ -48,6 +48,31 @@ describe('slim', () => {
 });
 
 describe('compactCashflow', () => {
+  it('leva o nível e o porquê da linha quando o usuário preencheu', () => {
+    const out = compactCashflow([
+      {
+        name: 'Lazer',
+        type: 'despesa',
+        items: [
+          {
+            name: 'Streaming',
+            rank: '5',
+            significado: '  Quase não assisto  ',
+            values: [{ month: 0, value: 50 }],
+          },
+          { name: 'Cinema', rank: '', significado: null, values: [{ month: 0, value: 80 }] },
+        ],
+      },
+    ]) as Array<{ linhas: Array<Record<string, unknown>> }>;
+    expect(out[0].linhas[0]).toMatchObject({
+      linha: 'Streaming',
+      nivel: '5',
+      porque: 'Quase não assisto',
+    });
+    expect(out[0].linhas[1]).not.toHaveProperty('nivel');
+    expect(out[0].linhas[1]).not.toHaveProperty('porque');
+  });
+
   it('achata a árvore, ignora linhas zeradas e devolve só os meses com valor', () => {
     const out = compactCashflow([
       {

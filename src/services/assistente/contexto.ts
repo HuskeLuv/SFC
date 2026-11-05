@@ -173,7 +173,17 @@ export function compactCashflow(groups: CashGroupLike[]): Json[] {
         porMes.forEach((val, i) => {
           grupoPorMes[i] = round(grupoPorMes[i] + val);
         });
-        return { linha: it.name, totalAno: total, meses: mesesNaoZerados(porMes) };
+        // Nível de prioridade e "O seu porquê" (colunas do fluxo): a base dos cortes na
+        // metodologia. Só entram quando o usuário preencheu.
+        const nivel = it.rank?.trim();
+        const porque = it.significado?.trim();
+        return {
+          linha: it.name,
+          ...(nivel ? { nivel } : {}),
+          ...(porque ? { porque: porque.slice(0, 120) } : {}),
+          totalAno: total,
+          meses: mesesNaoZerados(porMes),
+        };
       })
       .filter(Boolean);
     if (linhas.length > 0) {

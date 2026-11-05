@@ -15,6 +15,10 @@ export interface CashGroupLike {
     hidden?: boolean;
     objetivoId?: string | null;
     dividaId?: string | null;
+    /** "O seu porquê" da linha (coluna do fluxo). */
+    significado?: string | null;
+    /** Nível de prioridade da linha ("5"–"10", ou textos antigos como "essencial"). */
+    rank?: string | null;
     values?: Array<{ month: number; value: number | string | null }>;
   }>;
   children?: CashGroupLike[];

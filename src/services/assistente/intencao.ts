@@ -72,7 +72,11 @@ const REGRAS: Array<{ intencao: Intencao; re: RegExp }> = [
   },
   { intencao: 'objetivos', re: /objetivo|sonho|meta\b|aposentadoria/ },
   { intencao: 'orcamento', re: /orcamento|estour|limite|posso gastar|ainda posso/ },
-  { intencao: 'maior_despesa', re: /maior (gasto|despesa)|mais gast|onde (eu )?gasto/ },
+  {
+    // Cortes e prioridades (metodologia): a resposta sai do nível/porquê das linhas do fluxo.
+    intencao: 'maior_despesa',
+    re: /maior (gasto|despesa)|mais gast|onde (eu )?gasto|\bcort|economiz|reduzir|\bnivel\b|prioridade|porque d/,
+  },
   { intencao: 'sobra_mes', re: /sobr(ou|a)|resultado do mes|saldo do mes|fech(ei|ar) o mes/ },
   { intencao: 'receitas', re: /receit|entrada|ganh(ei|o)|salario|quanto recebi/ },
   { intencao: 'gasto_categoria', re: /gast|despes|paguei|custo/ },
