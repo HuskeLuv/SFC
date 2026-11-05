@@ -9,7 +9,7 @@ import type {
   BankConnectionDTO,
   BankTransactionDTO,
 } from '@/app/api/pluggy/_lib/serializer';
-import type { PendenteDTO, AplicarResultado } from '@/services/pluggy/caixaEntrada';
+import type { PendenteDTO, AplicarResultado, BancoPendente } from '@/services/pluggy/caixaEntrada';
 import type {
   ConsentimentoDTO,
   EventoConsentimento,
@@ -269,6 +269,17 @@ export interface CaixaEntradaResposta {
   total: number;
   page: number;
   totalPages: number;
+  /** Bancos com pendentes (sem filtro), para o seletor. */
+  bancos?: BancoPendente[];
+}
+
+export type { BancoPendente };
+
+/** Filtros da Caixa de entrada: banco (BankConnection.id) e período AAAA-MM-DD. */
+export interface FiltrosCaixaEntrada {
+  banco?: string;
+  de?: string;
+  ate?: string;
 }
 
 /** Linha do fluxo selecionável: "Despesas Fixas › Habitação › Conta de energia". */
@@ -316,14 +327,19 @@ function invalidarFluxo(queryClient: ReturnType<typeof useQueryClient>): void {
   queryClient.invalidateQueries({ queryKey: queryKeys.historicoAlteracoes.all });
 }
 
-export function useCaixaEntrada(page = 1, enabled = true) {
+export function useCaixaEntrada(page = 1, enabled = true, filtros: FiltrosCaixaEntrada = {}) {
+  const { banco = '', de = '', ate = '' } = filtros;
   return useQuery<CaixaEntradaResposta, ConexaoApiError>({
-    queryKey: [...queryKeys.pluggy.caixaEntrada(), page],
+    queryKey: [...queryKeys.pluggy.caixaEntrada(), page, banco, de, ate],
     enabled,
     staleTime: 15_000,
     placeholderData: keepPreviousData,
     queryFn: async ({ signal }) => {
-      const res = await fetch(`${BASE_URL}/caixa-entrada?page=${page}&limit=50`, {
+      const qs = new URLSearchParams({ page: String(page), limit: '50' });
+      if (banco) qs.set('banco', banco);
+      if (de) qs.set('de', de);
+      if (ate) qs.set('ate', ate);
+      const res = await fetch(`${BASE_URL}/caixa-entrada?${qs.toString()}`, {
         credentials: 'include',
         signal,
       });
@@ -367,7 +383,7 @@ function mutacaoLote<TVars, TResp>(caminho: string, erro: string) {
 }
 
 export const useAplicarTransacoes = mutacaoLote<
-  { aplicacoes: Array<{ id: string; itemId: string }> },
+  { aplicacoes: Array<{ id: string; itemId: string; nota?: string }> },
   AplicarResultado
 >('aplicar', 'Erro ao lançar no fluxo de caixa');
 export const useIgnorarTransacoes = mutacaoLote<{ ids: string[] }, { ignoradas: number }>(

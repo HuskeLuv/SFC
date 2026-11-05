@@ -11,7 +11,13 @@ import type { JWTPayload } from '@/utils/auth';
 export const idsSchema = z.object({ ids: z.array(z.string().uuid()).min(1).max(500) });
 export const aplicacoesSchema = z.object({
   aplicacoes: z
-    .array(z.object({ id: z.string().uuid(), itemId: z.string().min(1) }))
+    .array(
+      z.object({
+        id: z.string().uuid(),
+        itemId: z.string().min(1),
+        nota: z.string().max(500).optional(),
+      }),
+    )
     .min(1)
     .max(500),
 });

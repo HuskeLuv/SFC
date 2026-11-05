@@ -10,12 +10,14 @@ import { Sensivel } from '@/components/common/valores/Sensivel';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import MobilePageState from '@/components/ui/mobile/MobilePageState';
 import CaixaEntradaCards from './mobile/CaixaEntradaCards';
+import FiltrosCaixaEntradaBar, { temFiltro } from './FiltrosCaixaEntrada';
 import { rotuloCompetencia } from '@/services/pluggy/competenciaCartao';
 import {
   useAplicarTransacoes,
   useCaixaEntrada,
   useIgnorarTransacoes,
   useLinhasFluxo,
+  type FiltrosCaixaEntrada,
   type PendenteDTO,
 } from '@/hooks/useConexoesBancarias';
 
@@ -97,13 +99,23 @@ export const ehIgnoravel = (p: PendenteDTO): boolean =>
  */
 export default function CaixaEntrada({ onAviso }: { onAviso: (msg: string) => void }) {
   const [page, setPage] = useState(1);
-  const { data, isLoading, isError, error, isFetching } = useCaixaEntrada(page);
+  const [filtros, setFiltros] = useState<FiltrosCaixaEntrada>({});
+  const { data, isLoading, isError, error, isFetching } = useCaixaEntrada(page, true, filtros);
   const { data: linhas } = useLinhasFluxo();
   const aplicar = useAplicarTransacoes();
   const ignorar = useIgnorarTransacoes();
 
   const [escolhas, setEscolhas] = useState<Record<string, string>>({});
   const [marcadas, setMarcadas] = useState<Set<string>>(new Set());
+  /** Comentário que o usuário escreve antes de lançar (vai para o comentário da célula). */
+  const [notas, setNotas] = useState<Record<string, string>>({});
+
+  // Filtro novo: volta à página 1 e desmarca (para não lançar marcadas que sumiram da tela).
+  const mudarFiltros = (f: FiltrosCaixaEntrada) => {
+    setFiltros(f);
+    setPage(1);
+    setMarcadas(new Set());
+  };
 
   // Pré-preenche a escolha com a sugestão sempre que a página muda.
   useEffect(() => {
@@ -112,6 +124,13 @@ export default function CaixaEntrada({ onAviso }: { onAviso: (msg: string) => vo
       const next = { ...prev };
       for (const p of data.pendentes) {
         if (next[p.id] === undefined) next[p.id] = p.sugestao.itemId ?? SEM_LINHA;
+      }
+      return next;
+    });
+    setNotas((prev) => {
+      const next = { ...prev };
+      for (const p of data.pendentes) {
+        if (next[p.id] === undefined && p.nota) next[p.id] = p.nota;
       }
       return next;
     });
@@ -124,6 +143,20 @@ export default function CaixaEntrada({ onAviso }: { onAviso: (msg: string) => vo
   // PWA fase 3: abaixo de lg, cartões (mesmo estado e handlers); o desktop mantém a tabela.
   const isBelowLg = useIsBelowLg();
 
+  const todasMarcadas = pendentes.length > 0 && pendentes.every((p) => marcadas.has(p.id));
+  const algumaMarcada = pendentes.some((p) => marcadas.has(p.id));
+  /** Marca (ou desmarca) todas as transações da página, já filtradas. */
+  const alternarTodas = () =>
+    setMarcadas((s) => {
+      const n = new Set(s);
+      for (const p of pendentes) {
+        if (todasMarcadas) n.delete(p.id);
+        else n.add(p.id);
+      }
+      return n;
+    });
+  const setNota = (id: string, texto: string) => setNotas((s) => ({ ...s, [id]: texto }));
+
   const alternar = (id: string) =>
     setMarcadas((s) => {
       const n = new Set(s);
@@ -134,7 +167,11 @@ export default function CaixaEntrada({ onAviso }: { onAviso: (msg: string) => vo
 
   async function aplicarIds(ids: string[]) {
     const aplicacoes = ids
-      .map((id) => ({ id, itemId: escolhas[id] ?? SEM_LINHA }))
+      .map((id) => ({
+        id,
+        itemId: escolhas[id] ?? SEM_LINHA,
+        ...(notas[id] !== undefined ? { nota: notas[id] } : {}),
+      }))
       .filter((a) => a.itemId !== SEM_LINHA);
     // Ticket 06/10/2026: as marcadas sem linha eram descartadas em silêncio (e desmarcadas) —
     // a usuária via parte sumir e parte ficar sem saber por quê. Agora ficam marcadas e avisadas.
@@ -174,7 +211,8 @@ export default function CaixaEntrada({ onAviso }: { onAviso: (msg: string) => vo
 
   if (isLoading) return <LoadingSpinner size="md" text="Carregando a Caixa de entrada..." />;
   if (isError) return <p className="text-sm text-red-600 dark:text-red-400">{error?.message}</p>;
-  if (!data || data.total === 0) {
+  const filtrando = temFiltro(filtros);
+  if (!data || (data.total === 0 && !filtrando)) {
     // No celular a caixa tem tela própria: vazia, diz que acabou em vez de ficar em branco.
     return data && isBelowLg ? (
       <MobilePageState
@@ -219,7 +257,17 @@ export default function CaixaEntrada({ onAviso }: { onAviso: (msg: string) => vo
         ) : null}
       </div>
 
-      {isBelowLg ? (
+      <FiltrosCaixaEntradaBar
+        bancos={data.bancos ?? []}
+        filtros={filtros}
+        onChange={mudarFiltros}
+      />
+
+      {data.total === 0 ? (
+        <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+          Nenhuma transação pendente com esses filtros.
+        </p>
+      ) : isBelowLg ? (
         <CaixaEntradaCards
           pendentes={pendentes}
           linhas={linhas ?? []}
@@ -233,6 +281,10 @@ export default function CaixaEntrada({ onAviso }: { onAviso: (msg: string) => vo
           sugeridas={comSugestao.map((p) => p.id)}
           transferencias={ignoraveis.map((p) => p.id)}
           rotuloSugestao={rotuloSugestao}
+          todasMarcadas={todasMarcadas}
+          onAlternarTodas={alternarTodas}
+          notas={notas}
+          setNota={setNota}
         />
       ) : (
         <>
@@ -257,7 +309,19 @@ export default function CaixaEntrada({ onAviso }: { onAviso: (msg: string) => vo
             <Table className={TABLE_STYLES.table} aria-label="Caixa de entrada">
               <TableHeader>
                 <TableRow className={TABLE_STYLES.headRow} style={TABLE_HEADER_STYLE}>
-                  {['', 'Data', 'Transação', 'Valor', 'Linha do fluxo de caixa', ''].map((h, i) => (
+                  <TableCell isHeader className={`${TABLE_STYLES.th} text-left`}>
+                    <input
+                      type="checkbox"
+                      aria-label={todasMarcadas ? 'Desmarcar todas' : 'Selecionar todas'}
+                      title={todasMarcadas ? 'Desmarcar todas' : 'Selecionar todas desta página'}
+                      checked={todasMarcadas}
+                      ref={(el) => {
+                        if (el) el.indeterminate = algumaMarcada && !todasMarcadas;
+                      }}
+                      onChange={alternarTodas}
+                    />
+                  </TableCell>
+                  {['Data', 'Transação', 'Valor', 'Linha do fluxo de caixa', ''].map((h, i) => (
                     <TableCell
                       key={i}
                       isHeader
@@ -295,9 +359,19 @@ export default function CaixaEntrada({ onAviso }: { onAviso: (msg: string) => vo
                           {p.merchantName ?? p.description}
                         </div>
                         <div className="text-xs text-gray-500 dark:text-gray-400">
-                          {p.contaNome}
+                          {p.banco} · {p.contaNome}
                           {p.providerCategory ? ` · ${p.providerCategory}` : ''}
                         </div>
+                        <input
+                          id={`nota-${p.id}`}
+                          type="text"
+                          maxLength={200}
+                          aria-label={`Comentário para ${p.description}`}
+                          placeholder="Comentário (opcional)"
+                          className="mt-1 w-full max-w-xs rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 placeholder:text-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-white/80"
+                          value={notas[p.id] ?? ''}
+                          onChange={(e) => setNota(p.id, e.target.value)}
+                        />
                       </TableCell>
                       <TableCell
                         className={`${TABLE_STYLES.td} whitespace-nowrap text-right font-medium tabular-nums ${saida ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}

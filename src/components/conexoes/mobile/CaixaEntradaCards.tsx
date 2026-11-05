@@ -31,6 +31,12 @@ export interface CaixaEntradaCardsProps {
   /** Ids de transferência/investimento ("Ignorar transferências"). */
   transferencias: string[];
   rotuloSugestao(p: PendenteDTO): string;
+  /** Todas as transações da página estão marcadas. */
+  todasMarcadas: boolean;
+  onAlternarTodas(): void;
+  /** Comentário do usuário por transação (vai para o comentário da célula ao lançar). */
+  notas: Record<string, string>;
+  setNota(id: string, texto: string): void;
 }
 
 const BTN_PRIMARIO =
@@ -53,6 +59,10 @@ export default function CaixaEntradaCards({
   sugeridas,
   transferencias,
   rotuloSugestao,
+  todasMarcadas,
+  onAlternarTodas,
+  notas,
+  setNota,
 }: CaixaEntradaCardsProps) {
   const [pickerDe, setPickerDe] = useState<PendenteDTO | null>(null);
   const rotuloDe = (itemId: string | undefined) =>
@@ -76,6 +86,14 @@ export default function CaixaEntradaCards({
           disabled={ocupado || transferencias.length === 0}
         >
           Ignorar transferências ({transferencias.length})
+        </button>
+        <button
+          type="button"
+          className={`${BTN_SECUNDARIO} min-[360px]:col-span-2`}
+          onClick={onAlternarTodas}
+          disabled={ocupado || pendentes.length === 0}
+        >
+          {todasMarcadas ? 'Desmarcar todas' : `Selecionar todas (${pendentes.length})`}
         </button>
       </div>
 
@@ -110,9 +128,7 @@ export default function CaixaEntradaCards({
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     {dataCurta(p.date)}
-                    {p.competencia ? ` · fatura ${rotuloCompetencia(p.competencia)}` : ''} ·{' '}
-                    {p.contaNome}
-                    {p.providerCategory ? ` · ${p.providerCategory}` : ''}
+                    {p.competencia ? ` · fatura ${rotuloCompetencia(p.competencia)}` : ''}
                   </p>
                 </div>
                 <span
@@ -128,6 +144,12 @@ export default function CaixaEntradaCards({
                   </Sensivel>
                 </span>
               </div>
+              {/* Banco · conta · categoria na largura toda: não disputa espaço com o valor (a altura
+                  do cartão não muda com o olho fechado, decisão 6). */}
+              <p className="mt-0.5 pl-10 text-xs text-gray-500 [overflow-wrap:anywhere] dark:text-gray-400">
+                {p.banco} · {p.contaNome}
+                {p.providerCategory ? ` · ${p.providerCategory}` : ''}
+              </p>
 
               <button
                 type="button"
@@ -149,6 +171,19 @@ export default function CaixaEntradaCards({
                   {rotuloSugestao(p)}
                 </span>
               </button>
+
+              <label htmlFor={`nota-m-${p.id}`} className="sr-only">
+                Comentário para {p.description}
+              </label>
+              <input
+                id={`nota-m-${p.id}`}
+                type="text"
+                maxLength={200}
+                placeholder="Comentário (opcional)"
+                className="mt-2 min-h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-700 placeholder:text-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-white/80"
+                value={notas[p.id] ?? ''}
+                onChange={(e) => setNota(p.id, e.target.value)}
+              />
 
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <button
