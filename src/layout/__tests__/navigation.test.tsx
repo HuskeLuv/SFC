@@ -39,6 +39,7 @@ vi.mock('../../icons/index', () => {
     'LockIcon',
     'PlugInIcon',
     'GroupIcon',
+    'InfoIcon',
   ];
   return Object.fromEntries(names.map((name) => [name, Icon]));
 });
@@ -79,6 +80,7 @@ describe('useMainNavItems', () => {
       'Histórico',
       'Relatórios',
       'Educação',
+      'FAQ',
     ]);
   });
 
