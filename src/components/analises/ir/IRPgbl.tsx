@@ -16,7 +16,8 @@ import {
 import type { ItemSugerido } from '@/services/ir/sugestaoFluxoIr';
 import { Sensivel, TextoSensivel, ValorVisivel } from '@/components/common/valores/Sensivel';
 import { ResponsiveTable, type ResponsiveColumn } from '@/components/ui/table/ResponsiveTable';
-import { parseCurrencyInput } from '@/utils/parseCurrencyInput';
+import { entradaDosCampos } from './pgblResumo';
+import { AcoesAporte, AcoesExportar } from './PgblAcoes';
 import {
   REGRAS_IRPF_2026,
   simularIrpfAnual,
@@ -115,20 +116,10 @@ export default function IRPgbl() {
   const aportesCarteira = planosPgbl.reduce((s, p) => s + p.aportesTotal, 0);
   const qtdAportes = planosPgbl.reduce((s, p) => s + p.aportesQuantidade, 0);
 
-  const num = (id: CampoId) => parseCurrencyInput(campos[id]) ?? 0;
-  const entrada: EntradaIrpfAnual = {
-    rendaTributavel: num('rendaTributavel'),
-    inss: num('inss'),
-    aportesPgbl: aportesCarteira + num('aportesOutros'),
-    dependentes: Math.floor(num('dependentes')),
-    saude: num('saude'),
-    educacao: num('educacao'),
-    pensaoJudicial: num('pensaoJudicial'),
-    livroCaixa: num('livroCaixa'),
-    doacoesIncentivadas: num('doacoesIncentivadas'),
-    irRetido: num('irRetido'),
-  };
+  const entrada = entradaDosCampos(campos, aportesCarteira);
   const r = simularIrpfAnual(entrada, REGRAS);
+  const aportesOutros = entrada.aportesPgbl - aportesCarteira;
+  const dadosResumo = { ano: ANO, entrada, r, planosPgbl, aportesOutros };
   const temRenda = entrada.rendaTributavel > 0;
   const dias = diasAte31Dez(ANO);
 
@@ -178,7 +169,9 @@ export default function IRPgbl() {
         />
       </div>
 
-      <BarraEspaco r={r} aportes={entrada.aportesPgbl} dias={dias} temRenda={temRenda} />
+      <BarraEspaco r={r} aportes={entrada.aportesPgbl} dias={dias} temRenda={temRenda}>
+        {dias > 0 && <AcoesAporte ano={ANO} r={r} temRenda={temRenda} />}
+      </BarraEspaco>
 
       <div className={CARD}>
         <div className="mb-4">
@@ -297,6 +290,7 @@ export default function IRPgbl() {
               último dia útil de fevereiro — ele é o documento oficial.
             </Marcador>
           </ul>
+          <AcoesExportar dados={dadosResumo} temRenda={temRenda} />
         </div>
         <div className="rounded-xl border border-brand-200 bg-brand-50 p-4 dark:border-brand-900/50 dark:bg-brand-900/20">
           <h4 className="mb-2 text-sm font-medium text-brand-900 dark:text-brand-200">
@@ -355,11 +349,13 @@ function BarraEspaco({
   aportes,
   dias,
   temRenda,
+  children,
 }: {
   r: ResultadoIrpfAnual;
   aportes: number;
   dias: number;
   temRenda: boolean;
+  children?: React.ReactNode;
 }) {
   const largura = `${Math.round(r.pgbl.percentualUsado * 1000) / 10}%`;
   return (
@@ -418,6 +414,7 @@ function BarraEspaco({
           />
         </p>
       )}
+      {children}
     </div>
   );
 }
