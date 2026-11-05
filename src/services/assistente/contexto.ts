@@ -223,13 +223,24 @@ export function resumirMes(groups: CashGroupLike[], mesIndex: number): Json {
   for (const p of porGrupoTrilha) {
     despesasPorGrupo[repetidos.has(p.curto) ? p.trilha : p.curto] = p.valor;
   }
+  const sobra = round(entradas - despesas);
   return {
     mes: MESES_LONGOS[mesIndex],
     entradas,
     despesas,
-    sobra: round(entradas - despesas),
+    sobra,
+    indicePoupancaPct: indicePoupancaPct(entradas, sobra),
     despesasPorGrupo,
   };
+}
+
+/**
+ * Índice de poupança da metodologia (sobra / renda, em %, uma casa). Vem pronto para o modelo não
+ * dividir de cabeça; null sem renda no período (não dá para calcular).
+ */
+export function indicePoupancaPct(entradas: number, sobra: number): number | null {
+  if (!(entradas > 0)) return null;
+  return Math.round((sobra / entradas) * 1000) / 10;
 }
 
 /**
@@ -248,7 +259,12 @@ export function resumirAno(groups: CashGroupLike[], mesAtualIndex: number): Json
     despesas = round(despesas + r.despesas);
   }
   return {
-    acumuladoAteMesAtual: { entradas, despesas, sobra: round(entradas - despesas) },
+    acumuladoAteMesAtual: {
+      entradas,
+      despesas,
+      sobra: round(entradas - despesas),
+      indicePoupancaPct: indicePoupancaPct(entradas, round(entradas - despesas)),
+    },
     porMes,
   };
 }
