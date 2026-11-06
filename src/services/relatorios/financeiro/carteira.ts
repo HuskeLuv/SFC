@@ -11,11 +11,13 @@
  *  - Investimentos do período: compras − vendas por mês da carteira toda (aportesMensais, a
  *    mesma função da seção 5, mas sem os filtros de vínculo de aposentadoria/sonho), não a
  *    variação do totalInvested.
- *  - Sem cobertura de snapshots, ou último snapshot que não bate com as posições atuais (mais de
- *    10% e R$ 50 de diferença do patrimônio): 'processando', sem histórico nem variação, para a
- *    folha não juntar o KPI de hoje com barras de um snapshot desatualizado. O backfill em
- *    background (que regrava a série inteira) só roda sem consultor (com consultor nada é
- *    gravado).
+ *  - Sem cobertura de snapshots ou último snapshot defasado: 'processando', sem variação; o
+ *    backfill em background (que regrava a série inteira) só roda sem consultor (com consultor
+ *    nada é gravado).
+ *  - Último snapshot recente que não bate com as posições atuais (mais de 10% e R$ 50 de
+ *    diferença do patrimônio): 'indisponivel', sem histórico nem variação, para a folha não juntar
+ *    o KPI de hoje com barras de outra base. Sem backfill: ele recalcula pelas transações e
+ *    regravaria o mesmo valor a cada abertura.
  */
 import type {
   BlocoCarteira,
