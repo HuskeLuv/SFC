@@ -59,6 +59,7 @@ function BlocoPgbl({ onAbrir, irExterior }: { onAbrir?: () => void; irExterior: 
         ano={ano}
         balanco={entrada.rendaTributavel > 0 ? balancoDaa(r, entrada.irRetido, irExterior) : null}
         semRetido={entrada.irRetido <= 0}
+        carregando={sim.carregando}
         onAbrir={onAbrir}
       />
     </>
@@ -69,11 +70,14 @@ function BalancoDaaCard({
   ano,
   balanco,
   semRetido,
+  carregando,
   onAbrir,
 }: {
   ano: number;
   balanco: BalancoDaa | null;
   semRetido: boolean;
+  /** Simulação salva ainda chegando: não pedir o preenchimento a quem já preencheu. */
+  carregando: boolean;
   onAbrir?: () => void;
 }) {
   const link = (texto: string) => (
@@ -91,7 +95,9 @@ function BalancoDaaCard({
         <h4 className="text-sm font-semibold text-gray-800 dark:text-white/90">
           Balanço estimado da DAA {ano + 1}
         </h4>
-        {balanco ? (
+        {carregando ? (
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Carregando…</p>
+        ) : balanco ? (
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             IR sobre investimentos (exterior){' '}
             <Sensivel curto>{formatBRL(balanco.irInvestimentos)}</Sensivel> · dedução PGBL −{' '}

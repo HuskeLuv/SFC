@@ -229,7 +229,13 @@ export default function IRPgbl() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Condicoes r={r} entrada={entrada} planosPgbl={planosPgbl.length} temRenda={temRenda} />
+        <Condicoes
+          r={r}
+          entrada={entrada}
+          planosPgbl={planosPgbl.length}
+          regimes={planosPgbl.map((p) => sim.planos[p.assetId]?.regime ?? null)}
+          temRenda={temRenda}
+        />
         <Simulacao r={r} renda={entrada.rendaTributavel} irRetido={entrada.irRetido} />
       </div>
 
@@ -483,14 +489,33 @@ function Condicoes({
   r,
   entrada,
   planosPgbl,
+  regimes,
   temRenda,
 }: {
   r: ResultadoIrpfAnual;
   entrada: EntradaIrpfAnual;
   planosPgbl: number;
+  /** Tabela marcada em cada plano PGBL (null = não informada). */
+  regimes: Array<RegimeTributacao | null>;
   temRenda: boolean;
 }) {
   const completo = r.melhorModelo === 'completo';
+  const marcados = new Set(regimes.filter((x): x is RegimeTributacao => x !== null));
+  const faltaMarcar = regimes.some((x) => x === null);
+  const regimeUnico = marcados.size === 1 && !faltaMarcar ? [...marcados][0] : null;
+  const tituloRegime = regimeUnico
+    ? `Regime de tributação: ${regimeUnico === 'regressivo' ? 'Regressivo' : 'Progressivo'}`
+    : marcados.size > 1 && !faltaMarcar
+      ? 'Regime de tributação: progressivo e regressivo'
+      : 'Regime de tributação';
+  const textoRegime =
+    regimeUnico === 'regressivo'
+      ? 'A alíquota cai de 35% para 10% após 10 anos e é exclusiva na fonte: o resgate não soma à renda da declaração.'
+      : regimeUnico === 'progressivo'
+        ? 'O resgate entra como rendimento tributável na declaração, com 15% retidos na fonte e ajuste pela tabela do ano.'
+        : faltaMarcar && planosPgbl > 0
+          ? 'Marque a tabela de cada plano em "Aportes em previdência no ano". Progressivo ou regressivo (a alíquota cai de 35% para 10% após 10 anos); a escolha pode ser feita até o primeiro resgate.'
+          : 'Progressivo ou regressivo (a alíquota cai de 35% para 10% após 10 anos). A escolha pode ser feita até o primeiro resgate.';
   return (
     <div className={CARD}>
       <h4 className={TITULO}>Condições para deduzir</h4>
@@ -539,9 +564,9 @@ function Condicoes({
           }`}
         />
         <Condicao
-          estado="info"
-          titulo="Regime de tributação"
-          texto="Progressivo ou regressivo (a alíquota cai de 35% para 10% após 10 anos). A escolha pode ser feita até o primeiro resgate."
+          estado={regimeUnico || marcados.size > 1 ? 'ok' : 'info'}
+          titulo={tituloRegime}
+          texto={textoRegime}
         />
       </ul>
     </div>
