@@ -44,4 +44,7 @@ export function invalidatePortfolioDerivedQueries(queryClient: QueryClient): voi
   // ativo deriva de Portfolio/Watchlist. Só a key do overlay — o Quadro e o topo do ativo não
   // dependem da carteira.
   void queryClient.invalidateQueries({ queryKey: queryKeys.analiseAtivos.carteira() });
+  // Relatórios (a /relatorios atual e o Relatório financeiro): posição, carteira, planejamento e
+  // saúde derivam das transações.
+  void queryClient.invalidateQueries({ queryKey: queryKeys.relatorios.all });
 }

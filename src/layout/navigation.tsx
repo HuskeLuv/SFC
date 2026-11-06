@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePluggyConfig } from '@/hooks/useConexoesBancarias';
 import { useComunidadeConfig } from '@/hooks/useComunidade';
 import { useAnaliseAtivosConfig } from '@/hooks/useAnaliseAtivos';
+import { useRelatorioFinanceiroConfig } from '@/hooks/useRelatorioFinanceiroConfig';
 import {
   CalenderIcon,
   CreditCardIcon,
@@ -133,6 +134,16 @@ const ANALISE_ATIVOS_ITEM: NavItem = {
   path: '/analise-ativos',
 };
 
+/**
+ * Relatório financeiro (86e3yg90z): com a chave ligada, "Relatórios" vira um grupo com o
+ * relatório novo primeiro e a página de hoje em seguida. O `path` continua (barra e painel Mais do
+ * celular abrem a /relatorios de hoje).
+ */
+export const RELATORIOS_SUBITENS: NonNullable<NavItem['subItems']> = [
+  { name: 'Relatório financeiro', path: '/relatorios/financeiro' },
+  { name: 'Carteira e movimentações', path: '/relatorios' },
+];
+
 /** Selo NOVO até `novoAte` (AAAA-MM-DD, inclusive), pela data civil de hoje. */
 export function seloNovoAtivo(
   novoAte: string | null | undefined,
@@ -169,6 +180,8 @@ export interface BuildNavOptions {
   analiseAtivosHabilitada?: boolean;
   /** Mostrar o selo NOVO no item da Análise de Ativos. */
   analiseAtivosNovo?: boolean;
+  /** Chave RELATORIO_FINANCEIRO_HABILITADO (GET /api/relatorios/financeiro/config). */
+  relatorioFinanceiroHabilitado?: boolean;
 }
 
 /** Versão pura do filtro do menu (a lógica que antes vivia no useMemo da AppSidebar). */
@@ -179,6 +192,7 @@ export function buildMainNavItems({
   comunidadeHabilitada,
   analiseAtivosHabilitada = false,
   analiseAtivosNovo = false,
+  relatorioFinanceiroHabilitado = false,
 }: BuildNavOptions): NavItem[] {
   const dashboardPath = role === 'consultant' && !isActing ? '/dashboard/consultor' : '/carteira';
 
@@ -193,6 +207,12 @@ export function buildMainNavItems({
 
   if (role !== 'consultant') {
     items = items.filter((item) => item.name !== 'Dashboard');
+  }
+
+  if (relatorioFinanceiroHabilitado) {
+    items = items.map((item) =>
+      item.name === 'Relatórios' ? { ...item, subItems: RELATORIOS_SUBITENS } : item,
+    );
   }
 
   // Análise de Ativos (Fase 1): logo abaixo de Carteira, só para quem tem acesso. Fora da lista
@@ -245,6 +265,7 @@ export function useMainNavItems(): NavItem[] {
   const analiseConfig = useAnaliseAtivosConfig().data;
   const analiseAtivosHabilitada = analiseConfig?.habilitada === true;
   const analiseAtivosNovo = analiseAtivosHabilitada && seloNovoAtivo(analiseConfig?.novoAte);
+  const relatorioFinanceiroHabilitado = useRelatorioFinanceiroConfig().data?.habilitado === true;
   const role = user?.role ?? null;
   const isActing = Boolean(actingClient);
 
@@ -257,6 +278,7 @@ export function useMainNavItems(): NavItem[] {
         comunidadeHabilitada,
         analiseAtivosHabilitada,
         analiseAtivosNovo,
+        relatorioFinanceiroHabilitado,
       }),
     [
       role,
@@ -265,6 +287,7 @@ export function useMainNavItems(): NavItem[] {
       comunidadeHabilitada,
       analiseAtivosHabilitada,
       analiseAtivosNovo,
+      relatorioFinanceiroHabilitado,
     ],
   );
 }

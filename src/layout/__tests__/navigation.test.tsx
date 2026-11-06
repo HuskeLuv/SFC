@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   pluggy: false,
   comunidade: false,
   analise: undefined as undefined | { habilitada: boolean; novoAte: string },
+  relatorioFinanceiro: undefined as undefined | { habilitado: boolean },
 }));
 
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => mocks.auth }));
@@ -21,6 +22,9 @@ vi.mock('@/hooks/useComunidade', () => ({
 }));
 vi.mock('@/hooks/useAnaliseAtivos', () => ({
   useAnaliseAtivosConfig: () => ({ data: mocks.analise }),
+}));
+vi.mock('@/hooks/useRelatorioFinanceiroConfig', () => ({
+  useRelatorioFinanceiroConfig: () => ({ data: mocks.relatorioFinanceiro }),
 }));
 vi.mock('../../icons/index', () => {
   const Icon = () => null;
@@ -64,6 +68,7 @@ beforeEach(() => {
   mocks.pluggy = false;
   mocks.comunidade = false;
   mocks.analise = undefined;
+  mocks.relatorioFinanceiro = undefined;
 });
 
 describe('useMainNavItems', () => {
@@ -82,6 +87,38 @@ describe('useMainNavItems', () => {
       'Educação',
       'FAQ',
     ]);
+  });
+
+  it('Relatório financeiro desligado (ou sem config): Relatórios sem subitens, como hoje', () => {
+    const { result } = renderHook(() => useMainNavItems());
+    const relatorios = result.current.find((item) => item.name === 'Relatórios');
+    expect(relatorios?.path).toBe('/relatorios');
+    expect(relatorios?.subItems).toBeUndefined();
+
+    mocks.relatorioFinanceiro = { habilitado: false };
+    const { result: desligado } = renderHook(() => useMainNavItems());
+    expect(desligado.current.find((i) => i.name === 'Relatórios')?.subItems).toBeUndefined();
+  });
+
+  it('Relatório financeiro ligado: Relatórios ganha os subitens, o novo primeiro', () => {
+    mocks.relatorioFinanceiro = { habilitado: true };
+    const { result } = renderHook(() => useMainNavItems());
+    const relatorios = result.current.find((item) => item.name === 'Relatórios');
+    expect(relatorios?.subItems).toEqual([
+      { name: 'Relatório financeiro', path: '/relatorios/financeiro' },
+      { name: 'Carteira e movimentações', path: '/relatorios' },
+    ]);
+    // a ordem do menu não muda e o path fica (barra e painel Mais do celular)
+    expect(relatorios?.path).toBe('/relatorios');
+    expect(names(result.current)).toContain('Relatórios');
+  });
+
+  it('Relatório financeiro ligado: o consultor agindo pelo cliente também vê os subitens', () => {
+    mocks.relatorioFinanceiro = { habilitado: true };
+    mocks.auth.user = { id: 'c1', role: 'consultant' };
+    mocks.auth.actingClient = { id: 'u1', name: 'Cliente', email: 'c@x.com' };
+    const { result } = renderHook(() => useMainNavItems());
+    expect(result.current.find((i) => i.name === 'Relatórios')?.subItems).toHaveLength(2);
   });
 
   it('Pluggy ligado: Conexões bancárias logo depois de Dívidas', () => {
