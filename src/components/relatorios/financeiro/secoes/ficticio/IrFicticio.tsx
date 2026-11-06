@@ -79,7 +79,7 @@ export function IrFicticio(_props: PropsFicticio) {
           <b style={{ color: 'var(--good)' }}>{fR(F.economiaFalta)}</b>.
         </div>
       </div>
-      <div className="two">
+      <div className="two ir-cmp">
         <div className="chart" style={{ padding: '14px 16px', gap: 12 }}>
           <h3>
             Condições do benefício <small>verificadas com os seus dados</small>

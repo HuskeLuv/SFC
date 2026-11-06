@@ -174,7 +174,7 @@ export default function SecaoIrConteudo({ relatorio, ir }: PropsIrConteudo) {
         )}
       </div>
 
-      <div className="two">
+      <div className="two ir-cmp">
         <div className="chart" style={{ padding: '14px 16px', gap: 12 }}>
           <h3>
             Condições para deduzir <small>verificadas com os seus dados</small>
