@@ -21,8 +21,12 @@
  * Carteira EUA em US$ (out/2026): `montarTransacoesUs` monta a entrada a partir das
  * StockTransactions, filtrando por isAtivoEmDolar e lendo o preço pela UNIDADE gravada
  * (unidadeDaTransacao) — assim `priceUsd × fxRate` é sempre o valor em R$ da operação, sem
- * dupla conversão do stock legado gravado em R$. O regime (isenção mensal de R$ 35 mil)
- * não muda nesta fase; a regra anual da Lei 14.754 e a PTAX ficam para a fase 2.
+ * dupla conversão do stock legado gravado em R$.
+ *
+ * Lei 14.754/2023 (a partir de 01/01/2024): ações, REITs e ETFs no exterior passam a ser
+ * "aplicações financeiras no exterior". Os meses de 2024 em diante continuam listados (ganho e
+ * vendas de cada mês), mas sem isenção nem DARF mensal: o imposto sai na apuração ANUAL
+ * (`apurarAnualLei14754`), no ajuste da declaração. Até 2023 vale a regra mensal acima.
  */
 import { isAtivoEmDolar, unidadeDaTransacao, type AtivoMoedaRef } from '@/lib/ativoEmDolar';
 import type { SerieCambio } from '@/services/market/cambioUsdBrl';
@@ -58,6 +62,11 @@ export interface UsMonthlyResult {
   irDevido: number;
   /** Alguma venda do mês usou o câmbio de mercado da data (sem cotação gravada). */
   cambioAproximado: boolean;
+  /**
+   * 'mensal' = regra antiga (até 2023: isenção de R$ 35 mil e DARF no mês);
+   * 'anual' = Lei 14.754 (2024 em diante: o mês só informa, o IR sai no ajuste anual).
+   */
+  regime: 'mensal' | 'anual';
 }
 
 export interface UsApuracao {
@@ -66,6 +75,15 @@ export interface UsApuracao {
 
 const ISENCAO_ME_VENDAS_MES_BRL = 35000;
 const ALIQUOTA_ME = 0.15;
+/** Primeiro ano-calendário da apuração anual da Lei 14.754/2023. */
+export const ANO_INICIO_LEI_14754 = 2024;
+/** Alíquota única da Lei 14.754 sobre os rendimentos de aplicações no exterior. */
+export const ALIQUOTA_LEI_14754 = 0.15;
+/**
+ * Retenção padrão dos EUA sobre dividendos de residente no Brasil (sem tratado: 30%), usada
+ * quando o provento não traz o imposto retido.
+ */
+export const RETENCAO_EUA_PADRAO = 0.3;
 
 interface SymbolStateBrl {
   qty: number;
@@ -130,11 +148,14 @@ export function apurarStocksUs(transactions: UsTransaction[]): UsApuracao {
       return s + (receitaBrl - custoBrl);
     }, 0);
 
-    const isento = vendasTotalBrl <= ISENCAO_ME_VENDAS_MES_BRL && lucroBrutoBrl > 0;
+    const regime = Number(yearStr) >= ANO_INICIO_LEI_14754 ? 'anual' : 'mensal';
+    const isento =
+      regime === 'mensal' && vendasTotalBrl <= ISENCAO_ME_VENDAS_MES_BRL && lucroBrutoBrl > 0;
     const motivoIsencao = isento
       ? `Alienações em ME ≤ R$ ${ISENCAO_ME_VENDAS_MES_BRL.toLocaleString('pt-BR')}/mês`
       : null;
-    const irDevido = !isento && lucroBrutoBrl > 0 ? round2(lucroBrutoBrl * ALIQUOTA_ME) : 0;
+    const irDevido =
+      regime === 'mensal' && !isento && lucroBrutoBrl > 0 ? round2(lucroBrutoBrl * ALIQUOTA_ME) : 0;
     const aliquotaAplicada = irDevido > 0 ? ALIQUOTA_ME : 0;
 
     meses.push({
@@ -148,18 +169,182 @@ export function apurarStocksUs(transactions: UsTransaction[]): UsApuracao {
       aliquota: aliquotaAplicada,
       irDevido,
       cambioAproximado: sellsOfMonth.some((x) => x.fxAproximado === true),
+      regime,
     });
   }
 
   return { meses };
 }
 
+/** Provento de ativo no exterior já em R$ (dividendo de stock/REIT/ETF EUA). */
+export interface DividendoExterior {
+  /** Data de pagamento. */
+  date: Date;
+  /** Valor bruto em R$ (antes da retenção nos EUA). */
+  brutoBrl: number;
+  /** Imposto retido no exterior, em R$. */
+  retidoBrl: number;
+  /** A retenção foi estimada pelos 30% padrão (o provento não trazia o valor retido). */
+  retidoEstimado: boolean;
+}
+
+export interface UsAnualResult {
+  year: number;
+  /** Lucro − prejuízo das vendas do ano (soma dos meses). */
+  ganhoLiquidoBrl: number;
+  /** Dividendos brutos recebidos no ano. */
+  dividendosBrl: number;
+  /** Prejuízo de anos anteriores (2024+) disponível no início do ano. */
+  prejuizoAnteriorBrl: number;
+  /** Quanto desse prejuízo foi usado neste ano. */
+  prejuizoCompensadoBrl: number;
+  /** Base tributável (ganho + dividendos − prejuízo compensado, nunca negativa). */
+  baseBrl: number;
+  /** 15% da base. */
+  irBrutoBrl: number;
+  /** Imposto pago nos EUA abatido (limitado aos 15% dos dividendos e ao IR bruto). */
+  creditoExteriorBrl: number;
+  /** IR a pagar no ajuste anual (DAA do ano seguinte). */
+  irDevido: number;
+  /** Prejuízo que sobra para os anos seguintes. */
+  prejuizoAcumuladoBrl: number;
+  /** Algum dividendo do ano teve a retenção estimada em 30%. */
+  retidoEstimado: boolean;
+}
+
+/**
+ * Apuração anual da Lei 14.754/2023 (a partir de 2024), pessoa física:
+ *  - Base do ano = ganho líquido das vendas (lucros − prejuízos, convertidos pelo câmbio de
+ *    cada operação) + dividendos brutos, ambos em R$.
+ *  - Prejuízo: compensa dentro do ano e, o que sobrar, nos anos seguintes (só prejuízos de 2024
+ *    em diante; o regime mensal antigo não deixava saldo).
+ *  - IR = 15% da base, sem isenção. O imposto retido nos EUA vira crédito, limitado ao IR
+ *    brasileiro sobre o próprio dividendo (15% dele) e ao IR do ano.
+ *  - Pago no ajuste anual (DAA), não por DARF mensal.
+ *
+ * Devolve um item por ano de `ANO_INICIO_LEI_14754` até o último ano com venda ou dividendo
+ * (ou `ateAno`, se maior), para o saldo de prejuízo andar mesmo em ano sem operação.
+ */
+export function apurarAnualLei14754(
+  meses: ReadonlyArray<UsMonthlyResult>,
+  dividendos: ReadonlyArray<DividendoExterior>,
+  ateAno?: number,
+): UsAnualResult[] {
+  const ganhoPorAno = new Map<number, number>();
+  for (const m of meses) {
+    if (m.year < ANO_INICIO_LEI_14754) continue;
+    ganhoPorAno.set(m.year, (ganhoPorAno.get(m.year) ?? 0) + m.lucroBrutoBrl);
+  }
+  const divPorAno = new Map<number, { bruto: number; retido: number; estimado: boolean }>();
+  for (const d of dividendos) {
+    const ano = d.date.getFullYear();
+    if (ano < ANO_INICIO_LEI_14754) continue;
+    const acc = divPorAno.get(ano) ?? { bruto: 0, retido: 0, estimado: false };
+    acc.bruto += d.brutoBrl;
+    acc.retido += d.retidoBrl;
+    acc.estimado = acc.estimado || d.retidoEstimado;
+    divPorAno.set(ano, acc);
+  }
+
+  const anosComDado = [...ganhoPorAno.keys(), ...divPorAno.keys()];
+  if (anosComDado.length === 0) return [];
+  const ultimo = Math.max(...anosComDado, ateAno ?? 0);
+
+  const anos: UsAnualResult[] = [];
+  let prejuizo = 0;
+  for (let year = ANO_INICIO_LEI_14754; year <= ultimo; year++) {
+    const ganho = ganhoPorAno.get(year) ?? 0;
+    const div = divPorAno.get(year) ?? { bruto: 0, retido: 0, estimado: false };
+    const bruta = ganho + div.bruto;
+    const prejuizoAnterior = prejuizo;
+    let compensado = 0;
+    let base = 0;
+    if (bruta >= 0) {
+      compensado = Math.min(prejuizo, bruta);
+      base = bruta - compensado;
+      prejuizo -= compensado;
+    } else {
+      prejuizo += -bruta;
+    }
+    const irBruto = base * ALIQUOTA_LEI_14754;
+    const credito = Math.min(div.retido, div.bruto * ALIQUOTA_LEI_14754, irBruto);
+    anos.push({
+      year,
+      ganhoLiquidoBrl: round2(ganho),
+      dividendosBrl: round2(div.bruto),
+      prejuizoAnteriorBrl: round2(prejuizoAnterior),
+      prejuizoCompensadoBrl: round2(compensado),
+      baseBrl: round2(base),
+      irBrutoBrl: round2(irBruto),
+      creditoExteriorBrl: round2(credito),
+      irDevido: round2(irBruto - credito),
+      prejuizoAcumuladoBrl: round2(prejuizo),
+      retidoEstimado: div.estimado,
+    });
+  }
+  return anos;
+}
+
+/**
+ * IR de Stocks/REITs/ETFs EUA de um ano: até 2023, soma dos DARFs mensais; de 2024 em diante, o
+ * ajuste anual da Lei 14.754.
+ */
+export function irExteriorDoAno(
+  year: number,
+  meses: ReadonlyArray<UsMonthlyResult>,
+  anos: ReadonlyArray<UsAnualResult>,
+): number {
+  if (year >= ANO_INICIO_LEI_14754) return anos.find((a) => a.year === year)?.irDevido ?? 0;
+  return round2(meses.filter((m) => m.year === year).reduce((s, m) => s + m.irDevido, 0));
+}
+
+/** Recorte do provento resolvido (resolveProventoEvents) que a conversão precisa. */
+export interface ProventoExteriorRow {
+  moeda: string;
+  paymentDay: number;
+  gross: number;
+  net: number;
+}
+
+/**
+ * Converte os proventos em US$ já pagos para R$ pela série de câmbio da data de pagamento.
+ * Retido = bruto − líquido quando o provento traz o imposto; senão, os 30% padrão dos EUA.
+ * Sem câmbio na data, o provento fica de fora e é contado em `semCambio`.
+ */
+export function montarDividendosExterior(
+  proventos: ReadonlyArray<ProventoExteriorRow>,
+  serie: SerieCambio | null,
+  agoraMs: number = Date.now(),
+): { dividendos: DividendoExterior[]; semCambio: number } {
+  const dividendos: DividendoExterior[] = [];
+  let semCambio = 0;
+  for (const p of proventos) {
+    if (p.moeda !== 'USD' || p.paymentDay > agoraMs || !(p.gross > 0)) continue;
+    const date = new Date(p.paymentDay);
+    const taxa = serie?.(date) ?? null;
+    if (taxa === null) {
+      semCambio += 1;
+      continue;
+    }
+    const retidoInformado = p.net < p.gross ? p.gross - p.net : 0;
+    const retidoEstimado = retidoInformado === 0;
+    const retidoUsd = retidoEstimado ? p.gross * RETENCAO_EUA_PADRAO : retidoInformado;
+    dividendos.push({
+      date,
+      brutoBrl: p.gross * taxa,
+      retidoBrl: retidoUsd * taxa,
+      retidoEstimado,
+    });
+  }
+  return { dividendos, semCambio };
+}
+
 /** Rótulo do câmbio quando a operação não tem cotação gravada. */
 export const ROTULO_CAMBIO_APROXIMADO = 'câmbio de mercado (aproximado)';
 
-/** Aviso fixo da tela do IR EUA enquanto o regime anual não entra (fase 2). */
+/** Aviso fixo da tela do IR EUA (regra da Lei 14.754 e as aproximações). */
 export const AVISO_REGRA_LEI_14754 =
-  'Regra anual da Lei 14.754 em revisão; confira com seu contador.';
+  'Desde 2024 (Lei 14.754), ações, REITs e ETFs no exterior pagam 15% sobre o ganho líquido e os dividendos do ano, no ajuste anual da declaração, sem a isenção de R$ 35 mil por mês. Prejuízo compensa no ano e nos seguintes, e o imposto retido nos EUA abate o IR dos dividendos. Até 2023 vale a regra mensal antiga. Estimativa: confira com seu contador.';
 
 /** Recorte da StockTransaction (com o Asset) que a montagem precisa. */
 export interface UsTransactionRow {

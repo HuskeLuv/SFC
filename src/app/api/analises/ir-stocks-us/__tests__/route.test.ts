@@ -22,6 +22,12 @@ vi.mock('@/utils/auth', () => ({
   requireAuthWithActing: mockRequireAuthWithActing,
 }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
+const mockResolveProventoEvents = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ events: [], total: 0 }),
+);
+vi.mock('@/services/portfolio/resolveProventos', () => ({
+  resolveProventoEvents: mockResolveProventoEvents,
+}));
 
 import { GET } from '../route';
 
@@ -281,6 +287,50 @@ describe('GET /api/analises/ir-stocks-us', () => {
     const data = await response.json();
     expect(data.meses).toEqual([]);
     expect(data.operacoesSemCambio).toBe(1);
+  });
+
+  it('devolve o ajuste anual da Lei 14.754 com dividendos e crédito dos EUA', async () => {
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      buildTx({
+        type: 'compra',
+        date: new Date('2025-01-15'),
+        symbol: 'AAPL',
+        assetType: 'stock',
+        quantity: 10,
+        price: 100,
+        cotacaoMoeda: 5,
+        unidade: 'USD',
+      }),
+      buildTx({
+        type: 'venda',
+        date: new Date('2025-02-15'),
+        symbol: 'AAPL',
+        assetType: 'stock',
+        quantity: 10,
+        price: 200,
+        cotacaoMoeda: 5,
+        unidade: 'USD',
+      }),
+    ]);
+    mockPrisma.assetPriceHistory.findMany.mockResolvedValue([
+      { date: new Date('2025-01-02'), price: 5 },
+    ]);
+    mockResolveProventoEvents.mockResolvedValue({
+      events: [{ moeda: 'USD', paymentDay: Date.UTC(2025, 5, 1), gross: 100, net: 100 }],
+      total: 100,
+    });
+    const response = await GET(createRequest());
+    const data = await response.json();
+    const feb = data.meses.find((m: { yearMonth: string }) => m.yearMonth === '2025-02');
+    // Venda de R$ 10 mil: antes isenta; desde 2024 entra no ajuste anual.
+    expect(feb.regime).toBe('anual');
+    expect(feb.isento).toBe(false);
+    expect(feb.irDevido).toBe(0);
+    const a2025 = data.anos.find((a: { year: number }) => a.year === 2025);
+    expect(a2025.ganhoLiquidoBrl).toBe(5000);
+    expect(a2025.dividendosBrl).toBe(500);
+    expect(a2025.creditoExteriorBrl).toBe(75); // 30% retido (150), limitado a 15% × 500
+    expect(a2025.irDevido).toBe(750); // 15% × 5.500 − 75
   });
 
   it('retorna 401 quando não autenticado', async () => {

@@ -79,9 +79,37 @@ export interface IRMonthlyForeignResult {
   irDevido: number;
 }
 
+/** Ajuste anual da Lei 14.754 (2024+) — espelha UsAnualResult de services/ir/stocksUsIR. */
+export interface IRStocksUsAnual {
+  year: number;
+  ganhoLiquidoBrl: number;
+  dividendosBrl: number;
+  prejuizoAnteriorBrl: number;
+  prejuizoCompensadoBrl: number;
+  baseBrl: number;
+  irBrutoBrl: number;
+  creditoExteriorBrl: number;
+  irDevido: number;
+  prejuizoAcumuladoBrl: number;
+  retidoEstimado: boolean;
+}
+
 export interface IRStocksUsResponse {
   asOf: string;
-  meses: Array<IRMonthlyForeignResult & { vendasTotalBrl: number; lucroBrutoBrl: number }>;
+  meses: Array<
+    IRMonthlyForeignResult & {
+      vendasTotalBrl: number;
+      lucroBrutoBrl: number;
+      cambioAproximado?: boolean;
+      /** 'mensal' até 2023 (isenção de R$ 35 mil + DARF); 'anual' de 2024 em diante. */
+      regime?: 'mensal' | 'anual';
+    }
+  >;
+  anos?: IRStocksUsAnual[];
+  dividendosSemCambio?: number;
+  aviso?: string;
+  rotuloCambioAproximado?: string;
+  operacoesSemCambio?: number;
 }
 
 export interface IRCriptoResponse {

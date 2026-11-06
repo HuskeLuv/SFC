@@ -136,7 +136,23 @@ vi.mock('@/hooks/useIR', () => {
             isento: false,
             motivoIsencao: null,
             aliquota: 0.15,
+            irDevido: 0,
+            regime: 'anual',
+          },
+        ],
+        anos: [
+          {
+            year: 2026,
+            ganhoLiquidoBrl: -S.aplicado,
+            dividendosBrl: S.saldo,
+            prejuizoAnteriorBrl: S.aplicado,
+            prejuizoCompensadoBrl: S.aplicado,
+            baseBrl: S.saldo,
+            irBrutoBrl: S.saldo,
+            creditoExteriorBrl: S.aplicado,
             irDevido: S.saldo,
+            prejuizoAcumuladoBrl: S.aplicado,
+            retidoEstimado: false,
           },
         ],
       }),
@@ -239,9 +255,10 @@ const TELAS: Array<[string, React.ComponentType, (texto: string) => void]> = [
     'Stocks US',
     IRStocksUs,
     (t) => {
-      // Regra pública (limite de isenção) fica legível.
+      // Regra pública (limite de isenção antigo e alíquota da Lei 14.754) fica legível.
       expect(t).toMatch(/R\$\s35\.000,00/);
-      expect(t).toContain('R$ 35k/mês');
+      expect(t).toContain('Ajuste anual (Lei 14.754)');
+      expect(t).toContain('15%');
     },
   ],
   [
