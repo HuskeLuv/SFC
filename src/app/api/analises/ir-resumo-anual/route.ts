@@ -7,7 +7,14 @@ import {
   type RvTransaction,
   type RendaVariavelCategory,
 } from '@/services/ir/rendaVariavelIR';
-import { apurarStocksUs, montarTransacoesUs } from '@/services/ir/stocksUsIR';
+import {
+  ANO_INICIO_LEI_14754,
+  apurarAnualLei14754,
+  apurarStocksUs,
+  irExteriorDoAno,
+  montarDividendosExterior,
+  montarTransacoesUs,
+} from '@/services/ir/stocksUsIR';
 import { apurarCripto, type CriptoTransaction } from '@/services/ir/criptoIR';
 import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { isFundoType } from '@/lib/fundoTypes';
@@ -152,7 +159,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     serie,
   });
   const usApur = apurarStocksUs(usMontagem.transactions);
-  const usAnual = usApur.meses.filter((m) => m.year === year).reduce((s, m) => s + m.irDevido, 0);
+  // usAnual depende dos dividendos em US$ (Lei 14.754, 2024+): calculado depois dos proventos.
 
   // ---- Fase 4: Cripto ----
   const criptoTxs: CriptoTransaction[] = [];
@@ -265,6 +272,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     else slots.dividendoAcao += e.gross;
   }
 
+  // ---- Stocks, REITs e ETFs EUA: até 2023 DARF mensal; 2024+ ajuste anual da Lei 14.754 ----
+  // (ganho líquido + dividendos, prejuízo levado entre anos, crédito do imposto retido nos EUA).
+  const usDividendos = montarDividendosExterior(proventos, serie, hojeMs);
+  const usAnos = apurarAnualLei14754(usApur.meses, usDividendos.dividendos, year);
+  const usAnual = irExteriorDoAno(year, usApur.meses, usAnos);
+  const usDoAno = usAnos.find((a) => a.year === year);
+
   const isentosTotal = round2(slots.dividendoAcao + slots.rendimentoFii);
   const exclusivaTotal = round2(slots.jcp);
   const exteriorTotal = round2(slots.exterior);
@@ -283,7 +297,33 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     const fmt = (n: number) =>
       n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
     observacoes.push(
-      `Exterior (tributável): ${fmt(exteriorTotal)} em proventos de Stocks, REITs e ETFs EUA, fora dos isentos — convertidos pelo ${ROTULO_FONTE_CAMBIO} da data de pagamento (aproximado). Regra anual da Lei 14.754 em revisão; confira com seu contador.`,
+      `Exterior (tributável): ${fmt(exteriorTotal)} em proventos de Stocks, REITs e ETFs EUA, fora dos isentos — convertidos pelo ${ROTULO_FONTE_CAMBIO} da data de pagamento (aproximado).${
+        year >= ANO_INICIO_LEI_14754
+          ? ' Entram no ajuste anual da Lei 14.754 (15%), abatido o imposto retido nos EUA.'
+          : ''
+      }`,
+    );
+  }
+  if (
+    usDoAno &&
+    (usDoAno.irDevido > 0 || usDoAno.ganhoLiquidoBrl !== 0 || usDoAno.dividendosBrl > 0)
+  ) {
+    const fmt = (n: number) =>
+      n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
+    const partes = [
+      `ganho líquido ${fmt(usDoAno.ganhoLiquidoBrl)}`,
+      `dividendos ${fmt(usDoAno.dividendosBrl)}`,
+    ];
+    if (usDoAno.prejuizoCompensadoBrl > 0)
+      partes.push(`prejuízo de anos anteriores compensado ${fmt(usDoAno.prejuizoCompensadoBrl)}`);
+    if (usDoAno.creditoExteriorBrl > 0)
+      partes.push(`crédito do imposto pago nos EUA ${fmt(usDoAno.creditoExteriorBrl)}`);
+    observacoes.push(
+      `Stocks, REITs e ETFs EUA (Lei 14.754): ${partes.join(', ')} → IR de ${fmt(usDoAno.irDevido)} no ajuste anual.${
+        usDoAno.prejuizoAcumuladoBrl > 0
+          ? ` Prejuízo a compensar nos próximos anos: ${fmt(usDoAno.prejuizoAcumuladoBrl)}.`
+          : ''
+      }${usDoAno.retidoEstimado ? ' Imposto retido nos EUA estimado em 30% onde o provento não traz o valor.' : ''}`,
     );
   }
   if (slots.exteriorSemCambio > 0) {

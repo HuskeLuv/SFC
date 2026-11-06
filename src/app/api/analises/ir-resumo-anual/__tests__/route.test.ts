@@ -390,6 +390,68 @@ describe('GET /api/analises/ir-resumo-anual', () => {
       expect(data.irPorCategoria.stocksUs).toBe(1500);
       expect(data.irPorCategoria.rendaVariavelBr).toBe(0);
     });
+
+    it('Lei 14.754: venda de até R$ 35 mil em 2025 não é mais isenta (ajuste anual)', async () => {
+      const aapl = { symbol: 'AAPL-1', name: 'Apple', type: 'stock', currency: 'USD' };
+      const notesUsd = JSON.stringify({
+        operation: { moeda: 'USD', unidade: 'USD', cotacaoMoeda: 5 },
+      });
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        {
+          type: 'compra',
+          date: new Date('2025-01-15'),
+          quantity: 10,
+          price: 100,
+          fees: 0,
+          notes: notesUsd,
+          asset: aapl,
+        },
+        {
+          type: 'venda',
+          date: new Date('2025-02-15'),
+          quantity: 10,
+          price: 200,
+          fees: 0,
+          notes: notesUsd,
+          asset: aapl,
+        },
+      ]);
+      const response = await GET(createRequest('2025'));
+      const data = await response.json();
+      // Vendas de R$ 10 mil, lucro 5.000 × 15% = 750 no ajuste anual.
+      expect(data.irPorCategoria.stocksUs).toBe(750);
+      expect(data.observacoes.some((o: string) => o.includes('Lei 14.754'))).toBe(true);
+    });
+
+    it('2023 segue a regra mensal antiga: venda de até R$ 35 mil isenta', async () => {
+      const aapl = { symbol: 'AAPL-1', name: 'Apple', type: 'stock', currency: 'USD' };
+      const notesUsd = JSON.stringify({
+        operation: { moeda: 'USD', unidade: 'USD', cotacaoMoeda: 5 },
+      });
+      mockPrisma.stockTransaction.findMany.mockResolvedValue([
+        {
+          type: 'compra',
+          date: new Date('2023-01-15'),
+          quantity: 10,
+          price: 100,
+          fees: 0,
+          notes: notesUsd,
+          asset: aapl,
+        },
+        {
+          type: 'venda',
+          date: new Date('2023-02-15'),
+          quantity: 10,
+          price: 200,
+          fees: 0,
+          notes: notesUsd,
+          asset: aapl,
+        },
+      ]);
+      const response = await GET(createRequest('2023'));
+      const data = await response.json();
+      expect(data.irPorCategoria.stocksUs).toBe(0);
+    });
   });
 
   it('rejeita year inválido', async () => {

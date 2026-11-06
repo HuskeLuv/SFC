@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { apurarStocksUs, type UsTransaction } from '../stocksUsIR';
+import {
+  apurarAnualLei14754,
+  apurarStocksUs,
+  irExteriorDoAno,
+  montarDividendosExterior,
+  type DividendoExterior,
+  type UsTransaction,
+} from '../stocksUsIR';
 
 const tx = (
   params: Partial<UsTransaction> & Pick<UsTransaction, 'date' | 'type' | 'symbol'>,
@@ -14,7 +21,7 @@ describe('apurarStocksUs — preço médio em BRL', () => {
   it('compra com fxRate alto + venda com fxRate baixo gera prejuízo BRL mesmo com preço USD igual', () => {
     const result = apurarStocksUs([
       tx({
-        date: new Date('2025-01-15'),
+        date: new Date('2023-01-15'),
         type: 'compra',
         symbol: 'VOO',
         quantity: 10,
@@ -22,7 +29,7 @@ describe('apurarStocksUs — preço médio em BRL', () => {
         fxRate: 6.0, // R$ 30.000 de custo
       }),
       tx({
-        date: new Date('2025-02-15'),
+        date: new Date('2023-02-15'),
         type: 'venda',
         symbol: 'VOO',
         quantity: 10,
@@ -30,7 +37,7 @@ describe('apurarStocksUs — preço médio em BRL', () => {
         fxRate: 5.0, // R$ 25.000 de receita
       }),
     ]);
-    const feb = result.meses.find((m) => m.yearMonth === '2025-02')!;
+    const feb = result.meses.find((m) => m.yearMonth === '2023-02')!;
     expect(feb.lucroBrutoBrl).toBe(-5000);
     expect(feb.irDevido).toBe(0);
   });
@@ -38,7 +45,7 @@ describe('apurarStocksUs — preço médio em BRL', () => {
   it('compra com fxRate baixo + venda com fxRate alto gera lucro mesmo sem variação de preço USD', () => {
     const result = apurarStocksUs([
       tx({
-        date: new Date('2025-01-15'),
+        date: new Date('2023-01-15'),
         type: 'compra',
         symbol: 'VOO',
         quantity: 100,
@@ -46,7 +53,7 @@ describe('apurarStocksUs — preço médio em BRL', () => {
         fxRate: 5.0, // R$ 250.000
       }),
       tx({
-        date: new Date('2025-02-15'),
+        date: new Date('2023-02-15'),
         type: 'venda',
         symbol: 'VOO',
         quantity: 100,
@@ -54,7 +61,7 @@ describe('apurarStocksUs — preço médio em BRL', () => {
         fxRate: 5.5, // R$ 275.000
       }),
     ]);
-    const feb = result.meses.find((m) => m.yearMonth === '2025-02')!;
+    const feb = result.meses.find((m) => m.yearMonth === '2023-02')!;
     // Vendas BRL = 275000, > 35k → tributa.
     expect(feb.lucroBrutoBrl).toBe(25000);
     expect(feb.irDevido).toBe(3750); // 25000 * 0.15
@@ -66,7 +73,7 @@ describe('apurarStocksUs — isenção R$ 35k', () => {
   it('vendas ≤ R$35k → isento, mesmo com lucro', () => {
     const result = apurarStocksUs([
       tx({
-        date: new Date('2025-01-15'),
+        date: new Date('2023-01-15'),
         type: 'compra',
         symbol: 'AAPL',
         quantity: 10,
@@ -74,7 +81,7 @@ describe('apurarStocksUs — isenção R$ 35k', () => {
         fxRate: 5.0,
       }),
       tx({
-        date: new Date('2025-02-15'),
+        date: new Date('2023-02-15'),
         type: 'venda',
         symbol: 'AAPL',
         quantity: 10,
@@ -82,7 +89,7 @@ describe('apurarStocksUs — isenção R$ 35k', () => {
         fxRate: 5.0, // vendas BRL = 10000 ≤ 35k
       }),
     ]);
-    const feb = result.meses.find((m) => m.yearMonth === '2025-02')!;
+    const feb = result.meses.find((m) => m.yearMonth === '2023-02')!;
     expect(feb.vendasTotalBrl).toBe(10000);
     expect(feb.lucroBrutoBrl).toBe(5000);
     expect(feb.isento).toBe(true);
@@ -93,7 +100,7 @@ describe('apurarStocksUs — isenção R$ 35k', () => {
   it('vendas > R$35k em um único mês → tributa 15%', () => {
     const result = apurarStocksUs([
       tx({
-        date: new Date('2025-01-15'),
+        date: new Date('2023-01-15'),
         type: 'compra',
         symbol: 'AAPL',
         quantity: 100,
@@ -101,7 +108,7 @@ describe('apurarStocksUs — isenção R$ 35k', () => {
         fxRate: 5.0,
       }),
       tx({
-        date: new Date('2025-02-15'),
+        date: new Date('2023-02-15'),
         type: 'venda',
         symbol: 'AAPL',
         quantity: 100,
@@ -109,7 +116,7 @@ describe('apurarStocksUs — isenção R$ 35k', () => {
         fxRate: 5.0, // vendas BRL = 100000
       }),
     ]);
-    const feb = result.meses.find((m) => m.yearMonth === '2025-02')!;
+    const feb = result.meses.find((m) => m.yearMonth === '2023-02')!;
     expect(feb.isento).toBe(false);
     expect(feb.lucroBrutoBrl).toBe(50000);
     expect(feb.irDevido).toBe(7500);
@@ -119,7 +126,7 @@ describe('apurarStocksUs — isenção R$ 35k', () => {
     const result = apurarStocksUs([
       // VOO comprado 10 a $50, vendido 10 a $100 = receita 10*100*5 = 5000 BRL
       tx({
-        date: new Date('2025-01-01'),
+        date: new Date('2023-01-01'),
         type: 'compra',
         symbol: 'VOO',
         quantity: 10,
@@ -127,7 +134,7 @@ describe('apurarStocksUs — isenção R$ 35k', () => {
         fxRate: 5,
       }),
       tx({
-        date: new Date('2025-02-15'),
+        date: new Date('2023-02-15'),
         type: 'venda',
         symbol: 'VOO',
         quantity: 10,
@@ -136,7 +143,7 @@ describe('apurarStocksUs — isenção R$ 35k', () => {
       }),
       // AAPL comprado 50 a $100, vendido 50 a $150 = receita 50*150*5 = 37500 BRL
       tx({
-        date: new Date('2025-01-01'),
+        date: new Date('2023-01-01'),
         type: 'compra',
         symbol: 'AAPL',
         quantity: 50,
@@ -144,7 +151,7 @@ describe('apurarStocksUs — isenção R$ 35k', () => {
         fxRate: 5,
       }),
       tx({
-        date: new Date('2025-02-15'),
+        date: new Date('2023-02-15'),
         type: 'venda',
         symbol: 'AAPL',
         quantity: 50,
@@ -152,7 +159,7 @@ describe('apurarStocksUs — isenção R$ 35k', () => {
         fxRate: 5,
       }),
     ]);
-    const feb = result.meses.find((m) => m.yearMonth === '2025-02')!;
+    const feb = result.meses.find((m) => m.yearMonth === '2023-02')!;
     // Vendas totais = 5000 + 37500 = 42500 → > 35k, tributa.
     expect(feb.vendasTotalBrl).toBe(42500);
     expect(feb.isento).toBe(false);
@@ -167,7 +174,7 @@ describe('apurarStocksUs — compensação intra-mês, sem cross-month', () => {
     const result = apurarStocksUs([
       // VOO: compra 10@500, venda 10@400 → prejuízo de R$5000 (vendas 20k)
       tx({
-        date: new Date('2025-01-01'),
+        date: new Date('2023-01-01'),
         type: 'compra',
         symbol: 'VOO',
         quantity: 10,
@@ -175,7 +182,7 @@ describe('apurarStocksUs — compensação intra-mês, sem cross-month', () => {
         fxRate: 5,
       }),
       tx({
-        date: new Date('2025-02-15'),
+        date: new Date('2023-02-15'),
         type: 'venda',
         symbol: 'VOO',
         quantity: 10,
@@ -184,7 +191,7 @@ describe('apurarStocksUs — compensação intra-mês, sem cross-month', () => {
       }),
       // AAPL: compra 50@100, venda 50@200 → lucro de R$25000 (vendas 50k)
       tx({
-        date: new Date('2025-01-01'),
+        date: new Date('2023-01-01'),
         type: 'compra',
         symbol: 'AAPL',
         quantity: 50,
@@ -192,7 +199,7 @@ describe('apurarStocksUs — compensação intra-mês, sem cross-month', () => {
         fxRate: 5,
       }),
       tx({
-        date: new Date('2025-02-15'),
+        date: new Date('2023-02-15'),
         type: 'venda',
         symbol: 'AAPL',
         quantity: 50,
@@ -200,7 +207,7 @@ describe('apurarStocksUs — compensação intra-mês, sem cross-month', () => {
         fxRate: 5,
       }),
     ]);
-    const feb = result.meses.find((m) => m.yearMonth === '2025-02')!;
+    const feb = result.meses.find((m) => m.yearMonth === '2023-02')!;
     // Vendas total = 20k + 50k = 70k (> 35k, não isento)
     expect(feb.vendasTotalBrl).toBe(70000);
     // Lucro líquido = -5000 + 25000 = 20000 (compensação intra-mês)
@@ -211,7 +218,7 @@ describe('apurarStocksUs — compensação intra-mês, sem cross-month', () => {
   it('prejuízo de janeiro NÃO compensa lucro de fevereiro (sem carryforward em ME)', () => {
     const result = apurarStocksUs([
       tx({
-        date: new Date('2025-01-01'),
+        date: new Date('2023-01-01'),
         type: 'compra',
         symbol: 'VOO',
         quantity: 100,
@@ -219,7 +226,7 @@ describe('apurarStocksUs — compensação intra-mês, sem cross-month', () => {
         fxRate: 5,
       }),
       tx({
-        date: new Date('2025-01-20'),
+        date: new Date('2023-01-20'),
         type: 'venda',
         symbol: 'VOO',
         quantity: 100,
@@ -227,7 +234,7 @@ describe('apurarStocksUs — compensação intra-mês, sem cross-month', () => {
         fxRate: 5,
       }), // prej 50k
       tx({
-        date: new Date('2025-02-01'),
+        date: new Date('2023-02-01'),
         type: 'compra',
         symbol: 'AAPL',
         quantity: 100,
@@ -235,7 +242,7 @@ describe('apurarStocksUs — compensação intra-mês, sem cross-month', () => {
         fxRate: 5,
       }),
       tx({
-        date: new Date('2025-02-20'),
+        date: new Date('2023-02-20'),
         type: 'venda',
         symbol: 'AAPL',
         quantity: 100,
@@ -243,8 +250,8 @@ describe('apurarStocksUs — compensação intra-mês, sem cross-month', () => {
         fxRate: 5,
       }), // lucro 50k, vendas 150k
     ]);
-    const jan = result.meses.find((m) => m.yearMonth === '2025-01')!;
-    const feb = result.meses.find((m) => m.yearMonth === '2025-02')!;
+    const jan = result.meses.find((m) => m.yearMonth === '2023-01')!;
+    const feb = result.meses.find((m) => m.yearMonth === '2023-02')!;
     expect(jan.lucroBrutoBrl).toBe(-50000);
     expect(jan.irDevido).toBe(0);
     expect(feb.lucroBrutoBrl).toBe(50000);
@@ -262,7 +269,7 @@ describe('apurarStocksUs — bordas', () => {
   it('apenas compras (sem vendas) não geram apuração', () => {
     const result = apurarStocksUs([
       tx({
-        date: new Date('2025-01-15'),
+        date: new Date('2023-01-15'),
         type: 'compra',
         symbol: 'AAPL',
         quantity: 10,
@@ -276,7 +283,7 @@ describe('apurarStocksUs — bordas', () => {
   it('mês com prejuízo isolado: ir=0 mas mês entra no resultado', () => {
     const result = apurarStocksUs([
       tx({
-        date: new Date('2025-01-01'),
+        date: new Date('2023-01-01'),
         type: 'compra',
         symbol: 'AAPL',
         quantity: 10,
@@ -284,7 +291,7 @@ describe('apurarStocksUs — bordas', () => {
         fxRate: 5,
       }),
       tx({
-        date: new Date('2025-02-15'),
+        date: new Date('2023-02-15'),
         type: 'venda',
         symbol: 'AAPL',
         quantity: 10,
@@ -292,9 +299,301 @@ describe('apurarStocksUs — bordas', () => {
         fxRate: 5,
       }),
     ]);
-    const feb = result.meses.find((m) => m.yearMonth === '2025-02')!;
+    const feb = result.meses.find((m) => m.yearMonth === '2023-02')!;
     expect(feb.lucroBrutoBrl).toBe(-1000);
     expect(feb.irDevido).toBe(0);
     expect(feb.isento).toBe(false); // prejuízo não é isenção
+  });
+});
+
+describe('Lei 14.754 — meses de 2024 em diante', () => {
+  it('venda ≤ R$ 35 mil em 2024 não é isenta e não gera DARF no mês (regime anual)', () => {
+    const result = apurarStocksUs([
+      tx({
+        date: new Date('2024-01-15'),
+        type: 'compra',
+        symbol: 'AAPL',
+        quantity: 10,
+        priceUsd: 100,
+      }),
+      tx({
+        date: new Date('2024-02-15'),
+        type: 'venda',
+        symbol: 'AAPL',
+        quantity: 10,
+        priceUsd: 200,
+      }),
+    ]);
+    const feb = result.meses.find((m) => m.yearMonth === '2024-02')!;
+    expect(feb.regime).toBe('anual');
+    expect(feb.isento).toBe(false);
+    expect(feb.irDevido).toBe(0);
+    expect(feb.lucroBrutoBrl).toBe(5000);
+  });
+
+  it('2023 continua no regime mensal antigo', () => {
+    const result = apurarStocksUs([
+      tx({
+        date: new Date('2023-11-15'),
+        type: 'compra',
+        symbol: 'AAPL',
+        quantity: 100,
+        priceUsd: 100,
+      }),
+      tx({
+        date: new Date('2023-12-15'),
+        type: 'venda',
+        symbol: 'AAPL',
+        quantity: 100,
+        priceUsd: 200,
+      }),
+    ]);
+    const dez = result.meses.find((m) => m.yearMonth === '2023-12')!;
+    expect(dez.regime).toBe('mensal');
+    expect(dez.irDevido).toBe(7500);
+  });
+});
+
+describe('apurarAnualLei14754', () => {
+  const div = (iso: string, brutoBrl: number, retidoBrl: number): DividendoExterior => ({
+    date: new Date(`${iso}T12:00:00`),
+    brutoBrl,
+    retidoBrl,
+    retidoEstimado: false,
+  });
+
+  it('soma ganho e prejuízo do ano inteiro e tributa 15%, sem isenção', () => {
+    const { meses } = apurarStocksUs([
+      tx({
+        date: new Date('2025-01-10'),
+        type: 'compra',
+        symbol: 'AAPL',
+        quantity: 10,
+        priceUsd: 100,
+      }),
+      tx({
+        date: new Date('2025-01-10'),
+        type: 'compra',
+        symbol: 'MSFT',
+        quantity: 10,
+        priceUsd: 100,
+      }),
+      tx({
+        date: new Date('2025-03-10'),
+        type: 'venda',
+        symbol: 'AAPL',
+        quantity: 10,
+        priceUsd: 200,
+      }), // +5.000
+      tx({
+        date: new Date('2025-08-10'),
+        type: 'venda',
+        symbol: 'MSFT',
+        quantity: 10,
+        priceUsd: 60,
+      }), // −2.000
+    ]);
+    const [a2024, a2025] = apurarAnualLei14754(meses, []);
+    expect(a2024.year).toBe(2024);
+    expect(a2024.irDevido).toBe(0);
+    expect(a2025.ganhoLiquidoBrl).toBe(3000);
+    expect(a2025.baseBrl).toBe(3000);
+    expect(a2025.irDevido).toBe(450);
+    expect(irExteriorDoAno(2025, meses, [a2024, a2025])).toBe(450);
+  });
+
+  it('prejuízo de um ano compensa o ganho dos anos seguintes', () => {
+    const { meses } = apurarStocksUs([
+      tx({
+        date: new Date('2024-01-10'),
+        type: 'compra',
+        symbol: 'AAPL',
+        quantity: 10,
+        priceUsd: 100,
+      }),
+      tx({
+        date: new Date('2024-06-10'),
+        type: 'venda',
+        symbol: 'AAPL',
+        quantity: 10,
+        priceUsd: 60,
+      }), // −2.000
+      tx({
+        date: new Date('2025-01-10'),
+        type: 'compra',
+        symbol: 'MSFT',
+        quantity: 10,
+        priceUsd: 100,
+      }),
+      tx({
+        date: new Date('2025-06-10'),
+        type: 'venda',
+        symbol: 'MSFT',
+        quantity: 10,
+        priceUsd: 160,
+      }), // +3.000
+    ]);
+    const [a2024, a2025] = apurarAnualLei14754(meses, []);
+    expect(a2024.prejuizoAcumuladoBrl).toBe(2000);
+    expect(a2025.prejuizoAnteriorBrl).toBe(2000);
+    expect(a2025.prejuizoCompensadoBrl).toBe(2000);
+    expect(a2025.baseBrl).toBe(1000);
+    expect(a2025.irDevido).toBe(150);
+    expect(a2025.prejuizoAcumuladoBrl).toBe(0);
+  });
+
+  it('prejuízo da regra antiga (2023) não passa para 2024', () => {
+    const { meses } = apurarStocksUs([
+      tx({
+        date: new Date('2023-01-10'),
+        type: 'compra',
+        symbol: 'AAPL',
+        quantity: 10,
+        priceUsd: 100,
+      }),
+      tx({
+        date: new Date('2023-06-10'),
+        type: 'venda',
+        symbol: 'AAPL',
+        quantity: 10,
+        priceUsd: 60,
+      }),
+      tx({
+        date: new Date('2024-01-10'),
+        type: 'compra',
+        symbol: 'MSFT',
+        quantity: 10,
+        priceUsd: 100,
+      }),
+      tx({
+        date: new Date('2024-06-10'),
+        type: 'venda',
+        symbol: 'MSFT',
+        quantity: 10,
+        priceUsd: 160,
+      }),
+    ]);
+    const [a2024] = apurarAnualLei14754(meses, []);
+    expect(a2024.prejuizoAnteriorBrl).toBe(0);
+    expect(a2024.irDevido).toBe(450);
+  });
+
+  it('dividendos entram na base e o imposto retido nos EUA abate só o IR deles', () => {
+    const { meses } = apurarStocksUs([
+      tx({
+        date: new Date('2025-01-10'),
+        type: 'compra',
+        symbol: 'AAPL',
+        quantity: 10,
+        priceUsd: 100,
+      }),
+      tx({
+        date: new Date('2025-06-10'),
+        type: 'venda',
+        symbol: 'AAPL',
+        quantity: 10,
+        priceUsd: 200,
+      }), // +5.000
+    ]);
+    // Dividendo 1.000 com 300 retidos (30%): crédito limitado a 15% × 1.000 = 150.
+    const [, a2025] = apurarAnualLei14754(meses, [div('2025-04-01', 1000, 300)]);
+    expect(a2025.dividendosBrl).toBe(1000);
+    expect(a2025.irBrutoBrl).toBe(900); // 15% × 6.000
+    expect(a2025.creditoExteriorBrl).toBe(150);
+    expect(a2025.irDevido).toBe(750); // só o ganho de capital sobra
+  });
+
+  it('prejuízo também abate dividendos; crédito nunca passa do IR do ano', () => {
+    const { meses } = apurarStocksUs([
+      tx({
+        date: new Date('2025-01-10'),
+        type: 'compra',
+        symbol: 'AAPL',
+        quantity: 10,
+        priceUsd: 100,
+      }),
+      tx({
+        date: new Date('2025-06-10'),
+        type: 'venda',
+        symbol: 'AAPL',
+        quantity: 10,
+        priceUsd: 90,
+      }), // −500
+    ]);
+    const [, a2025] = apurarAnualLei14754(meses, [div('2025-04-01', 1000, 300)]);
+    expect(a2025.baseBrl).toBe(500);
+    expect(a2025.irBrutoBrl).toBe(75);
+    expect(a2025.creditoExteriorBrl).toBe(75);
+    expect(a2025.irDevido).toBe(0);
+  });
+
+  it('leva o saldo de prejuízo até o ano pedido, mesmo sem operação', () => {
+    const { meses } = apurarStocksUs([
+      tx({
+        date: new Date('2024-01-10'),
+        type: 'compra',
+        symbol: 'AAPL',
+        quantity: 10,
+        priceUsd: 100,
+      }),
+      tx({
+        date: new Date('2024-06-10'),
+        type: 'venda',
+        symbol: 'AAPL',
+        quantity: 10,
+        priceUsd: 60,
+      }),
+    ]);
+    const anos = apurarAnualLei14754(meses, [], 2026);
+    expect(anos.map((a) => a.year)).toEqual([2024, 2025, 2026]);
+    expect(anos[2].prejuizoAcumuladoBrl).toBe(2000);
+  });
+
+  it('sem venda nem dividendo de 2024 em diante, não devolve anos', () => {
+    expect(apurarAnualLei14754([], [], 2026)).toEqual([]);
+  });
+});
+
+describe('montarDividendosExterior', () => {
+  const serie = () => 5;
+  const agora = Date.UTC(2025, 11, 31);
+
+  it('converte o bruto pela data e usa o retido informado (bruto − líquido)', () => {
+    const { dividendos } = montarDividendosExterior(
+      [{ moeda: 'USD', paymentDay: Date.UTC(2025, 3, 1), gross: 100, net: 80 }],
+      serie,
+      agora,
+    );
+    expect(dividendos[0].brutoBrl).toBe(500);
+    expect(dividendos[0].retidoBrl).toBe(100);
+    expect(dividendos[0].retidoEstimado).toBe(false);
+  });
+
+  it('sem retido informado, estima os 30% padrão dos EUA', () => {
+    const { dividendos } = montarDividendosExterior(
+      [{ moeda: 'USD', paymentDay: Date.UTC(2025, 3, 1), gross: 100, net: 100 }],
+      serie,
+      agora,
+    );
+    expect(dividendos[0].retidoBrl).toBe(150);
+    expect(dividendos[0].retidoEstimado).toBe(true);
+  });
+
+  it('ignora provento em R$, futuro ou sem câmbio', () => {
+    const r = montarDividendosExterior(
+      [
+        { moeda: 'BRL', paymentDay: Date.UTC(2025, 3, 1), gross: 100, net: 100 },
+        { moeda: 'USD', paymentDay: Date.UTC(2026, 3, 1), gross: 100, net: 100 },
+      ],
+      serie,
+      agora,
+    );
+    expect(r.dividendos).toEqual([]);
+    const semSerie = montarDividendosExterior(
+      [{ moeda: 'USD', paymentDay: Date.UTC(2025, 3, 1), gross: 100, net: 100 }],
+      null,
+      agora,
+    );
+    expect(semSerie.semCambio).toBe(1);
   });
 });
