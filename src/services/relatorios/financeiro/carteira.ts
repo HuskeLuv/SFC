@@ -162,8 +162,10 @@ export async function montarCarteira(ctx: ContextoMontador): Promise<BlocoCartei
     ctx.agora.getTime() - ultimo.date.getTime() > SNAPSHOT_DEFASADO_DIAS * DIA_MS;
   const diverge = ultimo !== null && snapshotDiverge(ultimo.totalValue, patrimonio);
   const temCarteira = patrimonio > 0 || base.nPosicoes > 0;
+  // Divergente com snapshot recente não vai para o backfill: ele recalcula pelas transações e
+  // regravaria o mesmo valor a cada abertura do relatório.
   const historicoStatus: BlocoCarteira['historicoStatus'] =
-    (temCarteira && defasado) || diverge ? 'processando' : 'ok';
+    temCarteira && defasado ? 'processando' : diverge ? 'indisponivel' : 'ok';
   const variacaoPeriodo =
     ultimo && anterior && !diverge ? round2(ultimo.totalValue - anterior.totalValue) : null;
   if (historicoStatus === 'processando' && !ctx.comConsultor) {

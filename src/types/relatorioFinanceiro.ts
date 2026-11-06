@@ -177,7 +177,12 @@ export interface BlocoCarteira {
   /** Compras − vendas no período (a MESMA função da seção 5). */
   aportesPeriodo: number;
   aportes: ValorMensal[];
-  historicoStatus: 'ok' | 'processando';
+  /**
+   * 'processando': sem snapshot ou snapshot defasado (o backfill roda em background).
+   * 'indisponivel': snapshot recente, mas longe das posições atuais; o backfill não resolve
+   * (recalcula pelas transações), então não é disparado.
+   */
+  historicoStatus: 'ok' | 'processando' | 'indisponivel';
 }
 
 // ── 4b Carteira avançada (Advanced) ─────────────────────────────────────────────

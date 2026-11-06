@@ -382,7 +382,7 @@ describe('montarCarteira (4a)', () => {
     expect(b.aportes).toHaveLength(1);
   });
 
-  it('último snapshot longe das posições atuais: processando, sem histórico nem variação', async () => {
+  it('último snapshot recente longe das posições atuais: indisponível, sem backfill', async () => {
     const base = await buildSaudeFinanceira('user-1');
     const P = patrimonioInvestido(base);
     const snaps = [
@@ -391,11 +391,11 @@ describe('montarCarteira (4a)', () => {
       snap('2026-11-05', P * 9),
     ];
     const b = await montarCarteira(ctxCom(3, async () => base, { snaps }));
-    expect(b.historicoStatus).toBe('processando');
+    expect(b.historicoStatus).toBe('indisponivel');
     expect(b.historico).toEqual([]);
     expect(b.variacaoPeriodo).toBeNull();
     expect(b.patrimonio).toBe(P);
-    expect(mockTriggerLazyBackfill).toHaveBeenCalledWith('user-1', AGORA);
+    expect(mockTriggerLazyBackfill).not.toHaveBeenCalled();
   });
 
   it('snapshotDiverge: tolera oscilação pequena, acusa diferença grande', () => {
