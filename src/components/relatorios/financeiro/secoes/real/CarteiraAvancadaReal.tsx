@@ -115,20 +115,24 @@ export default function CarteiraAvancadaReal({
               { nome: 'Exterior', cor: CORES.b2 },
             ]}
           />
-          <SvgBars
-            fmt={fAx}
-            labels={prov.map((p) => rotuloMes(p.mes))}
-            stack
-            h={200}
-            W={340}
-            series={[
-              { color: CORES.gold, values: prov.map((p) => p.fii) },
-              { color: CORES.navy, values: prov.map((p) => p.acao) },
-              { color: CORES.b4, values: prov.map((p) => p.jcp) },
-              { color: CORES.b2, values: prov.map((p) => p.exterior) },
-            ]}
-            ariaLabel="Proventos recebidos por mês e por tipo"
-          />
+          {provTotal === 0 ? (
+            <p className="fine">Nenhum provento recebido no período.</p>
+          ) : (
+            <SvgBars
+              fmt={fAx}
+              labels={prov.map((p) => rotuloMes(p.mes))}
+              stack
+              h={200}
+              W={340}
+              series={[
+                { color: CORES.gold, values: prov.map((p) => p.fii) },
+                { color: CORES.navy, values: prov.map((p) => p.acao) },
+                { color: CORES.b4, values: prov.map((p) => p.jcp) },
+                { color: CORES.b2, values: prov.map((p) => p.exterior) },
+              ]}
+              ariaLabel="Proventos recebidos por mês e por tipo"
+            />
+          )}
           <span className="fine">
             Líquido pago, em reais pelo câmbio da data de pagamento. Pode diferir da aba Proventos.
           </span>
