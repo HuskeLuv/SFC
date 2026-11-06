@@ -20,8 +20,7 @@ export default function CarteiraReal({ relatorio, carteira }: PropsCarteiraReal)
     .filter((c) => c.valor > 0)
     .map((c) => [c.nome, c.valor, COR_CLASSE[c.chave]]);
   const variacao = carteira.variacaoPeriodo;
-  const semHistorico =
-    carteira.historicoStatus === 'processando' || carteira.historico.length === 0;
+  const semHistorico = carteira.historicoStatus !== 'ok' || carteira.historico.length === 0;
   return (
     <>
       <div className="kpis">
@@ -56,7 +55,11 @@ export default function CarteiraReal({ relatorio, carteira }: PropsCarteiraReal)
           sub={n === 1 ? 'últimos 6 meses' : 'fim de cada mês'}
         >
           {semHistorico ? (
-            <Callout>Histórico em processamento. Ele aparece aqui na próxima geração.</Callout>
+            <Callout>
+              {carteira.historicoStatus === 'indisponivel'
+                ? 'O histórico salvo não corresponde às posições atuais e fica de fora deste relatório.'
+                : 'Histórico em processamento. Ele aparece aqui na próxima geração.'}
+            </Callout>
           ) : (
             <SvgBars
               fmt={fAx}

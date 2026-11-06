@@ -92,6 +92,24 @@ describe('seções 4 a 8 no Advanced (corpo real)', () => {
     expect(container.textContent).toContain('rentabilidade em processamento');
   });
 
+  it('4: histórico indisponível não promete a próxima geração', async () => {
+    const base = relatorioExemplo(3, 'adv');
+    const rel: RelatorioFinanceiro = {
+      ...base,
+      carteira: {
+        ...base.carteira!,
+        historicoStatus: 'indisponivel',
+        historico: [],
+        variacaoPeriodo: null,
+      },
+    };
+    const { container } = await renderSecao(<SecaoCarteira relatorio={rel} />, '.block');
+    await waitFor(() =>
+      expect(container.textContent).toContain('não corresponde às posições atuais'),
+    );
+    expect(container.textContent).not.toContain('próxima geração');
+  });
+
   it('5: planejamento com plano e sem plano (estado vazio com link)', async () => {
     const rel = relatorioExemplo(12, 'adv');
     const { container, unmount } = await renderSecao(
