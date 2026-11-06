@@ -1023,6 +1023,52 @@
   size: A4;
   margin: 10mm;
 }
+/* Tabela larga no celular vira um cartão por linha (rótulo à esquerda, valor à direita).
+   Só na tela: o PDF mantém a tabela do protótipo. */
+@media screen and (max-width: 640px) {
+  .mf-rel .tw.cards thead {
+    display: none;
+  }
+  .mf-rel .tw.cards table,
+  .mf-rel .tw.cards tbody,
+  .mf-rel .tw.cards tr,
+  .mf-rel .tw.cards td {
+    display: block;
+    width: 100%;
+  }
+  .mf-rel .tw.cards tr {
+    padding: 6px 0;
+    border-top: 1px solid var(--line);
+  }
+  .mf-rel .tw.cards tr:first-child {
+    border-top: 0;
+  }
+  .mf-rel .tw.cards td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 4px 12px;
+    border-top: 0;
+    white-space: normal;
+    text-align: right;
+  }
+  .mf-rel .tw.cards td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 11.5px;
+    text-align: left;
+  }
+  .mf-rel .tw.cards td:first-child {
+    display: block;
+    font-weight: 600;
+    text-align: left;
+  }
+  .mf-rel .tw.cards td:first-child::before {
+    content: none;
+  }
+}
+
 @media print {
   /* layout do app fora do PDF (sidebar, header) e contêiner sem a margem da sidebar */
   body:has(.mf-rel) aside,

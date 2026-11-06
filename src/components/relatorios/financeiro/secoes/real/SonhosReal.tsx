@@ -19,6 +19,7 @@ export const LINK_SONHOS = '/planejamento-financeiro?modo=sonhos';
 export default function SonhosReal({ relatorio, sonhos }: PropsSonhosReal) {
   const { fR0, fAx } = useFormato();
   const n = relatorio.periodo.meses;
+  const rotuloAportado = n === 1 ? 'Aportado no mês' : 'Aportado no período';
 
   if (sonhos.length === 0) {
     return (
@@ -49,7 +50,7 @@ export default function SonhosReal({ relatorio, sonhos }: PropsSonhosReal) {
         />
         <Kpi rotulo="Aporte necessário" valor={`${fR0(ap)}/mês`} sub="para cumprir os prazos" />
       </div>
-      <div className="tw">
+      <div className="tw cards">
         <table>
           <thead>
             <tr>
@@ -58,7 +59,7 @@ export default function SonhosReal({ relatorio, sonhos }: PropsSonhosReal) {
               <th className="n">Meta</th>
               <th className="n">Acumulado</th>
               <th className="n">%</th>
-              <th className="n">{n === 1 ? 'Aportado no mês' : 'Aportado no período'}</th>
+              <th className="n">{rotuloAportado}</th>
               <th>Conclusão</th>
               <th>Status</th>
             </tr>
@@ -70,13 +71,21 @@ export default function SonhosReal({ relatorio, sonhos }: PropsSonhosReal) {
                   {d.nome}
                   <span className="sub">prioridade {d.prioridade.toLowerCase()}</span>
                 </td>
-                <td>{d.prazo}</td>
-                <td className="n">{fR0(d.meta)}</td>
-                <td className="n">{fR0(d.acumulado)}</td>
-                <td className="n">{fP(pct(d), 0)}</td>
-                <td className="n">{fR0(Math.max(0, d.aportadoPeriodo))}</td>
-                <td>{d.conclusao ? rotuloMes(d.conclusao) : '—'}</td>
-                <td>
+                <td data-label="Prazo">{d.prazo}</td>
+                <td className="n" data-label="Meta">
+                  {fR0(d.meta)}
+                </td>
+                <td className="n" data-label="Acumulado">
+                  {fR0(d.acumulado)}
+                </td>
+                <td className="n" data-label="%">
+                  {fP(pct(d), 0)}
+                </td>
+                <td className="n" data-label={rotuloAportado}>
+                  {fR0(Math.max(0, d.aportadoPeriodo))}
+                </td>
+                <td data-label="Conclusão">{d.conclusao ? rotuloMes(d.conclusao) : '—'}</td>
+                <td data-label="Status">
                   <Tag tom={d.status}>{d.rotuloStatus}</Tag>
                 </td>
               </tr>
