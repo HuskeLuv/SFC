@@ -5,6 +5,8 @@
  * Ferramenta de acompanhamento: NÃO gera DAA. Sem I/O; recebe os números do ano e devolve os
  * dois modelos, o melhor e o efeito do PGBL (diferença de IR com e sem o aporte).
  *
+ * Regras cadastradas: anos-calendário 2024, 2025 e 2026 (REGRAS_IRPF_*, `regrasIrpfDoAno`).
+ *
  * Regras do ano-calendário 2026 (DAA 2027):
  *  - Tabela progressiva anual = 12 × a mensal da Lei 15.191/2025 (vigente desde 05/2025 e mantida
  *    em 2026): isento até R$ 29.145,60; 7,5% / 15% / 22,5% / 27,5% com parcelas a deduzir de
@@ -80,9 +82,63 @@ export const REGRAS_IRPF_2026: RegrasIrpfAnual = {
   irpfmRendaAPartirDe: 600000,
 };
 
+/**
+ * Ano-calendário 2025 (DAA 2026). Tabela anual = 4 meses da tabela de 02/2024 (isento até
+ * R$ 2.259,20) + 8 meses da Lei 15.191/2025 (isento até R$ 2.428,80, desde 05/2025): isento até
+ * R$ 28.467,20; parcelas a deduzir R$ 2.135,04 / 4.679,03 / 8.054,97 / 10.853,78. Sem redutor nem
+ * IRPFM (Lei 15.270/2025 vale de 2026 em diante). Demais limites iguais a 2026.
+ */
+export const REGRAS_IRPF_2025: RegrasIrpfAnual = {
+  ...REGRAS_IRPF_2026,
+  anoCalendario: 2025,
+  faixas: [
+    { ate: 28467.2, aliquota: 0, parcelaDeduzir: 0 },
+    { ate: 33919.8, aliquota: 0.075, parcelaDeduzir: 2135.04 },
+    { ate: 45012.6, aliquota: 0.15, parcelaDeduzir: 4679.03 },
+    { ate: 55976.16, aliquota: 0.225, parcelaDeduzir: 8054.97 },
+    { ate: Infinity, aliquota: 0.275, parcelaDeduzir: 10853.78 },
+  ],
+  redutor: null,
+  irpfmRendaAPartirDe: null,
+};
+
+/**
+ * Ano-calendário 2024 (DAA 2025). Tabela anual = 1 mês da tabela de 05/2023 (isento até
+ * R$ 2.112,00) + 11 meses da de 02/2024 (isento até R$ 2.259,20): isento até R$ 26.963,20;
+ * parcelas a deduzir R$ 2.022,24 / 4.566,23 / 7.942,17 / 10.740,98. Sem redutor nem IRPFM.
+ */
+export const REGRAS_IRPF_2024: RegrasIrpfAnual = {
+  ...REGRAS_IRPF_2025,
+  anoCalendario: 2024,
+  faixas: [
+    { ate: 26963.2, aliquota: 0, parcelaDeduzir: 0 },
+    { ate: 33919.8, aliquota: 0.075, parcelaDeduzir: 2022.24 },
+    { ate: 45012.6, aliquota: 0.15, parcelaDeduzir: 4566.23 },
+    { ate: 55976.16, aliquota: 0.225, parcelaDeduzir: 7942.17 },
+    { ate: Infinity, aliquota: 0.275, parcelaDeduzir: 10740.98 },
+  ],
+};
+
+const REGRAS_POR_ANO: Record<number, RegrasIrpfAnual> = {
+  2024: REGRAS_IRPF_2024,
+  2025: REGRAS_IRPF_2025,
+  2026: REGRAS_IRPF_2026,
+};
+
+/** Anos-calendário com regra cadastrada, do mais recente ao mais antigo. */
+export const ANOS_IRPF_SIMULAVEIS: number[] = Object.keys(REGRAS_POR_ANO)
+  .map(Number)
+  .sort((a, b) => b - a);
+
 /** Anos com regra cadastrada. Outros anos: a tela não simula (tabela diferente). */
 export function regrasIrpfDoAno(anoCalendario: number): RegrasIrpfAnual | null {
-  return anoCalendario === 2026 ? REGRAS_IRPF_2026 : null;
+  return REGRAS_POR_ANO[anoCalendario] ?? null;
+}
+
+/** Ano que a aba PGBL abre: o corrente, se tiver regra; senão o mais recente cadastrado. */
+export function anoIrpfPadrao(hoje: Date = new Date()): number {
+  const ano = hoje.getFullYear();
+  return regrasIrpfDoAno(ano) ? ano : ANOS_IRPF_SIMULAVEIS[0];
 }
 
 export interface EntradaIrpfAnual {

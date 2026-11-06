@@ -4,6 +4,10 @@ import {
   impostoPelaTabela,
   redutorAnual,
   regrasIrpfDoAno,
+  anoIrpfPadrao,
+  ANOS_IRPF_SIMULAVEIS,
+  REGRAS_IRPF_2024,
+  REGRAS_IRPF_2025,
   REGRAS_IRPF_2026,
   type EntradaIrpfAnual,
 } from '../irpfAnual';
@@ -42,9 +46,11 @@ describe('tabela progressiva anual 2026', () => {
     expect(impostoPelaTabela(40000, REGRAS_IRPF_2026)).toBe(1270.08);
   });
 
-  it('só 2026 tem regra cadastrada', () => {
+  it('2024, 2025 e 2026 têm regra cadastrada; antes disso, não', () => {
     expect(regrasIrpfDoAno(2026)).toBe(REGRAS_IRPF_2026);
-    expect(regrasIrpfDoAno(2025)).toBeNull();
+    expect(regrasIrpfDoAno(2025)).toBe(REGRAS_IRPF_2025);
+    expect(regrasIrpfDoAno(2024)).toBe(REGRAS_IRPF_2024);
+    expect(regrasIrpfDoAno(2023)).toBeNull();
   });
 });
 
@@ -156,5 +162,38 @@ describe('simularIrpfAnual — regras do PGBL', () => {
     expect(r.irDevido).toBe(0);
     expect(r.pgbl.limiteDedutivel).toBe(0);
     expect(r.pgbl.percentualUsado).toBe(0);
+  });
+});
+
+describe('anos anteriores (2024 e 2025)', () => {
+  it('a tabela anual de 2024 e 2025 é contínua nas bordas das faixas', () => {
+    for (const regras of [REGRAS_IRPF_2024, REGRAS_IRPF_2025]) {
+      for (const f of regras.faixas.slice(0, -1)) {
+        const antes = impostoPelaTabela(f.ate, regras);
+        const depois = impostoPelaTabela(f.ate + 0.01, regras);
+        expect(Math.abs(depois - antes)).toBeLessThan(0.02);
+      }
+    }
+  });
+
+  it('isenção e imposto de R$ 60 mil batem com a tabela publicada de cada ano', () => {
+    expect(impostoPelaTabela(26963.2, REGRAS_IRPF_2024)).toBe(0);
+    expect(impostoPelaTabela(28467.2, REGRAS_IRPF_2025)).toBe(0);
+    expect(impostoPelaTabela(60000, REGRAS_IRPF_2024)).toBeCloseTo(5759.02, 2);
+    expect(impostoPelaTabela(60000, REGRAS_IRPF_2025)).toBeCloseTo(5646.22, 2);
+  });
+
+  it('2024 e 2025 não têm o redutor da Lei 15.270 (renda de R$ 50 mil paga imposto)', () => {
+    const entrada = { ...VAZIA, rendaTributavel: 50000 };
+    expect(simularIrpfAnual(entrada, REGRAS_IRPF_2025).simplificado.redutor).toBe(0);
+    expect(simularIrpfAnual(entrada, REGRAS_IRPF_2025).simplificado.irDevido).toBeGreaterThan(0);
+    expect(simularIrpfAnual(entrada, REGRAS_IRPF_2026).simplificado.irDevido).toBe(0);
+  });
+
+  it('anos cadastrados e ano padrão da aba', () => {
+    expect(ANOS_IRPF_SIMULAVEIS).toEqual([2026, 2025, 2024]);
+    expect(regrasIrpfDoAno(2023)).toBeNull();
+    expect(anoIrpfPadrao(new Date(2026, 10, 6))).toBe(2026);
+    expect(anoIrpfPadrao(new Date(2027, 0, 10))).toBe(2026);
   });
 });

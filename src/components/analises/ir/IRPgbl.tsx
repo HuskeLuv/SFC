@@ -19,9 +19,13 @@ import { ResponsiveTable, type ResponsiveColumn } from '@/components/ui/table/Re
 import { entradaDosCampos } from './pgblResumo';
 import { AcoesAporte, AcoesExportar } from './PgblAcoes';
 import {
+  ANOS_IRPF_SIMULAVEIS,
   REGRAS_IRPF_2026,
+  anoIrpfPadrao,
+  regrasIrpfDoAno,
   simularIrpfAnual,
   type EntradaIrpfAnual,
+  type RegrasIrpfAnual,
   type ResultadoIrpfAnual,
 } from '@/services/ir/irpfAnual';
 
@@ -31,10 +35,11 @@ import {
  * Os aportes vêm da carteira (planos de previdência, com o tipo PGBL/VGBL marcado pelo usuário);
  * renda, INSS e demais deduções o usuário informa, com o atalho "Preencher com o fluxo de caixa"
  * (renda, saúde e educação do ano, como sugestão). Tudo é salvo na conta, por ano (86e2xnyrg).
+ *
+ * Seletor de ano: o corrente e os anteriores com tabela cadastrada (ANOS_IRPF_SIMULAVEIS), para
+ * conferir ou retificar uma declaração já entregue. Num ano anterior, o tipo/tabela do plano não
+ * marcado naquele ano herda a marcação do ano corrente, e as ações de aporte ficam escondidas.
  */
-
-const REGRAS = REGRAS_IRPF_2026;
-const ANO = REGRAS.anoCalendario;
 
 type CampoId = Exclude<keyof EntradaIrpfAnual, 'aportesPgbl'> | 'aportesOutros';
 
@@ -79,10 +84,26 @@ function diasAte31Dez(ano: number): number {
 
 const pct = (v: number) => formatPercent(v, 1).replace('.', ',');
 
-export default function IRPgbl() {
+export default function IRPgbl({
+  ano: anoControlado,
+  onAnoChange,
+}: { ano?: number; onAnoChange?: (ano: number) => void } = {}) {
+  const [anoInterno, setAnoInterno] = useState(anoIrpfPadrao);
+  const ANO = anoControlado ?? anoInterno;
+  const setAno = (a: number) => {
+    setAnoInterno(a);
+    onAnoChange?.(a);
+  };
+  const REGRAS = regrasIrpfDoAno(ANO) ?? REGRAS_IRPF_2026;
+  const anoCorrente = anoIrpfPadrao();
+  const passado = ANO < new Date().getFullYear();
   const { data, isLoading, error } = useIRPgbl(ANO);
   const sim = useSimulacaoPgbl(ANO);
-  const { marcas, marcar } = sim;
+  // Ano anterior: plano sem marcação naquele ano herda a do ano corrente (tipo e tabela).
+  const simCorrente = useSimulacaoPgbl(anoCorrente);
+  const marcas = passado ? { ...simCorrente.marcas, ...sim.marcas } : sim.marcas;
+  const planosMarcados = passado ? herdarPlanos(simCorrente.planos, sim.planos) : sim.planos;
+  const { marcar } = sim;
   const campos = Object.fromEntries(CAMPOS.map((c) => [c.id, sim.campos[c.id] ?? ''])) as Record<
     CampoId,
     string
@@ -125,16 +146,43 @@ export default function IRPgbl() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-base font-semibold text-gray-800 dark:text-white/90">
-          Benefício PGBL na declaração anual
-        </h3>
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          Ferramenta de acompanhamento — não gera DAA. Ano-calendário {ANO} (declaração de {ANO + 1}
-          ). Os aportes vêm da carteira (Previdência e Seguros); renda e deduções você informa
-          abaixo. Os valores de IR são estimativas pela tabela progressiva vigente.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="text-base font-semibold text-gray-800 dark:text-white/90">
+            Benefício PGBL na declaração anual
+          </h3>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Ferramenta de acompanhamento — não gera DAA. Ano-calendário {ANO} (declaração de{' '}
+            {ANO + 1}). Os aportes vêm da carteira (Previdência e Seguros); renda e deduções você
+            informa abaixo. Os valores de IR são estimativas pela tabela progressiva de {ANO}.
+          </p>
+        </div>
+        <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+          Ano:
+          <select
+            value={ANO}
+            onChange={(e) => setAno(parseInt(e.target.value, 10))}
+            className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 focus:border-brand-500 focus:outline-none dark:border-gray-700 dark:bg-white/[0.03] dark:text-gray-200 max-lg:h-11"
+          >
+            {ANOS_IRPF_SIMULAVEIS.map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
+
+      {passado && (
+        <p
+          role="note"
+          className="rounded-lg border border-[#DCE6F2] bg-[#EDF2F8] px-4 py-3 text-sm text-[#314666] dark:border-gray-700 dark:bg-white/5 dark:text-gray-300"
+        >
+          Simulação de {ANO}, ano já encerrado: serve para conferir a declaração de {ANO + 1} ou
+          preparar uma retificadora. Só contam os aportes feitos até 31/12/{ANO}. Os dados digitados
+          ficam salvos separados por ano.
+        </p>
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <IRSummaryCard
@@ -169,9 +217,11 @@ export default function IRPgbl() {
         />
       </div>
 
-      <BarraEspaco r={r} aportes={entrada.aportesPgbl} dias={dias} temRenda={temRenda}>
-        {dias > 0 && <AcoesAporte ano={ANO} r={r} temRenda={temRenda} />}
-      </BarraEspaco>
+      {!passado && (
+        <BarraEspaco ano={ANO} r={r} aportes={entrada.aportesPgbl} dias={dias} temRenda={temRenda}>
+          {dias > 0 && <AcoesAporte ano={ANO} r={r} temRenda={temRenda} />}
+        </BarraEspaco>
+      )}
 
       <div className={CARD}>
         <div className="mb-4">
@@ -230,13 +280,15 @@ export default function IRPgbl() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Condicoes
+          ano={ANO}
+          passado={passado}
           r={r}
           entrada={entrada}
           planosPgbl={planosPgbl.length}
-          regimes={planosPgbl.map((p) => sim.planos[p.assetId]?.regime ?? null)}
+          regimes={planosPgbl.map((p) => planosMarcados[p.assetId]?.regime ?? null)}
           temRenda={temRenda}
         />
-        <Simulacao r={r} renda={entrada.rendaTributavel} irRetido={entrada.irRetido} />
+        <Simulacao ano={ANO} r={r} renda={entrada.rendaTributavel} irRetido={entrada.irRetido} />
       </div>
 
       <div className={CARD}>
@@ -267,7 +319,7 @@ export default function IRPgbl() {
             planos={planos}
             marcas={marcas}
             onMarcar={marcar}
-            planosMarcados={sim.planos}
+            planosMarcados={planosMarcados}
             onMarcarRegime={sim.marcarRegime}
             totalPgbl={aportesCarteira}
             qtdPgbl={qtdAportes}
@@ -315,28 +367,36 @@ export default function IRPgbl() {
               Aportes em nome de dependentes só deduzem se o dependente também contribuir ao INSS (a
               partir de 16 anos).
             </li>
-            <li>
-              Renda tributável até{' '}
-              <ValorVisivel>{formatBRL(REGRAS.redutor?.rendaFaixaAte ?? 0)}</ValorVisivel> no ano: o
-              redutor da Lei 15.270/2025 já zera ou reduz o IR, e o benefício do PGBL pode ser
-              menor. Renda total acima de{' '}
-              <ValorVisivel>{formatBRL(REGRAS.irpfmRendaAPartirDe ?? 0)}</ValorVisivel>: o IRPFM
-              (imposto mínimo) pode neutralizar a dedução — não calculado aqui.
-            </li>
+            {REGRAS.redutor && (
+              <li>
+                Renda tributável até{' '}
+                <ValorVisivel>{formatBRL(REGRAS.redutor.rendaFaixaAte)}</ValorVisivel> no ano: o
+                redutor da Lei 15.270/2025 já zera ou reduz o IR, e o benefício do PGBL pode ser
+                menor.
+                {REGRAS.irpfmRendaAPartirDe !== null && (
+                  <>
+                    {' '}
+                    Renda total acima de{' '}
+                    <ValorVisivel>{formatBRL(REGRAS.irpfmRendaAPartirDe)}</ValorVisivel>: o IRPFM
+                    (imposto mínimo) pode neutralizar a dedução — não calculado aqui.
+                  </>
+                )}
+              </li>
+            )}
             <li>
               Educação: o teto é por pessoa; a simulação aplica{' '}
               <ValorVisivel>{formatBRL(REGRAS.tetoEducacaoPorPessoa)}</ValorVisivel> × (você +
               dependentes) sobre o total informado.
             </li>
             <li>
-              Os valores de IR usam a tabela progressiva vigente e não substituem o cálculo da
+              Os valores de IR usam a tabela progressiva de {ANO} e não substituem o cálculo da
               Receita Federal.
             </li>
           </ul>
         </div>
       </div>
 
-      <GastosDedutiveis r={r} entrada={entrada} />
+      <GastosDedutiveis r={r} entrada={entrada} regras={REGRAS} />
     </div>
   );
 }
@@ -351,12 +411,14 @@ function Marcador({ children }: { children: React.ReactNode }) {
 }
 
 function BarraEspaco({
+  ano: ANO,
   r,
   aportes,
   dias,
   temRenda,
   children,
 }: {
+  ano: number;
   r: ResultadoIrpfAnual;
   aportes: number;
   dias: number;
@@ -486,12 +548,17 @@ function Condicao({ estado, titulo, texto }: { estado: Estado; titulo: string; t
 }
 
 function Condicoes({
+  ano: ANO,
+  passado,
   r,
   entrada,
   planosPgbl,
   regimes,
   temRenda,
 }: {
+  ano: number;
+  /** Ano já encerrado: a condição do prazo vira informativa. */
+  passado: boolean;
   r: ResultadoIrpfAnual;
   entrada: EntradaIrpfAnual;
   planosPgbl: number;
@@ -555,13 +622,17 @@ function Condicoes({
           }
         />
         <Condicao
-          estado="alerta"
+          estado={passado ? 'info' : 'alerta'}
           titulo={`Aportes até 31/12/${ANO}`}
-          texto={`Vale a data de processamento pela seguradora, que costuma fechar dias antes do fim de dezembro.${
-            temRenda && r.pgbl.espacoRestante > 0
-              ? ` Ainda há ${formatBRL(r.pgbl.espacoRestante)} de espaço.`
-              : ''
-          }`}
+          texto={
+            passado
+              ? `Só contam os aportes processados pela seguradora até 31/12/${ANO}, que aparecem no informe de rendimentos do plano.`
+              : `Vale a data de processamento pela seguradora, que costuma fechar dias antes do fim de dezembro.${
+                  temRenda && r.pgbl.espacoRestante > 0
+                    ? ` Ainda há ${formatBRL(r.pgbl.espacoRestante)} de espaço.`
+                    : ''
+                }`
+          }
         />
         <Condicao
           estado={regimeUnico || marcados.size > 1 ? 'ok' : 'info'}
@@ -574,10 +645,12 @@ function Condicoes({
 }
 
 function Simulacao({
+  ano: ANO,
   r,
   renda,
   irRetido,
 }: {
+  ano: number;
   r: ResultadoIrpfAnual;
   renda: number;
   irRetido: number;
@@ -914,7 +987,15 @@ function CartaoGasto({
   );
 }
 
-function GastosDedutiveis({ r, entrada }: { r: ResultadoIrpfAnual; entrada: EntradaIrpfAnual }) {
+function GastosDedutiveis({
+  r,
+  entrada,
+  regras: REGRAS,
+}: {
+  r: ResultadoIrpfAnual;
+  entrada: EntradaIrpfAnual;
+  regras: RegrasIrpfAnual;
+}) {
   const d = r.deducoesCompleto;
   const v = (n: number) => <ValorVisivel>{formatBRL(n)}</ValorVisivel>;
   return (
@@ -1040,4 +1121,14 @@ function OrigemFluxo({ item }: { item: ItemSugerido }) {
       {resto > 0 ? ` e mais ${resto}` : ''}.
     </p>
   );
+}
+
+/** Marcação de um ano anterior, campo a campo, completada pela do ano corrente. */
+function herdarPlanos(
+  corrente: Record<string, PlanoMarcado>,
+  doAno: Record<string, PlanoMarcado>,
+): Record<string, PlanoMarcado> {
+  const out: Record<string, PlanoMarcado> = { ...corrente };
+  for (const [id, p] of Object.entries(doAno)) out[id] = { ...corrente[id], ...p };
+  return out;
 }
