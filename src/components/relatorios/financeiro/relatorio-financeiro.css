@@ -64,6 +64,17 @@
   margin: 0;
   color: var(--navy9);
 }
+/* O protótipo usa o negrito padrão do navegador nos h1/h2; o preflight do Tailwind zera
+   (font-weight: inherit). O h3 tem 600 explícito na regra dele. */
+.mf-rel h1,
+.mf-rel h2 {
+  font-weight: 700;
+}
+/* O protótipo conta com a margem padrão do navegador nos <p> (ex.: .fine); o preflight do
+   Tailwind zera. Especificidade mínima (:where) para as regras do Pedro com margem valerem. */
+:where(.mf-rel) p {
+  margin-block: 1em;
+}
 .mf-rel .num,
 .mf-rel td.n,
 .mf-rel th.n {
@@ -1023,6 +1034,10 @@
     padding: 0 !important;
     max-width: none !important;
   }
+  /* botões flutuantes do app (assistente, pesquisa, aviso de versão) não vão para cada folha */
+  body:has(.mf-rel) [data-app-main] ~ * {
+    display: none !important;
+  }
   .print-hidden {
     display: none !important;
   }
@@ -1052,6 +1067,10 @@
   }
   .mf-rel .tw {
     overflow: visible;
+  }
+  /* Seção 8: a tabela "Completa x simplificada" não cabe em meia folha A4; empilha. */
+  .mf-rel .two.ir-cmp {
+    grid-template-columns: 1fr;
   }
   .mf-rel table {
     width: 100%;

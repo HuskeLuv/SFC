@@ -1,0 +1,95 @@
+[
+ {
+  "folha": "section.cover",
+  "secao": "capa",
+  "filhos": [
+   "svg.cover-mark",
+   "div.brand",
+   "h1",
+   "div.meta",
+   "div.toc"
+  ],
+  "kpis": 0,
+  "kpisBloqueados": 0,
+  "linhas": 0,
+  "barras": 0,
+  "graficos": 1,
+  "cadeados": 2,
+  "destaques": 0
+ },
+ {
+  "folha": "section.page",
+  "secao": "1",
+  "filhos": [
+   "div.ph",
+   "div.sec-head",
+   "div.kpis",
+   "div.block",
+   "div.pf"
+  ],
+  "kpis": 8,
+  "kpisBloqueados": 2,
+  "linhas": 0,
+  "barras": 0,
+  "graficos": 0,
+  "cadeados": 0,
+  "destaques": 5
+ },
+ {
+  "folha": "section.page",
+  "secao": "2",
+  "filhos": [
+   "div.ph",
+   "div.sec-head",
+   "div.kpis",
+   "div.block",
+   "div.chart",
+   "div.block",
+   "div.pf"
+  ],
+  "kpis": 5,
+  "kpisBloqueados": 0,
+  "linhas": 5,
+  "barras": 10,
+  "graficos": 1,
+  "cadeados": 0,
+  "destaques": 0
+ },
+ {
+  "folha": "section.page",
+  "secao": "3",
+  "filhos": [
+   "div.ph",
+   "div.sec-head",
+   "div.kpis",
+   "div.block",
+   "div.callout.warn",
+   "div.callout",
+   "div.pf"
+  ],
+  "kpis": 6,
+  "kpisBloqueados": 0,
+  "linhas": 5,
+  "barras": 0,
+  "graficos": 0,
+  "cadeados": 0,
+  "destaques": 0
+ },
+ {
+  "folha": "section.page",
+  "secao": "9",
+  "filhos": [
+   "div.ph",
+   "div.sec-head",
+   "div.block.fine",
+   "div.pf"
+  ],
+  "kpis": 0,
+  "kpisBloqueados": 0,
+  "linhas": 0,
+  "barras": 0,
+  "graficos": 0,
+  "cadeados": 0,
+  "destaques": 0
+ }
+]

@@ -184,6 +184,14 @@ export const queryKeys = {
     societario: (ticker: string) =>
       [...queryKeys.analiseAtivos.all, 'ativo', ticker, 'societario'] as const,
   },
+  // Relatórios: a /relatorios atual usa ['relatorios','posicao'|'movimentacoes'] direto no
+  // componente. O Relatório financeiro (86e3yg90z) fica por período; a config (chave do menu) é
+  // irmã, fora de ['relatorios'], para a invalidação de portfolio não refazê-la.
+  relatorios: {
+    all: ['relatorios'] as const,
+    financeiro: (meses: number) => [...queryKeys.relatorios.all, 'financeiro', meses] as const,
+    financeiroConfig: () => ['relatorios-financeiro-config'] as const,
+  },
   comunidade: {
     all: ['comunidade'] as const,
     config: () => [...queryKeys.comunidade.all, 'config'] as const,

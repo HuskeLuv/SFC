@@ -49,7 +49,10 @@ export function SvgBars({
   const n = labels.length;
   const gw = (W - L - Rp) / n;
   const bw = stack ? Math.min(28, gw * 0.55) : Math.min(18, (gw * 0.72) / series.length);
-  const every = n > 12 ? Math.ceil(n / 12) : 1;
+  // Rótulos a cada `every` barras: no máximo 12 e com ~44 unidades de largura cada, para os meses
+  // não se sobreporem nos gráficos estreitos (W=340) de 12 meses.
+  const cabem = Math.max(1, Math.min(12, Math.floor((W - L - Rp) / 44)));
+  const every = Math.max(1, Math.ceil(n / cabem));
 
   return (
     <svg viewBox={`0 0 ${W} ${h}`} role="img" aria-label={ariaLabel}>
