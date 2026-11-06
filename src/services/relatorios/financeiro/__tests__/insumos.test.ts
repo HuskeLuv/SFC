@@ -159,4 +159,15 @@ describe('insumos do relatório', () => {
     expect(ap[12]).toEqual({ mes: '2026-11', valor: 3500.46 });
     expect(mockCarregarAportesMensais).toHaveBeenCalledWith('cli-A', i.inicioJanela, AGORA);
   });
+
+  it('aportes da carteira (4a e Resumo): a mesma função, sem os filtros de vínculo', async () => {
+    mockCarregarAportesMensais.mockResolvedValue(new Map([[2026 * 12 + 10, 13000]]));
+    const i = criarInsumos('cli-A', AGORA);
+    const ap = await i.aportesCarteira13m();
+    expect(ap).toHaveLength(13);
+    expect(ap[12]).toEqual({ mes: '2026-11', valor: 13000 });
+    expect(mockCarregarAportesMensais).toHaveBeenCalledWith('cli-A', i.inicioJanela, AGORA, {
+      respeitarVinculos: false,
+    });
+  });
 });

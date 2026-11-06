@@ -8,7 +8,8 @@
  *  - Planejado e investimento projetado: planTraj (nominal) do plano, pelo offset do mês desde o
  *    início do acompanhamento.
  *  - Realizado: registro manual do mês, senão o último snapshot do mês, senão o registro auto.
- *  - Investimento realizado: aportesMensais (o mesmo da seção 4a e do Resumo).
+ *  - Investimento realizado: aportesMensais com as regras de vínculo do Acompanhamento (a 4a e o
+ *    Resumo usam a mesma função sobre a carteira toda).
  *  - Rentabilidade do mês: TWR de portfolio_performance (difere da aba Acompanhamento).
  *  - Meta mensal = nomM(rentNom) do plano; meta de independência = calc().Pr (R$ de hoje) no mês
  *    da aposentadoria (off2date).

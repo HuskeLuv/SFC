@@ -73,8 +73,13 @@ export interface Insumos {
   performance13m(): Promise<PontoPerformance[]>;
   /** Todas as dívidas do usuário (todos os status) com os pagamentos. */
   dividasComPagamentos(): Promise<DividaComPagamentos[]>;
-  /** Aporte líquido (compras − vendas) de cada mês da janela; 0 sem transação. */
+  /**
+   * Aporte líquido (compras − vendas) de cada mês da janela, com as regras de vínculo do
+   * Acompanhamento (seção 5); 0 sem transação.
+   */
   aportesMensais13m(): Promise<ValorMensal[]>;
+  /** O mesmo, da carteira toda (sem os filtros de vínculo): seção 4a e Resumo. */
+  aportesCarteira13m(): Promise<ValorMensal[]>;
 }
 
 /** O que todo montador recebe. */
@@ -176,14 +181,24 @@ export function criarInsumos(userId: string, agora: Date): Insumos {
     }),
   );
 
-  const aportesMensais13m = preguicoso(async (): Promise<ValorMensal[]> => {
-    const porMes = await carregarAportesMensais(userId, inicioJanela, agora);
-    return janela.map((mes) => {
+  const serieDaJanela = (porMes: Map<number, number>): ValorMensal[] =>
+    janela.map((mes) => {
       const [a, m] = mes.split('-').map(Number);
       const valor = porMes.get(chaveMesAporte(a, m - 1)) ?? 0;
       return { mes, valor: Math.round(valor * 100) / 100 };
     });
-  });
+
+  const aportesMensais13m = preguicoso(
+    async (): Promise<ValorMensal[]> =>
+      serieDaJanela(await carregarAportesMensais(userId, inicioJanela, agora)),
+  );
+
+  const aportesCarteira13m = preguicoso(
+    async (): Promise<ValorMensal[]> =>
+      serieDaJanela(
+        await carregarAportesMensais(userId, inicioJanela, agora, { respeitarVinculos: false }),
+      ),
+  );
 
   return {
     userId,
@@ -198,6 +213,7 @@ export function criarInsumos(userId: string, agora: Date): Insumos {
     performance13m,
     dividasComPagamentos,
     aportesMensais13m,
+    aportesCarteira13m,
   };
 }
 

@@ -8,8 +8,9 @@
  *    de cada aba entra na classe da aba, como no resumo, e o caixa livre em Renda fixa. Só as
  *    classes com valor > 0.
  *  - Histórico e variação: último snapshot diário de cada mês (portfolio_daily_snapshots).
- *  - Investimentos do período: compras − vendas por mês (aportesMensais, a MESMA função da
- *    seção 5), não a variação do totalInvested.
+ *  - Investimentos do período: compras − vendas por mês da carteira toda (aportesMensais, a
+ *    mesma função da seção 5, mas sem os filtros de vínculo de aposentadoria/sonho), não a
+ *    variação do totalInvested.
  *  - Sem cobertura de snapshots, ou último snapshot que não bate com as posições atuais (mais de
  *    10% e R$ 50 de diferença do patrimônio): 'processando', sem histórico nem variação, para a
  *    folha não juntar o KPI de hoje com barras de um snapshot desatualizado. O backfill em
@@ -133,7 +134,7 @@ export async function montarCarteira(ctx: ContextoMontador): Promise<BlocoCartei
   const [base, snaps, aportes13m] = await Promise.all([
     ctx.insumos.saudeBase(),
     ctx.insumos.snapshots13m(),
-    ctx.insumos.aportesMensais13m(),
+    ctx.insumos.aportesCarteira13m(),
   ]);
 
   const classes = classesDaCarteira(base);

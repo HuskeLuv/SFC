@@ -123,6 +123,9 @@ function ctxCom(meses: MesesRelatorio): ContextoMontador {
     aportesMensais13m: vi
       .fn()
       .mockResolvedValue(janela.map((mes, i) => ({ mes, valor: 3000 + i * 10 }))),
+    aportesCarteira13m: vi
+      .fn()
+      .mockResolvedValue(janela.map((mes, i) => ({ mes, valor: 5000 + i * 10 }))),
     performance13m: vi
       .fn()
       .mockResolvedValue([
@@ -209,11 +212,18 @@ describe('montarPlanejamento (5)', () => {
     for (const f of ESCRITAS) expect(f).not.toHaveBeenCalled();
   });
 
-  it('investimento realizado = o mesmo da seção 4a (aportesMensais)', async () => {
+  it('investimento realizado = aportesMensais com vínculos (Acompanhamento); a 4a lê a carteira toda', async () => {
     mockPrisma.aposentadoriaPlano.findUnique.mockResolvedValue(PLANO_ROW);
     const ctx = ctxCom(3);
     const [plan, cart] = await Promise.all([montarPlanejamento(ctx), montarCarteira(ctx)]);
     const doPeriodo = plan.serie.filter((p) => ctx.mesesDoPeriodo.includes(p.mes));
-    expect(doPeriodo.map((p) => ({ mes: p.mes, valor: p.aporteRealizado }))).toEqual(cart.aportes);
+    const comVinculos = (await ctx.insumos.aportesMensais13m()).filter((a) =>
+      ctx.mesesDoPeriodo.includes(a.mes),
+    );
+    const daCarteira = (await ctx.insumos.aportesCarteira13m()).filter((a) =>
+      ctx.mesesDoPeriodo.includes(a.mes),
+    );
+    expect(doPeriodo.map((p) => ({ mes: p.mes, valor: p.aporteRealizado }))).toEqual(comVinculos);
+    expect(cart.aportes).toEqual(daCarteira);
   });
 });

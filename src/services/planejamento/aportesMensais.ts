@@ -1,6 +1,7 @@
 /**
  * Aporte líquido por mês (compras − vendas), a ÚNICA função de aporte mensal do app: serve o
- * Acompanhamento do planejamento e, no Relatório financeiro, a seção 4a, o Resumo e a seção 5.
+ * Acompanhamento do planejamento e, no Relatório financeiro, a seção 5 (com os vínculos) e a
+ * seção 4a e o Resumo (a carteira toda: `respeitarVinculos: false`).
  *
  * Regras (as de deriveAcompanhamentoEntries, em acompanhamentoAuto.ts):
  *  - reinvestimento de proventos não é capital novo;
@@ -101,12 +102,18 @@ export async function aporteLiquidoPorMes(
   return aporteByMonth;
 }
 
-/** Lê as transações e vínculos de `userId` entre `desde` e `ate` e devolve o aporte por mês. */
+/**
+ * Lê as transações e vínculos de `userId` entre `desde` e `ate` e devolve o aporte por mês.
+ * `respeitarVinculos: false` ignora os vínculos de aposentadoria e de sonho (a carteira toda,
+ * ainda sem reinvestimento nem importação do Open Finance).
+ */
 export async function carregarAportesMensais(
   userId: string,
   desde: Date,
   ate: Date,
+  opcoes: { respeitarVinculos?: boolean } = {},
 ): Promise<Map<number, number>> {
+  const respeitarVinculos = opcoes.respeitarVinculos ?? true;
   const [transactions, vinculos] = await Promise.all([
     prisma.stockTransaction.findMany({
       where: { userId, type: { in: ['compra', 'venda'] }, date: { gte: desde, lte: ate } },
@@ -123,13 +130,15 @@ export async function carregarAportesMensais(
       },
       orderBy: { date: 'asc' },
     }),
-    prisma.portfolio.findMany({
-      where: {
-        userId,
-        OR: [{ vinculoAposentadoria: true }, { planejamentoObjetivoId: { not: null } }],
-      },
-      select: { assetId: true, vinculoAposentadoria: true, planejamentoObjetivoId: true },
-    }),
+    respeitarVinculos
+      ? prisma.portfolio.findMany({
+          where: {
+            userId,
+            OR: [{ vinculoAposentadoria: true }, { planejamentoObjetivoId: { not: null } }],
+          },
+          select: { assetId: true, vinculoAposentadoria: true, planejamentoObjetivoId: true },
+        })
+      : Promise.resolve([] as VinculoAporte[]),
   ]);
   return aporteLiquidoPorMes(transactions, vinculos);
 }

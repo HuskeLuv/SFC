@@ -194,7 +194,9 @@ function ctxCom(
     inicioJanela: new Date('2025-11-01T00:00:00Z'),
     saudeBase,
     snapshots13m: vi.fn().mockResolvedValue(extra.snaps ?? []),
-    aportesMensais13m: vi
+    // A 4a lê a carteira toda; a série com vínculos (seção 5) nunca entra aqui.
+    aportesMensais13m: vi.fn().mockResolvedValue(janela.map((mes) => ({ mes, valor: 999999 }))),
+    aportesCarteira13m: vi
       .fn()
       .mockResolvedValue(extra.aportes ?? janela.map((mes) => ({ mes, valor: 0 }))),
   } as unknown as Insumos;

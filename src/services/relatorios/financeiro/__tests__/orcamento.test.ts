@@ -132,6 +132,7 @@ function ctxCom(
     performance13m: vi.fn(),
     dividasComPagamentos: vi.fn(),
     aportesMensais13m: vi.fn(),
+    aportesCarteira13m: vi.fn(),
   } as unknown as Insumos & { cashflowDoAno: ReturnType<typeof vi.fn> };
   return {
     userId: 'u1',
