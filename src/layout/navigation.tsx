@@ -336,7 +336,35 @@ export function groupMoreItems(items: NavItem[]): { label: string; items: NavIte
   }));
   const known = new Set(MORE_GROUPS.flatMap((group) => group.names));
   const outros = moreItems.filter((item) => !known.has(item.name));
-  return [...grouped, { label: 'Outros', items: outros }].filter((group) => group.items.length > 0);
+  return [...grouped, { label: 'Outros', items: outros }]
+    .map((group) => ({ ...group, items: group.items.flatMap(expandirSubitens) }))
+    .filter((group) => group.items.length > 0);
+}
+
+/**
+ * O painel Mais só tem blocos com link (sem submenu): um item com subItems vira um bloco por
+ * subitem, com o mesmo ícone. O subitem que aponta para o path do próprio item mantém o nome do
+ * item (ex.: "Relatórios"), e os outros usam o nome do subitem (ex.: "Relatório financeiro").
+ */
+function expandirSubitens(item: NavItem): NavItem[] {
+  if (!item.subItems?.length) return [item];
+  return item.subItems.map((sub) => ({
+    icon: item.icon,
+    name: sub.path === item.path ? item.name : sub.name,
+    path: sub.path,
+    novo: sub.new,
+  }));
+}
+
+/**
+ * Bloco ativo do painel Mais: o de path mais específico que casa com a rota, para
+ * /relatorios/financeiro acender só "Relatório financeiro" e não também "Relatórios".
+ */
+export function pathAtivoDoMais(pathname: string | null, paths: (string | undefined)[]) {
+  if (!pathname) return undefined;
+  return paths
+    .filter((p): p is string => Boolean(p && matchesPrefix(pathname, p)))
+    .sort((a, b) => b.length - a.length)[0];
 }
 
 const EXTRA_TITLES: { prefix: string; title: string }[] = [
