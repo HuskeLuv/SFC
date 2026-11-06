@@ -16,7 +16,8 @@ import {
 import type { ItemSugerido } from '@/services/ir/sugestaoFluxoIr';
 import { Sensivel, TextoSensivel, ValorVisivel } from '@/components/common/valores/Sensivel';
 import { ResponsiveTable, type ResponsiveColumn } from '@/components/ui/table/ResponsiveTable';
-import { parseCurrencyInput } from '@/utils/parseCurrencyInput';
+import { entradaDosCampos } from './pgblResumo';
+import { AcoesAporte, AcoesExportar } from './PgblAcoes';
 import {
   REGRAS_IRPF_2026,
   simularIrpfAnual,
@@ -115,20 +116,10 @@ export default function IRPgbl() {
   const aportesCarteira = planosPgbl.reduce((s, p) => s + p.aportesTotal, 0);
   const qtdAportes = planosPgbl.reduce((s, p) => s + p.aportesQuantidade, 0);
 
-  const num = (id: CampoId) => parseCurrencyInput(campos[id]) ?? 0;
-  const entrada: EntradaIrpfAnual = {
-    rendaTributavel: num('rendaTributavel'),
-    inss: num('inss'),
-    aportesPgbl: aportesCarteira + num('aportesOutros'),
-    dependentes: Math.floor(num('dependentes')),
-    saude: num('saude'),
-    educacao: num('educacao'),
-    pensaoJudicial: num('pensaoJudicial'),
-    livroCaixa: num('livroCaixa'),
-    doacoesIncentivadas: num('doacoesIncentivadas'),
-    irRetido: num('irRetido'),
-  };
+  const entrada = entradaDosCampos(campos, aportesCarteira);
   const r = simularIrpfAnual(entrada, REGRAS);
+  const aportesOutros = entrada.aportesPgbl - aportesCarteira;
+  const dadosResumo = { ano: ANO, entrada, r, planosPgbl, aportesOutros };
   const temRenda = entrada.rendaTributavel > 0;
   const dias = diasAte31Dez(ANO);
 
@@ -178,7 +169,9 @@ export default function IRPgbl() {
         />
       </div>
 
-      <BarraEspaco r={r} aportes={entrada.aportesPgbl} dias={dias} temRenda={temRenda} />
+      <BarraEspaco r={r} aportes={entrada.aportesPgbl} dias={dias} temRenda={temRenda}>
+        {dias > 0 && <AcoesAporte ano={ANO} r={r} temRenda={temRenda} />}
+      </BarraEspaco>
 
       <div className={CARD}>
         <div className="mb-4">
@@ -236,7 +229,13 @@ export default function IRPgbl() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Condicoes r={r} entrada={entrada} planosPgbl={planosPgbl.length} temRenda={temRenda} />
+        <Condicoes
+          r={r}
+          entrada={entrada}
+          planosPgbl={planosPgbl.length}
+          regimes={planosPgbl.map((p) => sim.planos[p.assetId]?.regime ?? null)}
+          temRenda={temRenda}
+        />
         <Simulacao r={r} renda={entrada.rendaTributavel} irRetido={entrada.irRetido} />
       </div>
 
@@ -297,6 +296,7 @@ export default function IRPgbl() {
               último dia útil de fevereiro — ele é o documento oficial.
             </Marcador>
           </ul>
+          <AcoesExportar dados={dadosResumo} temRenda={temRenda} />
         </div>
         <div className="rounded-xl border border-brand-200 bg-brand-50 p-4 dark:border-brand-900/50 dark:bg-brand-900/20">
           <h4 className="mb-2 text-sm font-medium text-brand-900 dark:text-brand-200">
@@ -355,11 +355,13 @@ function BarraEspaco({
   aportes,
   dias,
   temRenda,
+  children,
 }: {
   r: ResultadoIrpfAnual;
   aportes: number;
   dias: number;
   temRenda: boolean;
+  children?: React.ReactNode;
 }) {
   const largura = `${Math.round(r.pgbl.percentualUsado * 1000) / 10}%`;
   return (
@@ -418,6 +420,7 @@ function BarraEspaco({
           />
         </p>
       )}
+      {children}
     </div>
   );
 }
@@ -486,14 +489,33 @@ function Condicoes({
   r,
   entrada,
   planosPgbl,
+  regimes,
   temRenda,
 }: {
   r: ResultadoIrpfAnual;
   entrada: EntradaIrpfAnual;
   planosPgbl: number;
+  /** Tabela marcada em cada plano PGBL (null = não informada). */
+  regimes: Array<RegimeTributacao | null>;
   temRenda: boolean;
 }) {
   const completo = r.melhorModelo === 'completo';
+  const marcados = new Set(regimes.filter((x): x is RegimeTributacao => x !== null));
+  const faltaMarcar = regimes.some((x) => x === null);
+  const regimeUnico = marcados.size === 1 && !faltaMarcar ? [...marcados][0] : null;
+  const tituloRegime = regimeUnico
+    ? `Regime de tributação: ${regimeUnico === 'regressivo' ? 'Regressivo' : 'Progressivo'}`
+    : marcados.size > 1 && !faltaMarcar
+      ? 'Regime de tributação: progressivo e regressivo'
+      : 'Regime de tributação';
+  const textoRegime =
+    regimeUnico === 'regressivo'
+      ? 'A alíquota cai de 35% para 10% após 10 anos e é exclusiva na fonte: o resgate não soma à renda da declaração.'
+      : regimeUnico === 'progressivo'
+        ? 'O resgate entra como rendimento tributável na declaração, com 15% retidos na fonte e ajuste pela tabela do ano.'
+        : faltaMarcar && planosPgbl > 0
+          ? 'Marque a tabela de cada plano em "Aportes em previdência no ano". Progressivo ou regressivo (a alíquota cai de 35% para 10% após 10 anos); a escolha pode ser feita até o primeiro resgate.'
+          : 'Progressivo ou regressivo (a alíquota cai de 35% para 10% após 10 anos). A escolha pode ser feita até o primeiro resgate.';
   return (
     <div className={CARD}>
       <h4 className={TITULO}>Condições para deduzir</h4>
@@ -542,9 +564,9 @@ function Condicoes({
           }`}
         />
         <Condicao
-          estado="info"
-          titulo="Regime de tributação"
-          texto="Progressivo ou regressivo (a alíquota cai de 35% para 10% após 10 anos). A escolha pode ser feita até o primeiro resgate."
+          estado={regimeUnico || marcados.size > 1 ? 'ok' : 'info'}
+          titulo={tituloRegime}
+          texto={textoRegime}
         />
       </ul>
     </div>

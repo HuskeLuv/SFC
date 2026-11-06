@@ -368,7 +368,7 @@ export default function CaixaEntrada({ onAviso }: { onAviso: (msg: string) => vo
                           maxLength={200}
                           aria-label={`Comentário para ${p.description}`}
                           placeholder="Comentário (opcional)"
-                          className="mt-1 w-full max-w-xs rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 placeholder:text-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-white/80"
+                          className="mt-1 w-full max-w-xs rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:focus:border-brand-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/80"
                           value={notas[p.id] ?? ''}
                           onChange={(e) => setNota(p.id, e.target.value)}
                         />

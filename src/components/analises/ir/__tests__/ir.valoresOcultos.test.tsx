@@ -17,10 +17,14 @@ import {
  * irFormatters.ts não muda (os componentes é que embrulham).
  */
 
-const estado = vi.hoisted(() => ({ belowLg: false }));
+const estado = vi.hoisted(() => ({ belowLg: false, campos: {} as Record<string, string> }));
 
 vi.mock('next/navigation', () => ({ usePathname: () => '/carteira' }));
 vi.mock('@/hooks/useMediaQuery', () => ({ useIsBelowLg: () => estado.belowLg }));
+// Lembrete da aba PGBL (Agenda) fora do teste: sem QueryClient.
+vi.mock('@/hooks/useAgenda', () => ({
+  useCriarEvento: () => ({ mutate: () => {}, isPending: false, isError: false, error: null }),
+}));
 // Simulação salva (servidor) fora do teste: vazia, sem QueryClient.
 vi.mock('../pgblMarcacoes', async (original) => {
   const real = await original<typeof import('../pgblMarcacoes')>();
@@ -38,7 +42,7 @@ vi.mock('../pgblMarcacoes', async (original) => {
   };
   return {
     ...real,
-    useSimulacaoPgbl: () => vazio,
+    useSimulacaoPgbl: () => ({ ...vazio, campos: estado.campos }),
     usePlanosMarcados: () => ({ marcas: {}, marcar: () => {} }),
   };
 });
@@ -201,7 +205,16 @@ import IRPgbl from '../IRPgbl';
 
 afterEach(() => {
   estado.belowLg = false;
+  estado.campos = {};
 });
+
+/** Simulação salva com renda e IR retido: liga o Balanço da DAA e as contas da aba PGBL. */
+const CAMPOS_PREENCHIDOS = {
+  rendaTributavel: '200.000,00',
+  inss: '10.000,00',
+  irRetido: '45.000,00',
+  saude: '5.000,00',
+};
 
 const sentinelas = [SENTINELAS.saldo, SENTINELAS.aplicado];
 
@@ -279,6 +292,32 @@ describe('IR + esconder valores', () => {
       expect(container.textContent).toMatch(/9\.876\.543,21|8\.765\.432,10/);
     });
   }
+
+  for (const [nome, Componente] of [
+    ['Resumo anual', IRResumoAnual],
+    ['PGBL', IRPgbl],
+  ] as const) {
+    it(`${nome} com a simulação preenchida: olho fechado sem valores`, () => {
+      estado.campos = CAMPOS_PREENCHIDOS;
+      const { container } = renderComValoresOcultos(<Componente />);
+      expectSemValoresExpostos(container, { sentinelas });
+      expectPilulas(container);
+    });
+  }
+
+  it('Resumo anual: Balanço estimado da DAA com os dados salvos na aba PGBL', () => {
+    estado.campos = CAMPOS_PREENCHIDOS;
+    renderComValoresOcultos(<IRResumoAnual />, { ocultos: false });
+    expect(screen.getByText('Balanço estimado da DAA 2027')).toBeInTheDocument();
+    expect(screen.getByText(/Restituição projetada|Imposto a pagar projetado/)).toBeInTheDocument();
+    expect(screen.queryByText(/Preencher agora/)).not.toBeInTheDocument();
+  });
+
+  it('Resumo anual: sem dados na aba PGBL o Balanço pede o preenchimento', () => {
+    renderComValoresOcultos(<IRResumoAnual />, { ocultos: false });
+    expect(screen.getByText('Balanço estimado da DAA 2027')).toBeInTheDocument();
+    expect(screen.getByText(/Preencher agora/)).toBeInTheDocument();
+  });
 
   it('Resumo anual: o subtexto "Dividendos: R$ … • FII: R$ …" esconde só os valores', () => {
     renderComValoresOcultos(<IRResumoAnual />);

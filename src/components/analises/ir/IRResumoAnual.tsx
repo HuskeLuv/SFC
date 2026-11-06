@@ -7,7 +7,8 @@ import IRStateMessage from './IRStateMessage';
 import { formatBRL, jcpIrrfRateLabel } from './irFormatters';
 import { Sensivel } from '@/components/common/valores/Sensivel';
 import { REGRAS_IRPF_2026 } from '@/services/ir/irpfAnual';
-import { tipoDoPlano, usePlanosMarcados } from './pgblMarcacoes';
+import { tipoDoPlano, useSimulacaoPgbl } from './pgblMarcacoes';
+import { balancoDaa, simularDosCampos, type BalancoDaa } from './pgblResumo';
 
 function buildYearOptions(): number[] {
   const current = new Date().getFullYear();
@@ -16,40 +17,129 @@ function buildYearOptions(): number[] {
 
 /**
  * Card "Dedução PGBL" (HTML do Pedro, 03/11/2026): aportes do ano nos planos marcados como PGBL e
- * atalho para a aba PGBL. Só no ano que a simulação cobre (tabela de 2026).
+ * atalho para a aba PGBL. Logo abaixo, o "Balanço estimado da DAA" com os dados salvos na aba
+ * PGBL (86e2xnyrg). Só no ano que a simulação cobre (tabela de 2026).
  */
-function CardPgbl({ onAbrir }: { onAbrir?: () => void }) {
-  const { data } = useIRPgbl(REGRAS_IRPF_2026.anoCalendario);
-  const { marcas } = usePlanosMarcados(REGRAS_IRPF_2026.anoCalendario);
+function BlocoPgbl({ onAbrir, irExterior }: { onAbrir?: () => void; irExterior: number }) {
+  const ano = REGRAS_IRPF_2026.anoCalendario;
+  const { data } = useIRPgbl(ano);
+  const sim = useSimulacaoPgbl(ano);
   const planos = data?.planos ?? [];
-  const pgbl = planos.filter((p) => tipoDoPlano(p, marcas) === 'pgbl');
+  const pgbl = planos.filter((p) => tipoDoPlano(p, sim.marcas) === 'pgbl');
   const total = pgbl.reduce((s, p) => s + p.aportesTotal, 0);
-  const semTipo = planos.some((p) => tipoDoPlano(p, marcas) === null);
+  const semTipo = planos.some((p) => tipoDoPlano(p, sim.marcas) === null);
+  const { entrada, r } = simularDosCampos(sim.campos, total, REGRAS_IRPF_2026);
   return (
+    <>
+      <button
+        type="button"
+        onClick={onAbrir}
+        className="flex w-full flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-200 bg-brand-50/60 p-5 text-left transition-colors hover:bg-brand-50 dark:border-brand-900/40 dark:bg-brand-900/10 dark:hover:bg-brand-900/20 max-lg:p-4"
+      >
+        <span className="min-w-0">
+          <span className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            Dedução PGBL
+            <span className="rounded-full bg-white px-1.5 py-px text-[10px] font-bold text-mf-patrimonio dark:bg-white/10 dark:text-mf-tranquilidade">
+              Novo
+            </span>
+          </span>
+          <span className="mt-1 block text-sm text-gray-700 dark:text-gray-300">
+            <strong className="text-gray-900 dark:text-white">
+              <Sensivel>{formatBRL(total)}</Sensivel>
+            </strong>{' '}
+            aportados em PGBL no ano · até 12% da renda tributável reduzem o IR no modelo completo
+            {semTipo && ' · confirme o tipo dos planos'}
+          </span>
+        </span>
+        <span className="text-sm font-semibold text-mf-outside dark:text-mf-tranquilidade">
+          Simular benefício →
+        </span>
+      </button>
+      <BalancoDaaCard
+        ano={ano}
+        balanco={entrada.rendaTributavel > 0 ? balancoDaa(r, entrada.irRetido, irExterior) : null}
+        semRetido={entrada.irRetido <= 0}
+        carregando={sim.carregando}
+        onAbrir={onAbrir}
+      />
+    </>
+  );
+}
+
+function BalancoDaaCard({
+  ano,
+  balanco,
+  semRetido,
+  carregando,
+  onAbrir,
+}: {
+  ano: number;
+  balanco: BalancoDaa | null;
+  semRetido: boolean;
+  /** Simulação salva ainda chegando: não pedir o preenchimento a quem já preencheu. */
+  carregando: boolean;
+  onAbrir?: () => void;
+}) {
+  const link = (texto: string) => (
     <button
       type="button"
       onClick={onAbrir}
-      className="flex w-full flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-200 bg-brand-50/60 p-5 text-left transition-colors hover:bg-brand-50 dark:border-brand-900/40 dark:bg-brand-900/10 dark:hover:bg-brand-900/20 max-lg:p-4"
+      className="font-medium text-mf-outside hover:underline dark:text-mf-tranquilidade"
     >
-      <span className="min-w-0">
-        <span className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-          Dedução PGBL
-          <span className="rounded-full bg-white px-1.5 py-px text-[10px] font-bold text-mf-patrimonio dark:bg-white/10 dark:text-mf-tranquilidade">
-            Novo
-          </span>
-        </span>
-        <span className="mt-1 block text-sm text-gray-700 dark:text-gray-300">
-          <strong className="text-gray-900 dark:text-white">
-            <Sensivel>{formatBRL(total)}</Sensivel>
-          </strong>{' '}
-          aportados em PGBL no ano · até 12% da renda tributável reduzem o IR no modelo completo
-          {semTipo && ' · confirme o tipo dos planos'}
-        </span>
-      </span>
-      <span className="text-sm font-semibold text-mf-outside dark:text-mf-tranquilidade">
-        Simular benefício →
-      </span>
+      {texto}
     </button>
+  );
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] max-lg:p-4">
+      <div className="min-w-0">
+        <h4 className="text-sm font-semibold text-gray-800 dark:text-white/90">
+          Balanço estimado da DAA {ano + 1}
+        </h4>
+        {carregando ? (
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Carregando…</p>
+        ) : balanco ? (
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            IR sobre investimentos (exterior){' '}
+            <Sensivel curto>{formatBRL(balanco.irInvestimentos)}</Sensivel> · dedução PGBL −{' '}
+            <Sensivel curto>{formatBRL(balanco.deducaoPgbl)}</Sensivel>
+            {balanco.doacoes > 0 && (
+              <>
+                {' '}
+                · doações − <Sensivel curto>{formatBRL(balanco.doacoes)}</Sensivel>
+              </>
+            )}{' '}
+            · retido na fonte <Sensivel curto>{formatBRL(balanco.irRetido)}</Sensivel> · modelo{' '}
+            {balanco.modelo}
+          </p>
+        ) : (
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Informe a renda e o IR retido na fonte na aba PGBL para ver se a declaração deve dar
+            restituição ou imposto a pagar. {link('Preencher agora →')}
+          </p>
+        )}
+        {balanco && semRetido && (
+          <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+            Sem o IR retido na fonte o balanço sai como imposto a pagar. {link('Informar →')}
+          </p>
+        )}
+      </div>
+      {balanco && (
+        <div className="flex items-baseline gap-2">
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            {balanco.saldo >= 0 ? 'Restituição projetada' : 'Imposto a pagar projetado'}
+          </span>
+          <span
+            className={`text-xl font-bold ${
+              balanco.saldo >= 0
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-amber-600 dark:text-amber-400'
+            }`}
+          >
+            <Sensivel>{formatBRL(Math.abs(balanco.saldo))}</Sensivel>
+          </span>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -154,7 +244,9 @@ export default function IRResumoAnual({ onAbrirPgbl }: { onAbrirPgbl?: () => voi
             />
           </div>
 
-          {year === REGRAS_IRPF_2026.anoCalendario && <CardPgbl onAbrir={onAbrirPgbl} />}
+          {year === REGRAS_IRPF_2026.anoCalendario && (
+            <BlocoPgbl onAbrir={onAbrirPgbl} irExterior={data.irPorCategoria.stocksUs} />
+          )}
 
           <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] max-lg:p-4">
             <h4 className="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">

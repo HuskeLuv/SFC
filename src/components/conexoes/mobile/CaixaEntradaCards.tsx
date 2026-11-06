@@ -180,7 +180,7 @@ export default function CaixaEntradaCards({
                 type="text"
                 maxLength={200}
                 placeholder="Comentário (opcional)"
-                className="mt-2 min-h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-700 placeholder:text-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-white/80"
+                className="mt-2 min-h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-700 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:focus:border-brand-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/80"
                 value={notas[p.id] ?? ''}
                 onChange={(e) => setNota(p.id, e.target.value)}
               />
