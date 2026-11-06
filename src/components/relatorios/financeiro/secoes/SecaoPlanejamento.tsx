@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { temAcesso } from '@/lib/planos';
-import { fR0 } from '../formato';
+import { useFormato } from '../FormatoProvider';
 import type { PropsSecao } from '../tipos';
 import { Cadeado } from '../ui/Cadeado';
 import { Callout } from '../ui/Callout';
@@ -17,6 +17,7 @@ const PlanejamentoReal = dynamic(() => import('./real/PlanejamentoReal'), { ssr:
 export function SecaoPlanejamento({ relatorio }: PropsSecao) {
   const n = relatorio.periodo.meses;
   const { planejamento } = relatorio;
+  const { fR0 } = useFormato();
   let corpo;
   if (temAcesso(relatorio.plano, 'pro')) {
     corpo = planejamento ? (

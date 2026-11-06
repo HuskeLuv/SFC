@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { CORES } from '../../cores';
-import { fP, fR0, rotuloMes, soma } from '../../formato';
+import { fP, rotuloMes, soma } from '../../formato';
+import { useFormato } from '../../FormatoProvider';
 import { ticks } from '../../graficos/escala';
 import { SvgLines } from '../../graficos/SvgLines';
 import type { PropsSonhosReal } from '../../tipos';
@@ -16,6 +17,7 @@ export const LINK_SONHOS = '/planejamento-financeiro?modo=sonhos';
  * Export default (next/dynamic).
  */
 export default function SonhosReal({ relatorio, sonhos }: PropsSonhosReal) {
+  const { fR0, fAx } = useFormato();
   const n = relatorio.periodo.meses;
 
   if (sonhos.length === 0) {
@@ -108,6 +110,7 @@ export default function SonhosReal({ relatorio, sonhos }: PropsSonhosReal) {
               </div>
               {d.historico.length > 1 ? (
                 <SvgLines
+                  fmt={fAx}
                   series={[
                     { color: CORES.blue, values: d.historico.map((h) => h.valor), dot: true },
                   ]}

@@ -1,5 +1,5 @@
 import type { BlocoIr } from '@/types/relatorioFinanceiro';
-import { fR0 } from '../formato';
+import { useFormato } from '../FormatoProvider';
 
 /**
  * Item dos Destaques do Resumo (seção 1) sobre o PGBL, só no Advanced: um <li> para a lista
@@ -7,6 +7,7 @@ import { fR0 } from '../formato';
  * podem ir para os chunks do Basic/Pro). Export default (next/dynamic).
  */
 export default function DestaquePgbl({ ir }: { ir: BlocoIr }) {
+  const { fR0 } = useFormato();
   if (ir.encerrado) return null;
   if (ir.faltaNoLimite <= 0) {
     return <li>PGBL: você já usou todo o limite de 12% em {ir.ano}.</li>;

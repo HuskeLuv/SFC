@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { CORES } from '../../cores';
-import { fAxP, fP, fR0, rotuloMes, soma } from '../../formato';
+import { fAxP, fP, rotuloMes, soma } from '../../formato';
+import { useFormato, VALOR_OCULTO } from '../../FormatoProvider';
 import { ticks } from '../../graficos/escala';
 import { SvgBars } from '../../graficos/SvgBars';
 import { SvgLines } from '../../graficos/SvgLines';
@@ -18,6 +19,7 @@ export const LINK_PLANO_INDEPENDENCIA = '/planejamento-financeiro?modo=aposentad
  * Export default (next/dynamic).
  */
 export default function PlanejamentoReal({ relatorio, planejamento: p }: PropsPlanejamentoReal) {
+  const { fR0, fAx, ocultos } = useFormato();
   const n = relatorio.periodo.meses;
 
   if (!p.temPlano) {
@@ -80,7 +82,9 @@ export default function PlanejamentoReal({ relatorio, planejamento: p }: PropsPl
         )}
         <Kpi
           rotulo="Meta de independência"
-          valor={p.metaIndependencia ? fMi(p.metaIndependencia.valor) : '—'}
+          valor={
+            p.metaIndependencia ? (ocultos ? VALOR_OCULTO : fMi(p.metaIndependencia.valor)) : '—'
+          }
           sub={
             p.metaIndependencia
               ? `${rotuloMes(p.metaIndependencia.mes)}${metaTxt ? ` · rentabilidade meta ${metaTxt}` : ''}`
@@ -100,6 +104,7 @@ export default function PlanejamentoReal({ relatorio, planejamento: p }: PropsPl
         />
         {evolucao.length > 1 ? (
           <SvgLines
+            fmt={fAx}
             series={[
               { color: '#9aa5b5', values: evolucao.map((s) => s.planejado ?? 0), dash: true },
               {
@@ -126,6 +131,7 @@ export default function PlanejamentoReal({ relatorio, planejamento: p }: PropsPl
             ]}
           />
           <SvgBars
+            fmt={fAx}
             labels={labels}
             series={[
               { color: CORES.grey, values: apP },

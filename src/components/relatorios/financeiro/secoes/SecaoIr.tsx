@@ -3,7 +3,8 @@
 import dynamic from 'next/dynamic';
 import type { IrGancho } from '@/types/relatorioFinanceiro';
 import { temAcesso } from '@/lib/planos';
-import { fR0 } from '../formato';
+import { fR0 as fR0Cru } from '../formato';
+import { useFormato } from '../FormatoProvider';
 import type { PropsSecao } from '../tipos';
 import { Cadeado } from '../ui/Cadeado';
 import { Callout } from '../ui/Callout';
@@ -18,7 +19,7 @@ const SecaoIrConteudo = dynamic(() => import('../adv/SecaoIrConteudo'), { ssr: f
 const TITULO = 'Declaração Imposto de Renda: IR a restituir';
 
 /** Destaque .gain do cadeado: some com economia ≤ 0 ou com o ano encerrado. */
-export function ganhoIr(gancho: IrGancho | null, lancadoAte: string) {
+export function ganhoIr(gancho: IrGancho | null, lancadoAte: string, fR0 = fR0Cru) {
   if (!gancho || gancho.encerrado || !(gancho.economiaMaxima > 0)) return undefined;
   const renda = `${fR0(gancho.rendaTributavel)}${gancho.rendaOrigem === 'lancado' ? ` (lançado até ${lancadoAte})` : ''}`;
   return (
@@ -37,6 +38,7 @@ export function ganhoIr(gancho: IrGancho | null, lancadoAte: string) {
 
 /** Seção 8: Declaração Imposto de Renda: IR a restituir (Advanced). */
 export function SecaoIr({ relatorio }: PropsSecao) {
+  const { fR0 } = useFormato();
   if (temAcesso(relatorio.plano, 'adv')) {
     if (relatorio.ir) return <SecaoIrConteudo relatorio={relatorio} ir={relatorio.ir} />;
     return (
@@ -55,7 +57,7 @@ export function SecaoIr({ relatorio }: PropsSecao) {
         plano="adv"
         titulo={TITULO}
         descricao={descricao}
-        ganho={ganhoIr(gancho, relatorio.periodo.lancadoAte)}
+        ganho={ganhoIr(gancho, relatorio.periodo.lancadoAte, fR0)}
         tamanho="tall"
         referencia={new Date(relatorio.geradoEm)}
       >

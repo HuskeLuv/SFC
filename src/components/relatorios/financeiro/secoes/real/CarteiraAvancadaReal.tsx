@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { CORES } from '../../cores';
-import { fAxP, fP, fR0, rotuloMes, soma } from '../../formato';
+import { fAxP, fP, rotuloMes, soma } from '../../formato';
+import { useFormato } from '../../FormatoProvider';
 import { SvgBars } from '../../graficos/SvgBars';
 import { SvgLines } from '../../graficos/SvgLines';
 import type { PropsCarteiraAvancadaReal } from '../../tipos';
@@ -42,6 +43,7 @@ export default function CarteiraAvancadaReal({
   relatorio,
   carteiraAvancada: ca,
 }: PropsCarteiraAvancadaReal) {
+  const { fR0, fAx } = useFormato();
   const n = relatorio.periodo.meses;
   const { twr, cdi, ipca, ibov, retornoDiario: rd } = ca;
   const pctCdi = twr != null && cdi != null && cdi > 0 ? (twr / cdi) * 100 : null;
@@ -114,6 +116,7 @@ export default function CarteiraAvancadaReal({
             ]}
           />
           <SvgBars
+            fmt={fAx}
             labels={prov.map((p) => rotuloMes(p.mes))}
             stack
             h={200}

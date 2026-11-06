@@ -2,7 +2,8 @@
 
 import dynamic from 'next/dynamic';
 import { temAcesso } from '@/lib/planos';
-import { fP, fR0 } from '../formato';
+import { fP } from '../formato';
+import { useFormato, type Formato } from '../FormatoProvider';
 import type { PropsSecao } from '../tipos';
 import { Cadeado } from '../ui/Cadeado';
 import { Callout } from '../ui/Callout';
@@ -14,7 +15,7 @@ import { SaudeFicticia } from './ficticio/SaudeFicticia';
 const SaudeReal = dynamic(() => import('./real/SaudeReal'), { ssr: false });
 
 /** Gancho com o índice de poupança, que o Basic e o Pro já têm pelo orçamento. */
-function ganchoSaude(relatorio: PropsSecao['relatorio']): string {
+function ganchoSaude(relatorio: PropsSecao['relatorio'], fR0: Formato['fR0']): string {
   const poupanca = poupancaDosFechados(relatorio.orcamento);
   if (poupanca != null) {
     return `Já sabemos um dos seis: seu índice de poupança nos meses fechados do período foi ${fP(poupanca)}. Veja os outros cinco e a sua nota.`;
@@ -29,6 +30,7 @@ function ganchoSaude(relatorio: PropsSecao['relatorio']): string {
 /** Seção 7: Saúde financeira (Advanced). */
 export function SecaoSaude({ relatorio }: PropsSecao) {
   const { saude } = relatorio;
+  const { fR0 } = useFormato();
   let corpo;
   if (temAcesso(relatorio.plano, 'adv')) {
     corpo = saude ? (
@@ -42,7 +44,7 @@ export function SecaoSaude({ relatorio }: PropsSecao) {
         plano="adv"
         titulo="Saúde financeira"
         descricao="Sua nota de 0 a 100, seis indicadores com meta e o balanço patrimonial completo."
-        gancho={ganchoSaude(relatorio)}
+        gancho={ganchoSaude(relatorio, fR0)}
         referencia={new Date(relatorio.geradoEm)}
       >
         <SaudeFicticia meses={relatorio.periodo.meses} />

@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { temAcesso } from '@/lib/planos';
-import { fR0 } from '../formato';
+import { useFormato } from '../FormatoProvider';
 import type { PropsSecao } from '../tipos';
 import { Cadeado } from '../ui/Cadeado';
 import { Callout } from '../ui/Callout';
@@ -22,6 +22,7 @@ export function SecaoCarteira({ relatorio }: PropsSecao) {
   const { plano, carteira, carteiraAvancada } = relatorio;
   const n = relatorio.periodo.meses;
   const referencia = new Date(relatorio.geradoEm);
+  const { fR0 } = useFormato();
 
   const temPro = temAcesso(plano, 'pro');
   const temAdv = temAcesso(plano, 'adv');

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { CondicaoIrRelatorio, DeducaoIrRelatorio } from '@/types/relatorioFinanceiro';
-import { fP, fR, fR0, soma } from '../formato';
+import { fP, soma } from '../formato';
+import { useFormato } from '../FormatoProvider';
 import type { PropsIrConteudo } from '../tipos';
 import { Callout } from '../ui/Callout';
 import { Kpi } from '../ui/Kpi';
@@ -84,6 +85,7 @@ export function leadIr(ano: number, encerrado: boolean): string {
  * ir para os chunks do Basic/Pro). Export default (next/dynamic).
  */
 export default function SecaoIrConteudo({ relatorio, ir }: PropsIrConteudo) {
+  const { fR, fR0 } = useFormato();
   const sim = ir.simulacao;
   const dc = sim.deducoesCompleto;
   const pct = ir.limite12 > 0 ? (ir.aportado / ir.limite12) * 100 : 0;

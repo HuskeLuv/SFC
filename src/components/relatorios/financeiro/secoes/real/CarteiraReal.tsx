@@ -1,5 +1,6 @@
 import { CORES } from '../../cores';
-import { fR0, rotuloMes } from '../../formato';
+import { rotuloMes } from '../../formato';
+import { useFormato } from '../../FormatoProvider';
 import { Donut, type FatiaDonut } from '../../graficos/Donut';
 import { SvgBars } from '../../graficos/SvgBars';
 import type { PropsCarteiraReal } from '../../tipos';
@@ -13,6 +14,7 @@ import { COR_CLASSE, dataBr, meses } from '../apoio';
  * Export default (next/dynamic).
  */
 export default function CarteiraReal({ relatorio, carteira }: PropsCarteiraReal) {
+  const { fR0, fAx } = useFormato();
   const n = relatorio.periodo.meses;
   const fatias: FatiaDonut[] = carteira.classes
     .filter((c) => c.valor > 0)
@@ -44,7 +46,7 @@ export default function CarteiraReal({ relatorio, carteira }: PropsCarteiraReal)
       <div className="two">
         <ChartBox titulo="Distribuição por classe">
           {fatias.length ? (
-            <Donut parts={fatias} />
+            <Donut parts={fatias} fmtValor={fR0} fmtTotal={fAx} />
           ) : (
             <p className="fine">Nenhum investimento na carteira.</p>
           )}
@@ -57,6 +59,7 @@ export default function CarteiraReal({ relatorio, carteira }: PropsCarteiraReal)
             <Callout>Histórico em processamento. Ele aparece aqui na próxima geração.</Callout>
           ) : (
             <SvgBars
+              fmt={fAx}
               labels={carteira.historico.map((h) => rotuloMes(h.mes))}
               series={[{ color: CORES.blue, values: carteira.historico.map((h) => h.valor) }]}
               h={230}

@@ -3,7 +3,8 @@ import type {
   ChaveIndicadorSaude,
   StatusSemaforo,
 } from '@/types/relatorioFinanceiro';
-import { fR0, soma } from '../../formato';
+import { soma } from '../../formato';
+import { useFormato } from '../../FormatoProvider';
 import type { PropsSaudeReal } from '../../tipos';
 import { Tag } from '../../ui/Tag';
 import { ROTULO_STATUS, dataBr } from '../apoio';
@@ -31,6 +32,7 @@ const corStatus = (s: StatusSemaforo | null) => (s ? `var(--${s})` : 'var(--mute
  * Export default (next/dynamic).
  */
 export default function SaudeReal({ relatorio, saude }: PropsSaudeReal) {
+  const { fR0 } = useFormato();
   const n = relatorio.periodo.meses;
   const at = soma(saude.bens.map((b) => b.valor));
   const dv = soma(saude.dividas.map((d) => d.valor));
