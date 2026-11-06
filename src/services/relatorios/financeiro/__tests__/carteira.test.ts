@@ -96,7 +96,12 @@ import type { SaudeFinanceiraPayload } from '@/services/saudeFinanceira/saudeFin
 import type { MesesRelatorio } from '@/types/relatorioFinanceiro';
 import type { ContextoMontador, Insumos, SnapshotDiario } from '../insumos';
 import { mesesDaJanela, periodoDoRelatorio } from '../periodo';
-import { classesDaCarteira, montarCarteira, patrimonioInvestido } from '../carteira';
+import {
+  classesDaCarteira,
+  montarCarteira,
+  patrimonioInvestido,
+  snapshotDiverge,
+} from '../carteira';
 
 const AGORA = new Date('2026-11-06T09:42:00-03:00');
 const HOJE = { ano: 2026, mes0: 10, dia: 6 };
@@ -327,22 +332,24 @@ describe('montarCarteira (4a)', () => {
       mes,
       valor: mes >= '2026-09' ? 1000 : 50,
     }));
+    // O último snapshot bate com as posições atuais (P); os anteriores ficam abaixo.
+    const P = patrimonioInvestido(base);
     const ctx = ctxCom(3, async () => base, {
       snaps: [
-        snap('2026-07-15', 90),
-        snap('2026-07-31', 100), // base da variação (antes de set)
-        snap('2026-09-30', 120),
-        snap('2026-10-31', 130),
-        snap('2026-11-05', 150),
+        snap('2026-07-15', P - 60),
+        snap('2026-07-31', P - 50), // base da variação (antes de set)
+        snap('2026-09-30', P - 30),
+        snap('2026-10-31', P - 20),
+        snap('2026-11-05', P),
       ],
       aportes,
     });
     const b = await montarCarteira(ctx);
     expect(b.historico).toEqual([
-      { mes: '2026-07', valor: 100 },
-      { mes: '2026-09', valor: 120 },
-      { mes: '2026-10', valor: 130 },
-      { mes: '2026-11', valor: 150 },
+      { mes: '2026-07', valor: P - 50 },
+      { mes: '2026-09', valor: P - 30 },
+      { mes: '2026-10', valor: P - 20 },
+      { mes: '2026-11', valor: P },
     ]);
     expect(b.variacaoPeriodo).toBe(50);
     expect(b.aportes.map((a) => a.mes)).toEqual(['2026-09', '2026-10', '2026-11']);
@@ -355,10 +362,11 @@ describe('montarCarteira (4a)', () => {
 
   it('com n=1 o histórico mostra 6 meses', async () => {
     const base = await buildSaudeFinanceira('user-1');
+    const P = patrimonioInvestido(base);
     const snaps = ['2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10'].map(
-      (m, i) => snap(`${m}-28`, 100 + i),
+      (m, i) => snap(`${m}-28`, P - 100 + i),
     );
-    snaps.push(snap('2026-11-05', 200));
+    snaps.push(snap('2026-11-05', P));
     const b = await montarCarteira(ctxCom(1, async () => base, { snaps }));
     expect(b.historico.map((h) => h.mes)).toEqual([
       '2026-06',
@@ -368,8 +376,31 @@ describe('montarCarteira (4a)', () => {
       '2026-10',
       '2026-11',
     ]);
-    expect(b.variacaoPeriodo).toBe(200 - 106);
+    expect(b.variacaoPeriodo).toBe(100 - 6);
     expect(b.aportes).toHaveLength(1);
+  });
+
+  it('último snapshot longe das posições atuais: processando, sem histórico nem variação', async () => {
+    const base = await buildSaudeFinanceira('user-1');
+    const P = patrimonioInvestido(base);
+    const snaps = [
+      snap('2026-09-30', P * 8),
+      snap('2026-10-31', P * 8.5),
+      snap('2026-11-05', P * 9),
+    ];
+    const b = await montarCarteira(ctxCom(3, async () => base, { snaps }));
+    expect(b.historicoStatus).toBe('processando');
+    expect(b.historico).toEqual([]);
+    expect(b.variacaoPeriodo).toBeNull();
+    expect(b.patrimonio).toBe(P);
+    expect(mockTriggerLazyBackfill).toHaveBeenCalledWith('user-1', AGORA);
+  });
+
+  it('snapshotDiverge: tolera oscilação pequena, acusa diferença grande', () => {
+    expect(snapshotDiverge(54520, 6288.1)).toBe(true);
+    expect(snapshotDiverge(10_500, 10_000)).toBe(false); // 5%
+    expect(snapshotDiverge(130, 100)).toBe(false); // 30%, mas só R$ 30
+    expect(snapshotDiverge(0, 0)).toBe(false);
   });
 
   it('sem snapshots: processando, variação null; backfill só sem consultor', async () => {

@@ -10,8 +10,11 @@
  *  - Histórico e variação: último snapshot diário de cada mês (portfolio_daily_snapshots).
  *  - Investimentos do período: compras − vendas por mês (aportesMensais, a MESMA função da
  *    seção 5), não a variação do totalInvested.
- *  - Sem cobertura de snapshots: 'processando'; o backfill em background só roda sem consultor
- *    (com consultor nada é gravado).
+ *  - Sem cobertura de snapshots, ou último snapshot que não bate com as posições atuais (mais de
+ *    10% e R$ 50 de diferença do patrimônio): 'processando', sem histórico nem variação, para a
+ *    folha não juntar o KPI de hoje com barras de um snapshot desatualizado. O backfill em
+ *    background (que regrava a série inteira) só roda sem consultor (com consultor nada é
+ *    gravado).
  */
 import type {
   BlocoCarteira,
@@ -30,6 +33,19 @@ export const MESES_HISTORICO_MINIMO = 6;
 /** Último snapshot mais velho que isto: histórico 'processando'. */
 const SNAPSHOT_DEFASADO_DIAS = 7;
 const DIA_MS = 24 * 60 * 60 * 1000;
+
+/** Diferença entre o último snapshot e o patrimônio atual acima da qual o histórico não vale. */
+const DIVERGENCIA_MAX_PCT = 0.1;
+const DIVERGENCIA_MIN_REAIS = 50;
+
+/** O último snapshot não corresponde às posições atuais (puro). */
+export function snapshotDiverge(ultimoValor: number, patrimonio: number): boolean {
+  const diff = Math.abs(ultimoValor - patrimonio);
+  return (
+    diff > DIVERGENCIA_MIN_REAIS &&
+    diff > DIVERGENCIA_MAX_PCT * Math.max(Math.abs(patrimonio), Math.abs(ultimoValor))
+  );
+}
 
 export const NOMES_CLASSES: Record<ChaveClasseCarteira, string> = {
   rendaFixa: 'Renda fixa',
@@ -136,8 +152,6 @@ export async function montarCarteira(ctx: ContextoMontador): Promise<BlocoCartei
   const [ai, mi] = ctx.periodo.inicio.split('-').map(Number);
   const inicioPeriodoMs = Date.UTC(ai, mi - 1, 1);
   const anterior = [...snaps].reverse().find((s) => s.date.getTime() < inicioPeriodoMs) ?? null;
-  const variacaoPeriodo =
-    ultimo && anterior ? round2(ultimo.totalValue - anterior.totalValue) : null;
 
   const aportes = recortarMeses(aportes13m, ctx.mesesDoPeriodo);
   const aportesPeriodo = round2(aportes.reduce((s, a) => s + a.valor, 0));
@@ -145,9 +159,12 @@ export async function montarCarteira(ctx: ContextoMontador): Promise<BlocoCartei
   const defasado =
     ultimo === null ||
     ctx.agora.getTime() - ultimo.date.getTime() > SNAPSHOT_DEFASADO_DIAS * DIA_MS;
+  const diverge = ultimo !== null && snapshotDiverge(ultimo.totalValue, patrimonio);
   const temCarteira = patrimonio > 0 || base.nPosicoes > 0;
   const historicoStatus: BlocoCarteira['historicoStatus'] =
-    temCarteira && defasado ? 'processando' : 'ok';
+    (temCarteira && defasado) || diverge ? 'processando' : 'ok';
+  const variacaoPeriodo =
+    ultimo && anterior && !diverge ? round2(ultimo.totalValue - anterior.totalValue) : null;
   if (historicoStatus === 'processando' && !ctx.comConsultor) {
     // Mesma exceção da Carteira: grava os snapshots em background para a próxima leitura.
     void triggerLazyBackfill(ctx.userId, ctx.agora); // nunca lança (loga e segue)
@@ -159,7 +176,7 @@ export async function montarCarteira(ctx: ContextoMontador): Promise<BlocoCartei
     classes,
     nAtivos: base.nPosicoes,
     nClasses: classes.length,
-    historico,
+    historico: diverge ? [] : historico,
     variacaoPeriodo,
     aportesPeriodo,
     aportes,
