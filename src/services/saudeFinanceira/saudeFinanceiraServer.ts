@@ -15,6 +15,7 @@
  */
 
 import { CAIXA_METRICS, computeCaixaResumo } from '@/services/portfolio/caixaParaInvestir';
+import type { CaixaAbaKey } from '@/lib/caixaParaInvestirPlano';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getAssetPrices } from '@/services/pricing/assetPriceService';
@@ -73,6 +74,15 @@ export interface PassivoLinha {
   prazoRestanteMeses: number | null;
 }
 
+/**
+ * Valor atual por categoria da carteira (o mesmo laço de valoração da Saúde), com o Tesouro
+ * Direto fora de `rendaFixaFundos` e os ETFs em US$ fora de `etfs`. Σ = Σ das categorias.
+ */
+export type PorClasseCarteira = Record<CategoriaCarteira, number> & {
+  tesouroDireto: number;
+  etfsExterior: number;
+};
+
 export interface SaudeFinanceiraPayload {
   asOf: string;
   indicadores: SaudeFinanceiraIndicadores;
@@ -91,6 +101,15 @@ export interface SaudeFinanceiraPayload {
     baixaLiquidez: ComposicaoLinha[];
     passivos: PassivoLinha[];
   };
+  // ── Campos aditivos (Relatório financeiro, seções 4a e 7). A tela da Saúde não usa. ──
+  /** Valor atual por classe, com Tesouro Direto e ETFs em US$ separados. */
+  porClasse: PorClasseCarteira;
+  /** Posições com quantidade > 0, sem reservas e sem imóveis/bens. */
+  nPosicoes: number;
+  /** Cada imóvel/bem da carteira (valor do cadastro), para o balanço. */
+  imoveisBens: Array<{ nome: string; valor: number }>;
+  /** Caixa para investir: bolso total (entra no patrimônio) e a reserva de cada aba. */
+  caixa: { bolso: number; reservado: number; porAba: Record<CaixaAbaKey, number> };
 }
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
@@ -329,6 +348,11 @@ export async function buildSaudeFinanceira(userId: string): Promise<SaudeFinance
   // informado → baixa liquidez (conservador), como a planilha tratava todos.
   let fundosAltaLiquidez = 0;
   let fundosBaixaLiquidez = 0;
+  // Aditivos do Relatório financeiro (não mudam nada do que já era calculado).
+  let tesouroDireto = 0;
+  let etfsExterior = 0;
+  let nPosicoes = 0;
+  const imoveisBens: Array<{ nome: string; valor: number }> = [];
 
   for (const item of portfolio) {
     const fixedIncome = item.assetId ? fixedIncomeByAssetId.get(item.assetId) : null;
@@ -345,6 +369,26 @@ export async function buildSaudeFinanceira(userId: string): Promise<SaudeFinance
       fiGetCurrentValue: fiPricer.getCurrentValue,
     });
     porCategoria[valuation.categoria] += valuation.valorAtualBRL;
+    if (
+      valuation.categoria === 'rendaFixaFundos' &&
+      (item.asset?.type === 'tesouro-direto' || Boolean(fixedIncome?.tesouroBondType))
+    ) {
+      tesouroDireto += valuation.valorAtualBRL;
+    } else if (valuation.categoria === 'etfs' && item.asset?.currency === 'USD') {
+      etfsExterior += valuation.valorAtualBRL;
+    }
+    if (valuation.categoria === 'imoveisBens') {
+      imoveisBens.push({
+        nome: item.asset?.name ?? item.asset?.symbol ?? 'Bem',
+        valor: round2(valuation.valorAtualBRL),
+      });
+    } else if (
+      item.quantity > 0 &&
+      valuation.categoria !== 'reservaEmergencia' &&
+      valuation.categoria !== 'reservaOportunidade'
+    ) {
+      nPosicoes += 1;
+    }
     if (valuation.categoria === 'rendaFixaFundos') {
       if (isRendaFixaAltaLiquidez(fixedIncome, item.asset?.type, horizonteLiquidez)) {
         rendaFixaAltaLiquidez += valuation.valorAtualBRL;
@@ -363,7 +407,8 @@ export async function buildSaudeFinanceira(userId: string): Promise<SaudeFinance
 
   // Bolso total com reservas por aba: as reservas são fatias do total, então o
   // caixa entra UMA vez (antes somava total + reservas = dinheiro em dobro).
-  const caixaParaInvestir = computeCaixaResumo(dashboardMetrics).bolso;
+  const caixaResumo = computeCaixaResumo(dashboardMetrics);
+  const caixaParaInvestir = caixaResumo.bolso;
 
   const ativosAltaLiquidez =
     porCategoria.reservaEmergencia +
@@ -466,5 +511,21 @@ export async function buildSaudeFinanceira(userId: string): Promise<SaudeFinance
     },
     config,
     composicao: { altaLiquidez, baixaLiquidez, passivos },
+    porClasse: {
+      ...(Object.fromEntries(
+        Object.entries(porCategoria).map(([k, v]) => [k, round2(v)]),
+      ) as Record<CategoriaCarteira, number>),
+      rendaFixaFundos: round2(porCategoria.rendaFixaFundos - tesouroDireto),
+      etfs: round2(porCategoria.etfs - etfsExterior),
+      tesouroDireto: round2(tesouroDireto),
+      etfsExterior: round2(etfsExterior),
+    },
+    nPosicoes,
+    imoveisBens,
+    caixa: {
+      bolso: caixaResumo.bolso,
+      reservado: caixaResumo.reservado,
+      porAba: caixaResumo.porAba,
+    },
   };
 }
