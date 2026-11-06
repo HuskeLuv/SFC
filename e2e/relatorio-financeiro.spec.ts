@@ -18,6 +18,14 @@ import { test, expect, type Page } from '@playwright/test';
 const ROTA = '/relatorios/financeiro';
 const PRONTO = '.mf-rel section.cover h1';
 const PROIBIDAS = /PGBL|dedu[cç]|aporte/i;
+// Nos JS, a mesma regra de scripts/checar-chunks-relatorio.mjs: PGBL só em maiúsculas
+// ('pgbl'/'irSimulacaoPgbl' são identificadores do queryKeys compartilhado) e os escapes
+// \xNN/\uNNNN do minificador desfeitos antes ('dedu\xe7\xe3o').
+const PROIBIDAS_JS = /PGBL|[Dd][Ee][Dd][Uu][CcÇç]|[Aa][Pp][Oo][Rr][Tt][Ee]/;
+const semEscapes = (js: string) =>
+  js.replace(/\\(?:x([0-9a-fA-F]{2})|u([0-9a-fA-F]{4}))/g, (_, x?: string, u?: string) =>
+    String.fromCharCode(parseInt(x ?? u ?? '', 16)),
+  );
 
 async function abrir(page: Page, rota: string) {
   const res = await page.goto(rota, { waitUntil: 'domcontentloaded', timeout: 150_000 });
@@ -87,7 +95,8 @@ test.describe('dados reais do usuário demo', () => {
     await page.emulateMedia({ media: 'print' });
     const folhas = page.locator('.mf-rel section.cover, .mf-rel section.page');
     const n = await folhas.count();
-    expect(n).toBeGreaterThanOrEqual(5);
+    // Capa + as 9 seções (as 4 a 8 também, bloqueadas ou não).
+    expect(n).toBeGreaterThanOrEqual(10);
     const quebras = await folhas.evaluateAll((els) =>
       els.map((el) => getComputedStyle(el).breakAfter),
     );
@@ -128,7 +137,7 @@ test.describe('modo demonstração (exemplo do Pedro)', () => {
     const corpos = await Promise.all(scripts);
     expect(corpos.length).toBeGreaterThan(0);
     const achados = corpos
-      .map((c, i) => [i, c.match(PROIBIDAS)?.[0]] as const)
+      .map((c, i) => [i, semEscapes(c).match(PROIBIDAS_JS)?.[0]] as const)
       .filter(([, m]) => m);
     expect(achados).toEqual([]);
   });
