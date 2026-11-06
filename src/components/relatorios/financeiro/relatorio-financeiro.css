@@ -64,6 +64,11 @@
   margin: 0;
   color: var(--navy9);
 }
+/* O protótipo conta com a margem padrão do navegador nos <p> (ex.: .fine); o preflight do
+   Tailwind zera. Especificidade mínima (:where) para as regras do Pedro com margem valerem. */
+:where(.mf-rel) p {
+  margin-block: 1em;
+}
 .mf-rel .num,
 .mf-rel td.n,
 .mf-rel th.n {
@@ -1022,6 +1027,10 @@
     margin: 0 !important;
     padding: 0 !important;
     max-width: none !important;
+  }
+  /* botões flutuantes do app (assistente, pesquisa, aviso de versão) não vão para cada folha */
+  body:has(.mf-rel) [data-app-main] ~ * {
+    display: none !important;
   }
   .print-hidden {
     display: none !important;

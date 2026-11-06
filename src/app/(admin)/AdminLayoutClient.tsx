@@ -46,7 +46,9 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
           <Backdrop />
           <MobileTabBar />
         </div>
+        {/* data-app-main: o CSS de impressão do Relatório financeiro zera margem/padding aqui */}
         <div
+          data-app-main
           className={`flex-1 min-w-0 transition-all duration-300 ease-in-out ${mainContentMargin} max-lg:pb-[calc(var(--mf-bottom-nav-h,0px)+1rem)] print:ml-0`}
         >
           <MobileHeader />
