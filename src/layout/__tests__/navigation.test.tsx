@@ -55,6 +55,7 @@ import {
   getMoreItems,
   groupMoreItems,
   isNestedRoute,
+  pathAtivoDoMais,
   MORE_GROUPS,
   seloNovoAtivo,
   useMainNavItems,
@@ -234,6 +235,40 @@ describe('painel Mais', () => {
     const groups = groupMoreItems(items);
     expect(groups.map((group) => group.label)).toEqual(['Finanças', 'Organização', 'Outros']);
     expect(names(groups[2].items)).toEqual(['Dashboard']);
+  });
+});
+
+describe('painel Mais com o Relatório financeiro', () => {
+  const opcoes = {
+    role: 'user' as const,
+    isActing: false,
+    pluggyHabilitado: false,
+    comunidadeHabilitada: false,
+  };
+
+  it('chave ligada: Relatórios vira dois blocos, o relatório novo primeiro', () => {
+    const items = buildMainNavItems({ ...opcoes, relatorioFinanceiroHabilitado: true });
+    const org = groupMoreItems(items).find((group) => group.label === 'Organização')!;
+    expect(org.items.map((item) => [item.name, item.path])).toEqual([
+      ['Agenda', '/calendario'],
+      ['Relatório financeiro', '/relatorios/financeiro'],
+      ['Relatórios', '/relatorios'],
+      ['Histórico', '/historico-alteracoes'],
+    ]);
+  });
+
+  it('chave desligada: só o bloco Relatórios', () => {
+    const items = buildMainNavItems(opcoes);
+    const org = groupMoreItems(items).find((group) => group.label === 'Organização')!;
+    expect(names(org.items)).toEqual(['Agenda', 'Relatórios', 'Histórico']);
+  });
+
+  it('bloco ativo é o de path mais específico', () => {
+    const paths = ['/calendario', '/relatorios/financeiro', '/relatorios'];
+    expect(pathAtivoDoMais('/relatorios/financeiro', paths)).toBe('/relatorios/financeiro');
+    expect(pathAtivoDoMais('/relatorios', paths)).toBe('/relatorios');
+    expect(pathAtivoDoMais('/relatoriosx', paths)).toBeUndefined();
+    expect(pathAtivoDoMais(null, paths)).toBeUndefined();
   });
 });
 

@@ -12,7 +12,7 @@ import {
   PERFIL_NOTIFICACOES_HREF,
   pushAtivoNesteAparelho,
 } from '@/lib/pwa/pushClient';
-import { groupMoreItems, useMainNavItems } from '@/layout/navigation';
+import { groupMoreItems, pathAtivoDoMais, useMainNavItems } from '@/layout/navigation';
 import { SELO_NOVO } from '@/constants/analiseAtivosVisual';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 
@@ -212,6 +212,10 @@ export default function MoreSheet() {
   }, [open, section]);
 
   const groups = groupMoreItems(items);
+  const pathAtivo = pathAtivoDoMais(
+    pathname,
+    groups.flatMap((group) => group.items.map((item) => item.path)),
+  );
   const perfilItem = items.find((item) => item.name === 'Perfil');
   const displayName = user?.name?.trim() || 'Usuário';
 
@@ -241,9 +245,9 @@ export default function MoreSheet() {
           <h3 className={groupTitle}>{group.label}</h3>
           <ul className="grid grid-cols-3 gap-2">
             {group.items.map((item) => {
-              const active = isActivePath(pathname, item.path);
+              const active = Boolean(item.path) && item.path === pathAtivo;
               return (
-                <li key={item.name}>
+                <li key={`${item.name}-${item.path}`}>
                   <Link
                     href={item.path ?? '/'}
                     onClick={closeMoreSheet}
