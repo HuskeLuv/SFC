@@ -144,7 +144,9 @@ export function SecaoResumo({ relatorio }: PropsSecao) {
             sub={
               carteira.variacaoPeriodo != null
                 ? `${carteira.variacaoPeriodo >= 0 ? '+' : ''}${fR0(carteira.variacaoPeriodo)} no período`
-                : 'histórico em processamento'
+                : carteira.historicoStatus === 'indisponivel'
+                  ? 'variação indisponível'
+                  : 'histórico em processamento'
             }
           />
         ) : (
@@ -157,7 +159,9 @@ export function SecaoResumo({ relatorio }: PropsSecao) {
             sub={
               twr != null && cdi != null && cdi !== 0
                 ? `${fP((twr / cdi) * 100, 0)} do CDI`
-                : 'rentabilidade em processamento'
+                : twr != null
+                  ? 'TWR no período'
+                  : 'rentabilidade em processamento'
             }
           />
         ) : (

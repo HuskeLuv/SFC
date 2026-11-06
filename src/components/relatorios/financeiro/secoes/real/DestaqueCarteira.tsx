@@ -17,7 +17,10 @@ export default function DestaqueCarteira({ carteira }: { carteira: BlocoCarteira
     return (
       <li>
         Seu patrimônio investido é de {fR0(carteira.patrimonio)}, com {fR0(novos)} em novos
-        investimentos no período. O histórico mensal ainda está em processamento.
+        investimentos no período.
+        {carteira.historicoStatus === 'indisponivel'
+          ? ' A variação do período fica de fora deste relatório.'
+          : ' O histórico mensal ainda está em processamento.'}
       </li>
     );
   }

@@ -33,7 +33,13 @@ export default function CarteiraReal({ relatorio, carteira }: PropsCarteiraReal)
         <Kpi
           rotulo="Variação no período"
           valor={variacao == null ? '—' : `${variacao >= 0 ? '+' : ''}${fR0(variacao)}`}
-          sub={variacao == null ? 'histórico em processamento' : 'aportes + rendimento'}
+          sub={
+            variacao != null
+              ? 'aportes + rendimento'
+              : carteira.historicoStatus === 'indisponivel'
+                ? 'histórico indisponível'
+                : 'histórico em processamento'
+          }
         />
         <Kpi rotulo="Aportes no período" valor={fR0(carteira.aportesPeriodo)} sub={meses(n)} />
         <Kpi
