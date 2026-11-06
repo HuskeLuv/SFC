@@ -16,6 +16,7 @@ import { withErrorHandler } from '@/utils/apiErrorHandler';
 import { parseRangeMonths } from '@/utils/rangeQuery';
 import { inicioUltimosNMeses, inicioDoAno, inicioDoMes } from '@/utils/periodWindow';
 import { loadProventosByDay } from '@/services/portfolio/proventosByDay';
+import { compoundReturnPct, priceSeriesReturnPct } from '@/services/market/benchmarks';
 
 const IBOV_SYMBOL = '^BVSP';
 
@@ -88,44 +89,6 @@ function windowReturnPct(
   const toFrac = 1 + twrToPct / 100;
   if (fromFrac <= 0) return 0;
   return (toFrac / fromFrac - 1) * 100;
-}
-
-/** Retorno acumulado a partir de fatores diários (CDI/IPCA) entre [fromMs, toMs]. */
-function compoundReturnPct(
-  records: Array<{ date: Date; value: unknown }>,
-  fromMs: number,
-  toMs: number,
-): number {
-  if (toMs <= fromMs) return 0;
-  let acumulado = 1;
-  for (const r of records) {
-    const ts = r.date.getTime();
-    if (ts < fromMs || ts > toMs) continue;
-    acumulado *= 1 + Number(r.value);
-  }
-  return (acumulado - 1) * 100;
-}
-
-/**
- * Retorno de uma série de cotações (preço) entre fromMs e toMs.
- * Usa o último preço <= fromMs como ponto de partida (mesmo binary-search-like
- * fallback usado em twrAt). Útil para IBOV onde temos cotação diária, não fator.
- */
-function priceSeriesReturnPct(
-  serie: Array<{ date: number; value: number }>,
-  fromMs: number,
-  toMs: number,
-): number {
-  if (serie.length < 2) return 0;
-  // Find latest price <= fromMs
-  let priceFrom: number | null = null;
-  let priceTo: number | null = null;
-  for (const p of serie) {
-    if (p.date <= fromMs && p.value > 0) priceFrom = p.value;
-    if (p.date <= toMs && p.value > 0) priceTo = p.value;
-  }
-  if (priceFrom === null || priceTo === null || priceFrom <= 0) return 0;
-  return (priceTo / priceFrom - 1) * 100;
 }
 
 export const GET = withErrorHandler(async (request: NextRequest) => {

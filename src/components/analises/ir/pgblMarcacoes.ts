@@ -1,9 +1,13 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import type { IRPlanoPrevidencia } from '@/hooks/useIR';
 import { useCsrf } from '@/hooks/useCsrf';
 import { queryKeys } from '@/lib/queryKeys';
+import type { TipoPlanoMarcado } from '@/services/ir/tipoPlanoPrevidencia';
+
+// tipoDoPlano mora em services/ir (puro, também usado no servidor pelo Relatório financeiro).
+export { tipoDoPlano } from '@/services/ir/tipoPlanoPrevidencia';
+export type { TipoPlanoMarcado };
 
 /**
  * Simulação da aba PGBL do IR, salva no servidor por ano (ticket 86e2xnyrg): os campos digitados
@@ -17,7 +21,6 @@ import { queryKeys } from '@/lib/queryKeys';
  * ela é levada para lá (e a chave local é apagada depois que o servidor confirma).
  */
 
-export type TipoPlanoMarcado = 'pgbl' | 'vgbl';
 export type RegimeTributacao = 'progressivo' | 'regressivo';
 
 export interface PlanoMarcado {
@@ -170,12 +173,4 @@ export function useSimulacaoPgbl(ano: number) {
 export function usePlanosMarcados(ano: number) {
   const { marcas, marcar } = useSimulacaoPgbl(ano);
   return { marcas, marcar };
-}
-
-/** Tipo efetivo: a marcação do usuário, senão o palpite pelo nome (null = não sabemos). */
-export function tipoDoPlano(
-  plano: IRPlanoPrevidencia,
-  marcas: Record<string, TipoPlanoMarcado>,
-): TipoPlanoMarcado | null {
-  return marcas[plano.assetId] ?? plano.tipoSugerido;
 }
