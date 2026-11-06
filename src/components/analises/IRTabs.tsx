@@ -7,6 +7,7 @@ import IRStocksUs from './ir/IRStocksUs';
 import IRCripto from './ir/IRCripto';
 import IRComecotas from './ir/IRComecotas';
 import IRPgbl from './ir/IRPgbl';
+import { anoIrpfPadrao } from '@/services/ir/irpfAnual';
 
 interface TabContentProps {
   isActive: boolean;
@@ -35,6 +36,8 @@ const BADGE_NOVO = {
 
 export default function IRTabs() {
   const [activeTab, setActiveTab] = useState('resumo-anual');
+  // Ano da aba PGBL: o "Simular benefício" do Resumo Anual abre a aba no ano consultado.
+  const [anoPgbl, setAnoPgbl] = useState(anoIrpfPadrao);
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03] max-lg:rounded-none max-lg:border-0 max-lg:bg-transparent max-lg:dark:bg-transparent">
@@ -52,7 +55,12 @@ export default function IRTabs() {
 
       <div className="p-6 max-lg:p-0">
         <TabContent isActive={activeTab === 'resumo-anual'}>
-          <IRResumoAnual onAbrirPgbl={() => setActiveTab('pgbl')} />
+          <IRResumoAnual
+            onAbrirPgbl={(ano) => {
+              setAnoPgbl(ano);
+              setActiveTab('pgbl');
+            }}
+          />
         </TabContent>
         <TabContent isActive={activeTab === 'mensal-rv'}>
           <IRMensalRendaVariavel />
@@ -67,7 +75,7 @@ export default function IRTabs() {
           <IRComecotas />
         </TabContent>
         <TabContent isActive={activeTab === 'pgbl'}>
-          <IRPgbl />
+          <IRPgbl ano={anoPgbl} onAnoChange={setAnoPgbl} />
         </TabContent>
       </div>
     </div>

@@ -6,7 +6,7 @@ import IRSummaryCard from './IRSummaryCard';
 import IRStateMessage from './IRStateMessage';
 import { formatBRL, jcpIrrfRateLabel } from './irFormatters';
 import { Sensivel } from '@/components/common/valores/Sensivel';
-import { REGRAS_IRPF_2026 } from '@/services/ir/irpfAnual';
+import { regrasIrpfDoAno } from '@/services/ir/irpfAnual';
 import { tipoDoPlano, useSimulacaoPgbl } from './pgblMarcacoes';
 import { balancoDaa, simularDosCampos, type BalancoDaa } from './pgblResumo';
 
@@ -18,17 +18,26 @@ function buildYearOptions(): number[] {
 /**
  * Card "Dedução PGBL" (HTML do Pedro, 03/11/2026): aportes do ano nos planos marcados como PGBL e
  * atalho para a aba PGBL. Logo abaixo, o "Balanço estimado da DAA" com os dados salvos na aba
- * PGBL (86e2xnyrg). Só no ano que a simulação cobre (tabela de 2026).
+ * PGBL (86e2xnyrg). Só nos anos com tabela cadastrada (regrasIrpfDoAno: 2024 a 2026).
  */
-function BlocoPgbl({ onAbrir, irExterior }: { onAbrir?: () => void; irExterior: number }) {
-  const ano = REGRAS_IRPF_2026.anoCalendario;
+function BlocoPgbl({
+  ano,
+  regras,
+  onAbrir,
+  irExterior,
+}: {
+  ano: number;
+  regras: NonNullable<ReturnType<typeof regrasIrpfDoAno>>;
+  onAbrir?: () => void;
+  irExterior: number;
+}) {
   const { data } = useIRPgbl(ano);
   const sim = useSimulacaoPgbl(ano);
   const planos = data?.planos ?? [];
   const pgbl = planos.filter((p) => tipoDoPlano(p, sim.marcas) === 'pgbl');
   const total = pgbl.reduce((s, p) => s + p.aportesTotal, 0);
   const semTipo = planos.some((p) => tipoDoPlano(p, sim.marcas) === null);
-  const { entrada, r } = simularDosCampos(sim.campos, total, REGRAS_IRPF_2026);
+  const { entrada, r } = simularDosCampos(sim.campos, total, regras);
   return (
     <>
       <button
@@ -143,8 +152,11 @@ function BalancoDaaCard({
   );
 }
 
-export default function IRResumoAnual({ onAbrirPgbl }: { onAbrirPgbl?: () => void } = {}) {
+export default function IRResumoAnual({
+  onAbrirPgbl,
+}: { onAbrirPgbl?: (ano: number) => void } = {}) {
   const [year, setYear] = useState(new Date().getFullYear());
+  const regrasDoAno = regrasIrpfDoAno(year);
   const { data, isLoading, error } = useIRResumoAnual(year);
   const yearOptions = buildYearOptions();
 
@@ -244,8 +256,13 @@ export default function IRResumoAnual({ onAbrirPgbl }: { onAbrirPgbl?: () => voi
             />
           </div>
 
-          {year === REGRAS_IRPF_2026.anoCalendario && (
-            <BlocoPgbl onAbrir={onAbrirPgbl} irExterior={data.irPorCategoria.stocksUs} />
+          {regrasDoAno && (
+            <BlocoPgbl
+              ano={year}
+              regras={regrasDoAno}
+              onAbrir={onAbrirPgbl ? () => onAbrirPgbl(year) : undefined}
+              irExterior={data.irPorCategoria.stocksUs}
+            />
           )}
 
           <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] max-lg:p-4">
