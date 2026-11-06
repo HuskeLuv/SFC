@@ -4,7 +4,6 @@
  */
 import type {
   BlocoOrcamento,
-  CategoriaOrcamentoRelatorio,
   ChaveClasseCarteira,
   MesOrcamentoRelatorio,
   StatusSemaforo,
@@ -12,14 +11,12 @@ import type {
 import { CORES } from '../cores';
 import { soma } from '../formato';
 
-/** Planejamento Financeiro (dinheiro dos sonhos) fica fora dos gastos (decisão 2). */
-function ehPlanejamento(c: CategoriaOrcamentoRelatorio): boolean {
-  return /^planejamento/i.test(c.chave) || /^planejamento/i.test(c.nome);
-}
-
-/** Gasto realizado do mês, sem Planejamento Financeiro. */
+/**
+ * Gasto realizado do mês: a soma das categorias, a mesma conta do Resumo e da seção 2
+ * (agregarOrcamento). O Planejamento Financeiro já chega fora das categorias (decisão 2, F1).
+ */
 export function gastoDoMes(m: MesOrcamentoRelatorio): number {
-  return soma(m.categorias.filter((c) => !ehPlanejamento(c)).map((c) => c.realizado));
+  return soma(m.categorias.map((c) => c.realizado));
 }
 
 /** Sobra do período pelo realizado: Σ receita − Σ gastos lançados. */

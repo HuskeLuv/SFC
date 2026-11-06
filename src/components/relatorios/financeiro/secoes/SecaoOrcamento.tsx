@@ -9,6 +9,7 @@ import { Kpi } from '../ui/Kpi';
 import { Legenda } from '../ui/Legenda';
 import { Pagina } from '../ui/Pagina';
 import type { PropsSecao } from '../tipos';
+import { gastoDoMes } from './apoio';
 
 /** Categoria somada no período (porte de budAgg do protótipo). */
 export interface CategoriaAgregada {
@@ -30,9 +31,6 @@ export interface OrcamentoAgregado {
   /** Índice de poupança em % (null sem receita). */
   poup: number | null;
 }
-
-/** Gasto realizado de um mês (soma das categorias). */
-export const gastoDoMes = (m: MesOrcamentoRelatorio) => soma(m.categorias.map((c) => c.realizado));
 
 /**
  * Soma o período por chave canônica (a mesma categoria entre meses e anos), na ordem em que as
