@@ -239,9 +239,20 @@ export function fraseSaude(
   return `${inicio}: seu ponto forte é ${NOME_NA_FRASE[melhor.chave]} (${melhor.valorFmt}). ${fraco}`;
 }
 
+/**
+ * O rotativo sempre tem valor (Sim/Não). Sozinho ele não sustenta uma nota: sem nenhum outro
+ * indicador com base real (usuário sem fluxo fechado, sem bens), a nota fica null e a frase cai
+ * em "Ainda não há dados suficientes".
+ */
+function temBaseParaNota(indicadores: IndicadorSaudeRelatorio[]): boolean {
+  return indicadores.some((i) => i.chave !== 'rotativo' && i.valor !== null && i.status !== null);
+}
+
 export function montarSaude(entrada: EntradaSaude): BlocoSaude {
   const indicadores = indicadoresRelatorio(entrada);
-  const { nota, status } = notaSaude(indicadores);
+  const { nota, status } = temBaseParaNota(indicadores)
+    ? notaSaude(indicadores)
+    : { nota: null, status: null };
   const bal = balancoSaude(entrada.saudeBase, entrada.dividas);
   const h = entrada.ctx.hojeSP;
   return {

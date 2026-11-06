@@ -246,6 +246,27 @@ describe('indicadoresRelatorio no dia 3 de novembro', () => {
 });
 
 describe('montarSaude', () => {
+  it('usuário sem dados (só o rotativo tem valor): nota null, sem "Saudável"', () => {
+    mockProventosCarregados.mockReturnValue(null);
+    const orc = orcamento([mesOrc('2026-11', false, 0, 0)]);
+    orc.referenciaFechada = { receitaMedia3m: 0, gastoMedio3m: 0, sobraMesAnterior: null };
+    const vazia = {
+      ...SAUDE_BASE,
+      porClasse: Object.fromEntries(Object.keys(SAUDE_BASE.porClasse).map((k) => [k, 0])),
+      caixa: { ...SAUDE_BASE.caixa, bolso: 0 },
+      imoveisBens: [],
+      nPosicoes: 0,
+    } as unknown as SaudeFinanceiraPayload;
+    const b = montarSaude(
+      entrada(1, orc, { saudeBase: vazia, dividas: { ...DIVIDAS, itens: [] } }),
+    );
+    const ind = porChave(b.indicadores);
+    expect(ind.rotativo).toMatchObject({ valor: 0, status: 'good' });
+    expect(b.nota).toBeNull();
+    expect(b.status).toBeNull();
+    expect(b.frase).toBe('Ainda não há dados suficientes para calcular a sua nota.');
+  });
+
   it('nota, frase do melhor e do pior, balanço e asOf em SP', () => {
     mockProventosCarregados.mockReturnValue(PROVENTOS_JANELA);
     const b = montarSaude(entrada(1, orcamento([mesOrc('2026-11', false, 0, 500)])));
