@@ -41,6 +41,10 @@ jobs:
       # (smoke de rotas em browser real). Rodar vitest localmente quando relevante.
       - name: Build
         run: npm run build
+      # Relatório financeiro: os chunks estáticos da rota (o que o Basic baixa) não podem ter
+      # PGBL, dedução nem aporte; os corpos reais/adv entram só por next/dynamic.
+      - name: Palavras proibidas nos chunks do relatório financeiro
+        run: node scripts/checar-chunks-relatorio.mjs
 
   # Smoke de render: sobe Postgres efêmero, builda, sobe o app e abre cada rota
   # autenticada num browser real. Pega crashes de runtime (ex.: hook de contexto
@@ -90,6 +94,12 @@ jobs:
       # Esconder valores (Fase 1): olho, cookie e faixa ligados no e2e (valores-ocultos-*.spec.ts).
       # Produção continua desligada até o PR de fechamento da Fase 1 (app.env).
       VALORES_OCULTOS_HABILITADO: 'true'
+      # Relatório financeiro (86e3yg90z): página e API ligadas no e2e (e2e/relatorio-financeiro.spec.ts).
+      # PERMITIDO=1 libera o modo demonstração (?fixture=exemplo&plano=) no build de produção e o
+      # override de plano; RELATORIO_PLANO_FORCADO fica de fora (o demo segue Advanced). As duas
+      # variáveis NUNCA vão para o app.env.
+      RELATORIO_FINANCEIRO_HABILITADO: 'true'
+      RELATORIO_PLANO_FORCADO_PERMITIDO: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
