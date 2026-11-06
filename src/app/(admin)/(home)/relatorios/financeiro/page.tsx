@@ -23,7 +23,10 @@ import {
  */
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = { title: 'Relatório financeiro | My Finance' };
+// Com a chave desligada, nem o título da aba cita o relatório (a página é o 404).
+export function generateMetadata(): Metadata {
+  return relatorioFinanceiroHabilitado() ? { title: 'Relatório financeiro | My Finance' } : {};
+}
 
 type Busca = Record<string, string | string[] | undefined>;
 
