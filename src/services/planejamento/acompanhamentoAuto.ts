@@ -1,11 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { off2date } from './aposentadoria';
-import { unidadeDaTransacao } from '@/lib/ativoEmDolar';
-import {
-  carregarCambioDasTransacoes,
-  totalBRLTransacao,
-} from '@/services/cashflow/investimentosPorMes';
-import { ehImportacaoOpenFinance } from '@/services/pluggy/notaImportacao';
+import { carregarAportesMensais, chaveMesAporte } from './aportesMensais';
 
 /**
  * Deriva os registros mensais de acompanhamento (aporte realizado + patrimônio
@@ -44,19 +39,8 @@ export interface PlanoTrack {
   apos: number;
 }
 
-/** Compras de reinvestimento de proventos não são aporte de capital novo. */
-const isReinvestimento = (notes: string | null | undefined): boolean => {
-  if (!notes) return false;
-  try {
-    const parsed = JSON.parse(notes);
-    return parsed?.operation?.action === 'reinvestimento';
-  } catch {
-    return false;
-  }
-};
-
 /** Chave de mês-calendário em UTC (snapshots são gravados como UTC midnight). */
-const monthKey = (year: number, month0: number): number => year * 12 + month0;
+const monthKey = chaveMesAporte;
 
 export async function deriveAcompanhamentoEntries(
   userId: string,
@@ -73,78 +57,21 @@ export async function deriveAcompanhamentoEntries(
 
   const startDate = new Date(Date.UTC(plano.trackStartYear, plano.trackStartMonth - 1, 1));
 
-  const [snapshots, transactions, vinculos] = await Promise.all([
+  // Aporte líquido por mês (compras − vendas): a função única de aportesMensais.ts (as regras de
+  // reinvestimento, Open Finance, vínculos e câmbio estão lá).
+  const [snapshots, aporteByMonth] = await Promise.all([
     prisma.portfolioDailySnapshot.findMany({
       where: { userId, date: { gte: startDate, lte: now } },
       orderBy: { date: 'asc' },
       select: { date: true, totalValue: true },
     }),
-    prisma.stockTransaction.findMany({
-      where: { userId, type: { in: ['compra', 'venda'] }, date: { gte: startDate, lte: now } },
-      select: {
-        assetId: true,
-        date: true,
-        type: true,
-        total: true,
-        price: true,
-        quantity: true,
-        fees: true,
-        notes: true,
-        asset: { select: { type: true, currency: true } },
-      },
-      orderBy: { date: 'asc' },
-    }),
-    prisma.portfolio.findMany({
-      where: {
-        userId,
-        OR: [{ vinculoAposentadoria: true }, { planejamentoObjetivoId: { not: null } }],
-      },
-      select: { assetId: true, vinculoAposentadoria: true, planejamentoObjetivoId: true },
-    }),
+    carregarAportesMensais(userId, startDate, now),
   ]);
-
-  const assetsAposentadoria = new Set(
-    vinculos.filter((v) => v.vinculoAposentadoria && v.assetId).map((v) => v.assetId),
-  );
-  const assetsDeSonho = new Set(
-    vinculos.filter((v) => v.planejamentoObjetivoId && v.assetId).map((v) => v.assetId),
-  );
 
   // patFinal por mês: último snapshot do mês (ordenado asc → última escrita vence).
   const patByMonth = new Map<number, number>();
   for (const s of snapshots) {
     patByMonth.set(monthKey(s.date.getUTCFullYear(), s.date.getUTCMonth()), Number(s.totalValue));
-  }
-
-  // aporte líquido por mês (compras − vendas, excl. reinvestimento).
-  const aporteByMonth = new Map<number, number>();
-  const lastRateByAsset = new Map<string, number>();
-  const serieCambio = await carregarCambioDasTransacoes(transactions);
-  for (const tx of transactions) {
-    if (isReinvestimento(tx.notes)) continue;
-    if (ehImportacaoOpenFinance(tx.notes)) continue;
-    if (assetsAposentadoria.size > 0) {
-      if (!tx.assetId || !assetsAposentadoria.has(tx.assetId)) continue;
-    } else if (tx.assetId && assetsDeSonho.has(tx.assetId)) {
-      continue;
-    }
-    const key = monthKey(tx.date.getUTCFullYear(), tx.date.getUTCMonth());
-    // R$ legado: como sempre (total, sem somar taxas). US$: total × câmbio da tx + fees.
-    const total =
-      unidadeDaTransacao(tx, tx.asset) === 'USD'
-        ? totalBRLTransacao(
-            {
-              ...tx,
-              total: Number(tx.total) > 0 ? Number(tx.total) : tx.price * tx.quantity,
-            },
-            lastRateByAsset,
-            serieCambio,
-          )
-        : Number(tx.total) > 0
-          ? Number(tx.total)
-          : tx.price * tx.quantity;
-    const signed = tx.type === 'compra' ? total : -total;
-    aporteByMonth.set(key, (aporteByMonth.get(key) ?? 0) + signed);
   }
 
   const out: DerivedAcompanhamentoEntry[] = [];

@@ -9,8 +9,8 @@
  *    carteira toda menos os ativos de sonho;
  *  - transação em US$ entra em R$ pelo câmbio da transação (`totalBRLTransacao`).
  *
- * Relatório financeiro, fatia F0: assinatura + corpo copiado SEM mudar a lógica. A fatia F2 faz
- * acompanhamentoAuto.ts importar daqui e apaga a cópia de lá.
+ * A lógica saiu de acompanhamentoAuto.ts sem mudança (Relatório financeiro); o Acompanhamento
+ * importa daqui.
  */
 import { prisma } from '@/lib/prisma';
 import { unidadeDaTransacao } from '@/lib/ativoEmDolar';
