@@ -5,20 +5,24 @@
  * podem conter "PGBL", "dedução" nem "aporte". Os corpos com esses textos (secoes/real/* e adv/*)
  * só entram por next/dynamic, em chunks separados, quando o plano libera.
  *
- * Roda depois do `next build` (CI, job quality): lê o client-reference-manifest da rota, pega os
- * chunks de entrada da PÁGINA (sem os do layout do app, que são de outras telas) e procura as
- * palavras. Sai com código 1 e lista os achados.
+ * Roda depois do `next build` (CI, job quality): lê o app-build-manifest.json, pega os chunks
+ * de entrada da PÁGINA (sem os dos layouts que a envolvem, que são de outras telas) e procura as
+ * palavras. Sai com código 1 e lista os achados. (O client-reference-manifest do build de
+ * produção do Next 15 não traz entryJSFiles.)
  *
  * Uso: node scripts/checar-chunks-relatorio.mjs [pasta .next]
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import vm from 'node:vm';
 
 const NEXT = path.resolve(process.argv[2] ?? '.next');
 const ROTA = '/(admin)/(home)/relatorios/financeiro/page';
-const MANIFESTO = path.join(NEXT, 'server/app', `${ROTA}_client-reference-manifest.js`);
-const PROIBIDAS = /PGBL|dedu[cç]|aporte/gi;
+const MANIFESTO = path.join(NEXT, 'app-build-manifest.json');
+// PGBL só em maiúsculas: é como o texto ao usuário escreve. 'pgbl'/'Pgbl' em minúsculas são
+// identificadores do código compartilhado (queryKeys.ir.pgbl, irSimulacaoPgbl), não texto.
+// Dedução e aporte seguem sem diferenciar maiúsculas (pegam também nomes de campo como
+// aportesPeriodo, que a F3 tirou do chunk estático de propósito).
+const PROIBIDAS = /PGBL|[Dd][Ee][Dd][Uu][CcÇç]|[Aa][Pp][Oo][Rr][Tt][Ee]/g;
 
 function falhar(msg) {
   console.error(`checar-chunks-relatorio: ${msg}`);
@@ -27,28 +31,32 @@ function falhar(msg) {
 
 if (!fs.existsSync(MANIFESTO)) falhar(`manifesto não encontrado (${MANIFESTO}); rode o next build`);
 
-const ctx = { globalThis: {} };
-ctx.globalThis.__RSC_MANIFEST = {};
-vm.runInNewContext(fs.readFileSync(MANIFESTO, 'utf8'), ctx);
-const manifesto = ctx.globalThis.__RSC_MANIFEST[ROTA];
-if (!manifesto?.entryJSFiles) falhar(`manifesto sem entryJSFiles para ${ROTA}`);
+const paginas = JSON.parse(fs.readFileSync(MANIFESTO, 'utf8')).pages ?? {};
+const daRota = paginas[ROTA];
+if (!Array.isArray(daRota)) falhar(`manifesto sem a entrada ${ROTA}`);
 
-const entradas = Object.entries(manifesto.entryJSFiles);
-const chaveDaPagina = entradas.find(([k]) => k.endsWith('relatorios/financeiro/page'))?.[0];
-if (!chaveDaPagina) falhar('entrada da página não encontrada no manifesto');
-
-// Chunks que o layout do app também carrega são compartilhados com as outras telas: ficam de fora.
-const doLayout = new Set(
-  entradas.filter(([k]) => k !== chaveDaPagina).flatMap(([, arquivos]) => arquivos),
-);
-const daPagina = manifesto.entryJSFiles[chaveDaPagina].filter((f) => !doLayout.has(f));
+// Layouts que envolvem a rota ('/layout', '/(admin)/layout', '/(admin)/(home)/layout'...): os
+// chunks deles são compartilhados com as outras telas e ficam de fora.
+const segmentos = ROTA.split('/').slice(1, -1);
+const layouts = [
+  '/layout',
+  ...segmentos.map((_, i) => `/${segmentos.slice(0, i + 1).join('/')}/layout`),
+];
+const doLayout = new Set(layouts.flatMap((k) => paginas[k] ?? []));
+const daPagina = daRota.filter((f) => f.endsWith('.js') && !doLayout.has(f));
 if (daPagina.length === 0) falhar('nenhum chunk próprio da página');
 
 const achados = [];
 for (const rel of daPagina) {
   const arquivo = path.join(NEXT, rel.replace(/^static\//, 'static/'));
   if (!fs.existsSync(arquivo)) falhar(`chunk ausente: ${arquivo}`);
-  const texto = fs.readFileSync(arquivo, 'utf8');
+  // O build minificado escreve o que não é ASCII como \xNN/\uNNNN ('dedu\xe7\xe3o'):
+  // desfaz os escapes antes de procurar.
+  const texto = fs
+    .readFileSync(arquivo, 'utf8')
+    .replace(/\\(?:x([0-9a-fA-F]{2})|u([0-9a-fA-F]{4}))/g, (_, x, u) =>
+      String.fromCharCode(parseInt(x ?? u, 16)),
+    );
   for (const m of texto.matchAll(PROIBIDAS)) {
     const i = m.index ?? 0;
     achados.push(`${rel}: "${m[0]}" em …${texto.slice(Math.max(0, i - 60), i + 40)}…`);
