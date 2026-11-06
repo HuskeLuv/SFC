@@ -96,6 +96,17 @@ describe('sonhoRitmo (decisão 5)', () => {
     expect(r).toEqual({ status: 'warn', rotulo: 'Pausado', mesesSemAporte: 5 });
   });
 
+  it('"Em espera" (não iniciado) vira warn "Não iniciado", nunca "Sem aporte"', () => {
+    const r = sonhoRitmo({
+      statusApp: 'Em espera',
+      objetivo: OBJ,
+      saldo: 0,
+      mesesDecorridos: 4,
+      mesesSemAporte: 4,
+    });
+    expect(r).toEqual({ status: 'warn', rotulo: 'Não iniciado', mesesSemAporte: 4 });
+  });
+
   it('meses sem depósito contam só os fechados, do anterior para trás, até o início', () => {
     const entries = [
       { month: '2026-07', aporte: 500 },
@@ -169,6 +180,18 @@ describe('montarSonhos (6)', () => {
     ]);
     expect(a.historico.map((h) => h.valor)).toEqual([1000, 1000, 1000, 4000, 4500, 4500]);
     expect(lista[1]).toMatchObject({ status: 'warn', rotuloStatus: 'Pausado' });
+  });
+
+  it('sonho "Em espera" sem startDate: "Não iniciado", não conta como atrasado', async () => {
+    mockPrisma.planejamentoObjetivo.findMany.mockResolvedValue([
+      row('e', {
+        status: 'Em espera',
+        startDate: null,
+        createdAt: new Date('2026-07-10T00:00:00Z'),
+      }),
+    ]);
+    const [e] = await montarSonhos(ctxCom(1));
+    expect(e).toMatchObject({ status: 'warn', rotuloStatus: 'Não iniciado' });
   });
 
   it('sem depósito há meses: bad com N; leitura pura (nada gravado)', async () => {

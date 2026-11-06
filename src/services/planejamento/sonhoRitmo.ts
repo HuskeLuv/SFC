@@ -2,6 +2,8 @@
  * Ritmo de um sonho (Relatório financeiro, seção 6; decisão 5 do Wellington, 06/11/2026). Puro.
  *
  *  - "Pausado" pelo usuário → warn "Pausado";
+ *  - "Em espera" (sonho ainda sem nenhum registro; o app promove a "Iniciado" no 1º) → warn
+ *    "Não iniciado": não está atrasado nem no ritmo;
  *  - bad "Sem aporte há N meses": N ≥ 2 meses FECHADOS seguidos (contando do mês anterior para
  *    trás, a partir do início do sonho) sem registro com depósito > 0;
  *  - warn "Abaixo do ritmo": saldo < 95% do planejado para a data (planned(mesesDecorridos));
@@ -68,6 +70,9 @@ export interface EntradaRitmo {
 export function sonhoRitmo(e: EntradaRitmo): RitmoSonho {
   const { mesesSemAporte } = e;
   if (e.statusApp === 'Pausado') return { status: 'warn', rotulo: 'Pausado', mesesSemAporte };
+  if (e.statusApp === 'Em espera') {
+    return { status: 'warn', rotulo: 'Não iniciado', mesesSemAporte };
+  }
   if (mesesSemAporte >= MESES_SEM_DEPOSITO_ALERTA) {
     return { status: 'bad', rotulo: `Sem aporte há ${mesesSemAporte} meses`, mesesSemAporte };
   }
