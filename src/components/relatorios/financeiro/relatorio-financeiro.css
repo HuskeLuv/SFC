@@ -1111,6 +1111,33 @@
   .mf-rel .page {
     padding: 0;
   }
+  /* Folha e bloco em fluxo de bloco (o break-* não vale entre itens flex) e mais justos, para a
+     seção 3 com os gráficos e a 4b caberem; o rodapé acompanha o fim do conteúdo (nunca sozinho
+     numa folha) e o título do bloco acompanha o que vem embaixo. */
+  .mf-rel .page,
+  .mf-rel .block {
+    display: block;
+  }
+  .mf-rel .page > * + * {
+    margin-top: 14px;
+  }
+  .mf-rel .block > * + * {
+    margin-top: 8px;
+  }
+  .mf-rel .pf {
+    break-before: avoid;
+  }
+  .mf-rel h3 {
+    break-after: avoid;
+  }
+  .mf-rel .cover:last-child,
+  .mf-rel .page:last-child {
+    break-after: auto;
+  }
+  .mf-rel th,
+  .mf-rel td {
+    padding: 5px 8px;
+  }
   .mf-rel .tw {
     overflow: visible;
   }
