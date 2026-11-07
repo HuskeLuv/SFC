@@ -14,6 +14,7 @@
  */
 import type { Plano } from '@/lib/planos';
 import type { ResultadoIrpfAnual } from '@/services/ir/irpfAnual';
+import type { BlocoFgcRelatorio } from './relatorioFinanceiroFgc';
 
 export type { Plano } from '@/lib/planos';
 
@@ -212,8 +213,8 @@ export interface BlocoCarteiraAvancada {
   ipca: number | null;
   ibov: number | null;
   proventos: ProventosMesRelatorio[];
-  /** Fora da v1: o front mostra "em breve". */
-  fgc: null;
+  /** Cobertura do FGC (null = carga falhou: o front leva à tela de Análises). */
+  fgc: BlocoFgcRelatorio | null;
   /** Fora da v1: o front mostra "em breve". */
   irRendaVariavel: null;
 }

@@ -14,6 +14,8 @@ vi.mock('@/services/portfolio/resolveProventos', () => ({
 }));
 vi.mock('@/services/pricing/assetPriceService', () => ({ getAssetHistory: mockGetAssetHistory }));
 vi.mock('@/services/market/cambioUsdBrl', () => ({ carregarSerieCambio: mockCarregarSerieCambio }));
+// A cobertura do FGC tem teste próprio (fgc.test.ts); aqui só o encaixe no bloco.
+vi.mock('../fgc', () => ({ montarFgc: vi.fn(async () => null) }));
 
 import type { MesesRelatorio } from '@/types/relatorioFinanceiro';
 import type { ContextoMontador, Insumos, PontoPerformance } from '../insumos';
