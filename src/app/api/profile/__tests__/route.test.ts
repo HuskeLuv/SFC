@@ -319,6 +319,8 @@ describe('DELETE /api/profile', () => {
     expect(mockPrisma.user.update).not.toHaveBeenCalled();
     expect(mockPrisma.planningAssetTarget.deleteMany).not.toHaveBeenCalled();
     expect(mockBumpSessionVersion).not.toHaveBeenCalled();
+    // A assinatura paga não pode ser encerrada se a exclusão não vai até o fim.
+    expect(mockCancelarAssinaturasDaConta).not.toHaveBeenCalled();
   });
 
   it('assinatura (Stripe): cancela ANTES de anonimizar', async () => {
@@ -339,9 +341,13 @@ describe('DELETE /api/profile', () => {
     expect(mockCancelarAssinaturasDaConta.mock.invocationCallOrder[0]).toBeLessThan(
       mockPrisma.user.update.mock.invocationCallOrder[0],
     );
+    // Pluggy primeiro (não envolve dinheiro); o cancelamento irreversível vem por último.
+    expect(mockExcluirConexoesDoUsuario.mock.invocationCallOrder[0]).toBeLessThan(
+      mockCancelarAssinaturasDaConta.mock.invocationCallOrder[0],
+    );
   });
 
-  it('falha no Stripe ao cancelar a assinatura: 503 sem anonimizar nem desconectar bancos', async () => {
+  it('falha no Stripe ao cancelar a assinatura: 503 sem anonimizar', async () => {
     mockPrisma.user.findUnique.mockResolvedValue({
       id: 'user-1',
       email: 't@t.com',
@@ -358,7 +364,6 @@ describe('DELETE /api/profile', () => {
     expect(res.status).toBe(503);
     expect((await res.json()).error).toContain('cancelar sua assinatura');
     expect(mockPrisma.user.update).not.toHaveBeenCalled();
-    expect(mockExcluirConexoesDoUsuario).not.toHaveBeenCalled();
     expect(mockBumpSessionVersion).not.toHaveBeenCalled();
   });
 

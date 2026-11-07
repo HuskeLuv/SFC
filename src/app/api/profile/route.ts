@@ -195,14 +195,16 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Senha incorreta' }, { status: 403 });
   }
 
-  // Assinatura (Stripe): cancela na hora, sem reembolso automático, ANTES de anonimizar — se o
-  // Stripe falhar, responde 503 e a conta fica intacta (mesmo padrão do Pluggy abaixo). Com
-  // ASSINATURAS_HABILITADAS desligada e sem STRIPE_SECRET_KEY não faz nada.
-  await cancelarAssinaturasDaConta(me.id);
-
   // Open Finance: apaga as conexões no Pluggy (encerra o consentimento lá) ANTES de anonimizar —
   // se falhar, responde 503 e a conta fica intacta para o usuário tentar de novo.
   await excluirConexoesDoUsuario(me.id, getClientIp(req));
+
+  // Assinatura (Stripe): cancela na hora, sem reembolso automático, ANTES de anonimizar — se o
+  // Stripe falhar, responde 503 e a conta fica intacta. Fica por ÚLTIMO entre os passos externos
+  // porque é irreversível e envolve dinheiro: uma falha no Pluggy acima não pode deixar o usuário
+  // sem o plano pago e com a conta ainda ativa. Com ASSINATURAS_HABILITADAS desligada e sem
+  // STRIPE_SECRET_KEY não faz nada.
+  await cancelarAssinaturasDaConta(me.id);
 
   // Senha aleatória — impede login mesmo se o email anonimizado coincidir
   // com algum outro. bcrypt cost 10 só pra ser consistente.
