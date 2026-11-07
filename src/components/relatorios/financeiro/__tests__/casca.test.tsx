@@ -287,13 +287,23 @@ describe('seção 9 — Como ler', () => {
     expect(s9.innerHTML).not.toMatch(APORTE);
   });
 
-  it('Advanced: saúde, proventos e os blocos em breve', () => {
+  it('Advanced: saúde, proventos e os métodos de FGC, IR mensal e dívidas, sem "em breve"', () => {
     const { container } = renderDoc(12, 'adv');
     const s9 = secao(container, 9);
     expect(s9.textContent).toContain('A nota de 0 a 100 é provisória');
-    expect(s9.textContent).toContain(
-      'a evolução das dívidas mês a mês, a cobertura do FGC e o IR mensal de ações e FIIs',
-    );
+    expect(s9.textContent).toContain('R$ 250 mil por banco emissor e teto global de R$ 1 milhão');
+    expect(s9.textContent).toContain('DARF abaixo de R$ 10 acumula para o mês seguinte');
+    expect(s9.textContent).toContain('pelo cronograma de cada contrato e pelos pagamentos');
+    expect(s9.textContent).not.toMatch(/em breve/i);
+  });
+
+  it('Basic n=1: sem as notas de FGC/IR mensal e sem a evolução das dívidas', () => {
+    const { container } = renderDoc(1, 'basic');
+    const s9 = secao(container, 9);
+    expect(s9.textContent).not.toContain('FGC');
+    expect(s9.textContent).not.toContain('IR mensal');
+    expect(s9.textContent).not.toContain('pelos pagamentos registrados');
+    expect(s9.textContent).not.toMatch(/em breve/i);
   });
 });
 
