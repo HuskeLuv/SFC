@@ -241,6 +241,21 @@ PLAN_P[0] = PAT[0] * 1.004;
 const APORTE_P = MLAB.map((_, m) => Math.round(3500 * Math.pow(1.004, m)));
 for (let m = 1; m < 12; m++) PLAN_P[m] = PLAN_P[m - 1] * (1 + META_M / 100) + APORTE_P[m];
 
+// IR mensal de renda variável (IRM do protótipo): sorteado logo depois dos proventos.
+const IRM = MLAB.map(() => {
+  const va = Math.round(6000 + R() * 22000);
+  const la = Math.round((R() - 0.3) * 3200);
+  const lf = Math.round((R() - 0.2) * 1400);
+  return {
+    vendasAcoes: va,
+    lucroAcoes: la,
+    isento: va <= 20000,
+    irAcoes: va > 20000 && la > 0 ? la * 0.15 : 0,
+    lucroFii: lf,
+    irFii: lf > 0 ? lf * 0.2 : 0,
+  };
+});
+
 const DREAMS = [
   {
     nome: 'Reserva de emergência',
@@ -419,7 +434,32 @@ function carteiraAvancadaExemplo(n: number): BlocoCarteiraAvancada {
       exterior: p.ext,
     })),
     fgc: fgcExemplo(),
-    irRendaVariavel: null,
+    irRendaVariavel: {
+      meses: IRM.slice(12 - n).map((r, k) => {
+        const t = r.irAcoes + r.irFii;
+        return {
+          mes: mesDe(12 - n + k),
+          vendasAcoes: r.vendasAcoes,
+          vendasEtf: 0,
+          isentoAcoes: r.isento,
+          lucroAcoes: r.lucroAcoes,
+          prejuizoCompensadoAcoes: 0,
+          irAcoes: r.irAcoes,
+          vendasFii: 0,
+          lucroFii: r.lucroFii,
+          prejuizoCompensadoFii: 0,
+          irFii: r.irFii,
+          irMes: t,
+          acumuladoAnterior: 0,
+          darf:
+            t >= 10
+              ? { status: 'pagar' as const, valor: t }
+              : t > 0
+                ? { status: 'acumula' as const, valor: t }
+                : { status: 'sem' as const, valor: 0 },
+        };
+      }),
+    },
   };
 }
 

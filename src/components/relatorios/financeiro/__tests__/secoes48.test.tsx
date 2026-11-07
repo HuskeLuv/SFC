@@ -53,13 +53,13 @@ function comSentinelas(plano: RelatorioFinanceiro['plano'], meses: MesesRelatori
 const fmtSentinela = '987.654.321';
 
 describe('seções 4 a 8 no Advanced (corpo real)', () => {
-  it('4: carteira 4a + 4b com os rótulos do Pedro, o FGC e o cartão "em breve" com link', async () => {
+  it('4: carteira 4a + 4b com os rótulos do Pedro, o FGC e o IR mensal', async () => {
     const rel = relatorioExemplo(12, 'adv');
-    const { container } = await renderSecao(
-      <SecaoCarteira relatorio={rel} />,
-      '.callout a[href="/carteira?aba=analise"]',
-    );
+    const { container } = await renderSecao(<SecaoCarteira relatorio={rel} />);
     await waitFor(() => expect(container.textContent).toContain('Aportes no período'));
+    await waitFor(() =>
+      expect(container.textContent).toContain('apuração mensal de renda variável'),
+    );
     expect(container.querySelector('.sec-num')!.textContent).toBe('4');
     expect(container.querySelector('.locked')).toBeNull();
     expect(container.textContent).toContain('Patrimônio investido');
@@ -69,10 +69,11 @@ describe('seções 4 a 8 no Advanced (corpo real)', () => {
     expect(container.textContent).toContain('Rentabilidade (TWR)');
     expect(container.textContent).toContain('Proventos recebidos');
     const links = [...container.querySelectorAll('.callout a')].map((a) => a.textContent);
-    expect(links).toEqual(['Análises > IR']);
+    expect(links).toEqual([]);
     expect(container.textContent).not.toContain('Cobertura do FGC: em breve');
     expect(container.textContent).toContain('47,1% do teto global de R$ 1 milhão');
-    expect(container.textContent).toContain('IR mensal de ações e FIIs: em breve no relatório');
+    expect(container.textContent).not.toContain('IR mensal de ações e FIIs: em breve');
+    expect(container.textContent).toContain('apuração mensal de renda variável');
     // 6 fatias na rosca, 12 barras no histórico
     expect(container.querySelectorAll('.dl > div')).toHaveLength(6);
   });
