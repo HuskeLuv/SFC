@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma';
+import { ehImportacaoOpenFinance } from '@/services/pluggy/notaImportacao';
 import { logger } from '@/lib/logger';
 import { unidadeDaTransacao } from '@/lib/ativoEmDolar';
 import {
@@ -289,6 +290,15 @@ export interface InvestimentosPorMes {
    * compra marcada sumia do ano e reaparecia só na base aplicada da virada.
    */
   reinvestimentoPorMes: number[];
+  /**
+   * Líquido mensal das posições IMPORTADAS do Open Finance (notes = NOTA_IMPORTACAO). É a
+   * carteira que a pessoa já tinha no banco, não dinheiro que saiu do caixa no mês: fica fora do
+   * Aporte/Resgate e do Fluxo de Caixa Livre (mesma regra dos aportes do planejamento), mas é
+   * patrimônio — a Evolução do Patrimônio soma esta série. Sem isso, quem importa a carteira pelo
+   * Open Finance via o aporte e o "resgate" do fluxo livre se anularem e a Evolução ficava só com
+   * a base aplicada (ticket 86e3zhgzx: R$ 1,2 mi investidos, Evolução em R$ 69 mil).
+   */
+  importacaoPorMes: number[];
   /** Tipos de ativo com movimento (inclui 'reinvestimento'/'planejamento' quando houver). */
   tipos: Set<string>;
 }
@@ -400,15 +410,17 @@ export async function computeInvestimentosPorMes(
     // compra) → Tesouro de reserva → tipo do Asset.
     const tipoAtivo = isReinvestimentoTransaction(transacao.notes)
       ? 'reinvestimento'
-      : transacao.assetId && assetsDeSonho.has(transacao.assetId)
-        ? 'planejamento'
-        : ((transacao.assetId
-            ? tipoFluxoDoOverride(transacao.asset, overridePorAsset.get(transacao.assetId), {
-                reservaDestino: reservaDestinoBase.get(transacao.assetId) ?? null,
-              })
-            : null) ??
-          tipoReservaTesouro ??
-          mapTransactionToTipo(transacao));
+      : ehImportacaoOpenFinance(transacao.notes)
+        ? 'importacao'
+        : transacao.assetId && assetsDeSonho.has(transacao.assetId)
+          ? 'planejamento'
+          : ((transacao.assetId
+              ? tipoFluxoDoOverride(transacao.asset, overridePorAsset.get(transacao.assetId), {
+                  reservaDestino: reservaDestinoBase.get(transacao.assetId) ?? null,
+                })
+              : null) ??
+            tipoReservaTesouro ??
+            mapTransactionToTipo(transacao));
 
     tipos.add(tipoAtivo);
     porTipo[tipoAtivo] = porTipo[tipoAtivo] || {};
@@ -424,9 +436,19 @@ export async function computeInvestimentosPorMes(
       return Math.round(total * 100) / 100;
     });
 
-  const totaisPorMes = somaMes((tipo) => tipo !== 'reinvestimento' && tipo !== 'planejamento');
+  const totaisPorMes = somaMes(
+    (tipo) => tipo !== 'reinvestimento' && tipo !== 'planejamento' && tipo !== 'importacao',
+  );
   const planejamentoPorMes = somaMes((tipo) => tipo === 'planejamento');
   const reinvestimentoPorMes = somaMes((tipo) => tipo === 'reinvestimento');
+  const importacaoPorMes = somaMes((tipo) => tipo === 'importacao');
 
-  return { porTipo, totaisPorMes, planejamentoPorMes, reinvestimentoPorMes, tipos };
+  return {
+    porTipo,
+    totaisPorMes,
+    planejamentoPorMes,
+    reinvestimentoPorMes,
+    importacaoPorMes,
+    tipos,
+  };
 }

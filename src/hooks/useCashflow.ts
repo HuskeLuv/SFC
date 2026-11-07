@@ -31,6 +31,7 @@ export const useCashflowData = (year?: number) => {
     investimentos: InvestimentoCalculado[];
     totaisPlanejamentoPorMes: number[];
     totaisReinvestimentosPorMes: number[];
+    totaisImportacaoPorMes: number[];
   }>({
     queryKey: queryKeys.cashflow.investimentos(currentYear),
     queryFn: async ({ signal }) => {
@@ -44,6 +45,7 @@ export const useCashflowData = (year?: number) => {
         investimentos: responseData.investimentos || [],
         totaisPlanejamentoPorMes: responseData.totaisPlanejamentoPorMes || Array(12).fill(0),
         totaisReinvestimentosPorMes: responseData.totaisReinvestimentosPorMes || Array(12).fill(0),
+        totaisImportacaoPorMes: responseData.totaisImportacaoPorMes || Array(12).fill(0),
       };
     },
   });
@@ -71,6 +73,8 @@ export const useCashflowData = (year?: number) => {
     // precisa da série cheia.
     planejamentoPorMes: investimentosQuery.data?.totaisPlanejamentoPorMes,
     reinvestimentosPorMes: investimentosQuery.data?.totaisReinvestimentosPorMes,
+    // Posições importadas do Open Finance (carteira que já existia no banco).
+    importacaoPorMes: investimentosQuery.data?.totaisImportacaoPorMes,
     loading: groupsQuery.isLoading || investimentosQuery.isLoading,
     error: groupsQuery.error ? (groupsQuery.error as Error).message : null,
     refetch,

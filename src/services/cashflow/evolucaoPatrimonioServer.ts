@@ -77,11 +77,17 @@ export async function getAportesPorMes(
   userId: string,
   year: number,
 ): Promise<{ totaisPorMes: number[]; aportesFullPorMes: number[] }> {
-  const { totaisPorMes, planejamentoPorMes, reinvestimentoPorMes } =
+  const { totaisPorMes, planejamentoPorMes, reinvestimentoPorMes, importacaoPorMes } =
     await computeInvestimentosPorMes(userId, year);
   const aportesFullPorMes = totaisPorMes.map(
     (v, i) =>
-      Math.round((v + (planejamentoPorMes[i] || 0) + (reinvestimentoPorMes[i] || 0)) * 100) / 100,
+      Math.round(
+        (v +
+          (planejamentoPorMes[i] || 0) +
+          (reinvestimentoPorMes[i] || 0) +
+          (importacaoPorMes[i] || 0)) *
+          100,
+      ) / 100,
   );
   return { totaisPorMes, aportesFullPorMes };
 }

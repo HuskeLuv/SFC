@@ -30,6 +30,8 @@ interface UseCashflowDerivedRowsArgs {
   planejamentoPorMes?: number[];
   /** Operações "dinheiro já estava investido" por mês (série cheia da Evolução). */
   reinvestimentosPorMes?: number[];
+  /** Posições importadas do Open Finance por mês (série cheia da Evolução). */
+  importacaoPorMes?: number[];
 }
 
 const findGroupByType = (groups: CashflowGroup[], type: string): CashflowGroup | null => {
@@ -56,6 +58,7 @@ export function useCashflowDerivedRows({
   proventos,
   planejamentoPorMes,
   reinvestimentosPorMes,
+  importacaoPorMes,
 }: UseCashflowDerivedRowsArgs) {
   const { groups, groupTotals, groupAnnualTotals, entradasByMonth, despesasByMonth } =
     processedData;
@@ -190,7 +193,11 @@ export function useCashflowDerivedRows({
     // patrimônio do mesmo jeito — sem somá-los, a posição pré-existente sumia
     // da Evolução do ano e reaparecia na base aplicada da virada (degrau).
     const aportesFullByMonth = investimentosByMonth.map(
-      (v, i) => v + (planejamentoPorMes?.[i] || 0) + (reinvestimentosPorMes?.[i] || 0),
+      (v, i) =>
+        v +
+        (planejamentoPorMes?.[i] || 0) +
+        (reinvestimentosPorMes?.[i] || 0) +
+        (importacaoPorMes?.[i] || 0),
     );
     return computeEvolucaoSeries({
       baseAplicada: evolucaoData?.baseAplicadaAnterior ?? 0,
@@ -204,6 +211,7 @@ export function useCashflowDerivedRows({
     investimentosByMonth,
     planejamentoPorMes,
     reinvestimentosPorMes,
+    importacaoPorMes,
     fluxoCaixaLivreByMonth,
     saldoContaCorrenteAnteriorByMonth,
   ]);
