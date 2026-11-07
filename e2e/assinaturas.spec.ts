@@ -6,9 +6,9 @@ import { planoExigidoPelaRota } from '../src/services/planos/acessoRotas';
  * ASSINATURAS_HABILITADAS ligada e valores FAKE (playwright.config.ts) e os usuários de
  * prisma/seedAssinaturas.ts. Nada chama o Stripe: o Checkout é interceptado com page.route.
  *
- * Enquanto as rotas da F1 (/api/assinaturas/*) não estiverem na main, o /me responde 404; o
- * teste então devolve um /me de exemplo do plano do usuário (o código do app já trata o 404 como
- * chave desligada). Com a F1 na main, o /me real passa direto.
+ * O /me é o real (F1). Só o pós-Checkout é simulado: o Checkout é interceptado e nenhum webhook
+ * chega, então depois dele o teste devolve um /me de exemplo do novo plano. Um 404 do /me (rotas
+ * ausentes) também cai no exemplo.
  */
 
 type Usuario = 'basic' | 'pro';
@@ -46,8 +46,10 @@ const ME_EXEMPLO = {
 async function entrar(page: Page, usuario: Usuario, opts: { meDepoisDoCheckout?: Usuario } = {}) {
   let meAtual: Usuario = usuario;
   await page.route('**/api/assinaturas/me**', async (route) => {
-    const real = await route.fetch().catch(() => null);
-    if (real && real.status() !== 404) return route.fulfill({ response: real });
+    if (meAtual === usuario) {
+      const real = await route.fetch().catch(() => null);
+      if (real && real.status() !== 404) return route.fulfill({ response: real });
+    }
     return route.fulfill({ json: ME_EXEMPLO[meAtual] });
   });
   if (opts.meDepoisDoCheckout) {
