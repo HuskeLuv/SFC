@@ -40,8 +40,8 @@ describe('ACESSO_ROTAS cobre todas as rotas da API', () => {
   });
 
   it('todo prefixo de ACESSO_ROTAS casa com alguma rota (sem entrada morta)', () => {
-    // Reservados: /api/public (citado no desenho, ainda sem rota) e /api/assinaturas (rotas da F1).
-    const reservados = new Set(['/api/public', '/api/assinaturas']);
+    // Reservado: /api/public (citado no desenho, ainda sem rota).
+    const reservados = new Set(['/api/public']);
     const mortos = Object.keys(ACESSO_ROTAS).filter(
       (k) => !reservados.has(k) && !todas.some((r) => classificarRota(r)?.prefixo === k),
     );
