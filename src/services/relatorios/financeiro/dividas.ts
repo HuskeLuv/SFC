@@ -31,6 +31,7 @@ import {
   gerarCronograma,
   parcelasCortadasDe,
   resumoDivida,
+  saldoFinanciamento,
   type PagamentoDividaInput,
   type ParcelaCronograma,
 } from '@/services/dividas/amortizacao';
@@ -311,14 +312,36 @@ function inicioDaDivida(d: EntradaDivida): string | null {
   return d.modalidade === 'financiamento' ? d.primeiroVencimento : d.dataSaldoInicial;
 }
 
-/** Saldo no fim de um mês PASSADO: o mesmo resumo do app só com os pagamentos até ali. */
-function saldoNoFimDe(d: EntradaDivida, fatores: FatoresDivida, mes: string): number {
+/** Cronograma COMPLETO (o que `resumoDivida` usa para o saldo), gerado uma vez por dívida. */
+function cronogramaCompleto(d: EntradaDivida): ParcelaCronograma[] | null {
+  if (!ehFinanciamentoCompleto(d)) return null;
+  return gerarCronograma({
+    principal: d.principal!,
+    taxaAm: d.taxaAm!,
+    prazoMeses: d.prazoMeses!,
+    primeiroVencimento: d.primeiroVencimento!,
+    sistema: d.sistema!,
+  });
+}
+
+/**
+ * Saldo no fim de um mês PASSADO: a mesma conta de `resumoDivida` (saldoFinanciamento sobre o
+ * cronograma completo; rotativa pelo resumo) só com os pagamentos até ali.
+ */
+function saldoNoFimDe(
+  d: EntradaDivida,
+  fatores: FatoresDivida,
+  mes: string,
+  completo: ParcelaCronograma[] | null,
+): number {
   const inicio = inicioDaDivida(d);
   if (!inicio || mes < inicio) return 0;
   const pagamentos = d.pagamentos.filter((p) => p.month <= mes);
-  const resumo = resumoDivida(d, pagamentos);
+  const saldo = completo
+    ? saldoFinanciamento(d.principal!, completo, pagamentos, d.taxaAm!).saldoDevedor
+    : resumoDivida(d, pagamentos).saldoDevedor;
   const fator = d.modalidade === 'financiamento' ? fatorFimDoMes(fatores.mensais, mes) : 1;
-  return round2(resumo.saldoDevedor * fator);
+  return round2(saldo * fator);
 }
 
 /**
@@ -367,13 +390,17 @@ export function montarSerieDividas(
 ): PontoSerieDividas[] {
   const abertas = dividas
     .filter(({ entrada }) => entrada.status !== 'quitada')
-    .map((d) => ({ ...d, crono: cronogramaEfetivo(d.entrada) }));
+    .map((d) => ({
+      ...d,
+      crono: cronogramaEfetivo(d.entrada),
+      completo: cronogramaCompleto(d.entrada),
+    }));
   return meses.map((mes) => {
     let saldo = 0;
     let juros = 0;
     let amortizacao = 0;
-    for (const { entrada, fatores, saldoAtual, crono } of abertas) {
-      const s = mes >= mesAtual ? saldoAtual : saldoNoFimDe(entrada, fatores, mes);
+    for (const { entrada, fatores, saldoAtual, crono, completo } of abertas) {
+      const s = mes >= mesAtual ? saldoAtual : saldoNoFimDe(entrada, fatores, mes, completo);
       const p = parcelaDoMes(entrada, fatores, mes, s, crono);
       saldo += s;
       juros += p.juros;
