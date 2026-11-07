@@ -314,13 +314,17 @@ describe('montarAssinaturaMe', () => {
       status: 'aberto',
       createdAt: AGORA,
       atendidoEm: null,
-      stripeSubscriptionId: 'sub_1',
     });
     const me = await montarAssinaturaMe({
       userId: 'user-1',
       requisitanteId: 'user-1',
       agora: AGORA,
     });
+    expect(mockPrisma.assinaturaPedido.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: 'user-1', tipo: 'arrependimento', stripeSubscriptionId: 'sub_1' },
+      }),
+    );
     expect(me.podeDesistirAte).toBeNull();
     expect(me.pedidoArrependimento).toEqual({
       protocolo: 'ped_1',
@@ -328,6 +332,22 @@ describe('montarAssinaturaMe', () => {
       criadoEm: AGORA.toISOString(),
       atendidoEm: null,
     });
+  });
+
+  it('pedido de uma assinatura anterior não esconde a desistência da compra nova', async () => {
+    // O banco filtra pela assinatura atual (sub_1): o pedido antigo (sub_0) não volta.
+    mockPrisma.assinaturaPedido.findFirst.mockImplementation(async ({ where }) =>
+      where.stripeSubscriptionId === 'sub_0'
+        ? { id: 'ped_0', status: 'atendido', createdAt: AGORA, atendidoEm: AGORA }
+        : null,
+    );
+    const me = await montarAssinaturaMe({
+      userId: 'user-1',
+      requisitanteId: 'user-1',
+      agora: AGORA,
+    });
+    expect(me.podeDesistirAte).toBe(new Date(AGORA.getTime() + 5 * DIA).toISOString());
+    expect(me.pedidoArrependimento).toBeNull();
   });
 
   it('past_due mostra carenciaAte', async () => {

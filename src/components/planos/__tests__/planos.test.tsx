@@ -282,8 +282,10 @@ describe('MinhaAssinatura', () => {
     const { unmount } = comQuery(<MinhaAssinatura agora={new Date('2026-11-20T12:00:00Z')} />);
     expect(screen.queryByRole('button', { name: /Desistir da compra/ })).toBeNull();
     unmount();
+    // Contrato do /me: com pedido desta assinatura, o servidor zera podeDesistirAte.
     ligar({
       ...ME_PRO,
+      podeDesistirAte: null,
       pedidoArrependimento: {
         protocolo: 'ped_123',
         status: 'aberto',
@@ -296,6 +298,16 @@ describe('MinhaAssinatura', () => {
     expect(
       screen.getByText(/Pedido de desistência recebido em 09\/11, protocolo ped_123/),
     ).toBeInTheDocument();
+  });
+
+  it('assinatura nova depois de uma desistência anterior: o botão Desistir volta', () => {
+    // /me de uma compra nova: podeDesistirAte preenchido e nenhum pedido desta assinatura.
+    ligar({ ...ME_PRO, pedidoArrependimento: null });
+    comQuery(<MinhaAssinatura agora={new Date('2026-11-10T12:00:00Z')} />);
+    expect(
+      screen.getByRole('button', { name: 'Desistir da compra (até 14/11)' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Desistência concluída/)).toBeNull();
   });
 
   it('basic: Ver planos e nada de Portal; consultor: só leitura', () => {

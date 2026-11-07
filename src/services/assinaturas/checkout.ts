@@ -235,21 +235,21 @@ export async function montarAssinaturaMe({
   const resolucao = await resolverAssinatura(userId, { agora });
   const linha = resolucao.assinatura;
   const status = comoStatus(linha?.status);
-  const ultimoPedido = await prisma.assinaturaPedido.findFirst({
-    where: { userId, tipo: 'arrependimento' },
-    orderBy: { createdAt: 'desc' },
-    select: {
-      id: true,
-      status: true,
-      createdAt: true,
-      atendidoEm: true,
-      stripeSubscriptionId: true,
-    },
-  });
+  // Só o pedido da assinatura ATUAL: o de uma compra anterior (já desistida e reembolsada) não
+  // pode esconder o botão nem aparecer como se fosse desta compra (Decreto 7.962, art. 5º).
+  const pedidoDestaAssinatura = linha?.stripeSubscriptionId
+    ? await prisma.assinaturaPedido.findFirst({
+        where: {
+          userId,
+          tipo: 'arrependimento',
+          stripeSubscriptionId: linha.stripeSubscriptionId,
+        },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, status: true, createdAt: true, atendidoEm: true },
+      })
+    : null;
 
   const fimJanela = fimJanelaArrependimento(linha, agora);
-  const jaPediuNestaAssinatura =
-    !!ultimoPedido && ultimoPedido.stripeSubscriptionId === linha?.stripeSubscriptionId;
 
   const plano = agindo
     ? maxPlano(resolucao.plano, await planoDoUsuario(requisitanteId))
@@ -270,8 +270,8 @@ export async function montarAssinaturaMe({
     cortesiaAte: comAcessoGratis ? iso(resolucao.acessoAte) : null,
     carenciaAte: status === 'past_due' ? iso(linha?.carenciaAte) : null,
     podeAssinar: !agindo && !STATUS_BLOQUEIA_CHECKOUT.includes(status),
-    podeDesistirAte: !agindo && !jaPediuNestaAssinatura ? iso(fimJanela) : null,
-    pedidoArrependimento: ultimoPedido ? pedidoMe(ultimoPedido) : null,
+    podeDesistirAte: !agindo && !pedidoDestaAssinatura ? iso(fimJanela) : null,
+    pedidoArrependimento: pedidoDestaAssinatura ? pedidoMe(pedidoDestaAssinatura) : null,
     habilitado: true,
   };
 }

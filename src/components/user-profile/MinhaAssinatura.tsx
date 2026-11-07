@@ -255,7 +255,9 @@ export default function MinhaAssinatura({
   const leitura = estado === 'consultor';
   const paga = estado === 'ativa' || estado === 'cancelada' || estado === 'falha';
   const pedido = me.pedidoArrependimento;
-  const podeDesistir = !leitura && paga && !pedido && aindaVale(me.podeDesistirAte, ref);
+  // O servidor já zera podeDesistirAte quando há pedido desta assinatura; um pedido de compra
+  // anterior não esconde o botão da compra nova.
+  const podeDesistir = !leitura && paga && aindaVale(me.podeDesistirAte, ref);
 
   const desistir = async () => {
     setEnviando(true);
