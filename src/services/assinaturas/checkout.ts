@@ -90,7 +90,8 @@ export async function criarSessaoPortal(customerId: string): Promise<UrlRedireci
 /**
  * Checkout hospedado (mode subscription, BRL, só cartão). Se o Customer já tiver assinatura
  * active/trialing/past_due/incomplete, devolve o Portal em vez de uma sessão nova. O cupom da
- * Black Friday é decidido AQUI: só no anual e só com a oferta vigente.
+ * Black Friday é decidido AQUI: só no anual e só com a oferta vigente; anual na oferta sem o cupom
+ * no env = 503 (nunca cobrar acima do preço anunciado).
  */
 export async function criarSessaoCheckout(pedido: PedidoCheckout): Promise<ResultadoCheckout> {
   const agora = pedido.agora ?? new Date();
@@ -103,6 +104,15 @@ export async function criarSessaoCheckout(pedido: PedidoCheckout): Promise<Resul
     throw new ApiError(503, 'Este plano está indisponível no momento. Tente mais tarde.');
   }
 
+  // As telas anunciam o anual com desconto só pela data (ofertaVigente). Sem o cupom no env, o
+  // Checkout cobraria o preço cheio, acima do anunciado (CDC): recusa como erro de configuração.
+  const cupom =
+    pedido.intervalo === 'ano' && ofertaVigente(agora) ? cupomOfertaAnual(pedido.plano) : null;
+  if (pedido.intervalo === 'ano' && ofertaVigente(agora) && !cupom) {
+    logger.error('[assinaturas] Oferta vigente sem cupom configurado', { plano: pedido.plano });
+    throw new ApiError(503, 'Este plano está indisponível no momento. Tente mais tarde.');
+  }
+
   const customer = await garantirCustomer(pedido);
   const stripe = obterStripe();
 
@@ -111,8 +121,6 @@ export async function criarSessaoCheckout(pedido: PedidoCheckout): Promise<Resul
     return { ...(await criarSessaoPortal(customer)), destino: 'portal' };
   }
 
-  const cupom =
-    pedido.intervalo === 'ano' && ofertaVigente(agora) ? cupomOfertaAnual(pedido.plano) : null;
   const app = assinaturasAppUrl();
   const params: Stripe.Checkout.SessionCreateParams = {
     mode: 'subscription',

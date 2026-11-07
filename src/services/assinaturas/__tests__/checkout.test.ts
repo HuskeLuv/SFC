@@ -129,9 +129,18 @@ describe('criarSessaoCheckout', () => {
     expect(params.discounts).toBeUndefined();
   });
 
-  it('anual sem cupom no env vai sem desconto', async () => {
+  it('anual na oferta sem cupom no env: 503 e nada vai ao Stripe (nunca cobra acima do anunciado)', async () => {
     vi.stubEnv('STRIPE_COUPON_BF_PRO_ANUAL', '');
-    await criarSessaoCheckout(pedido({ intervalo: 'ano' }));
+    await expect(criarSessaoCheckout(pedido({ intervalo: 'ano' }))).rejects.toMatchObject({
+      statusCode: 503,
+    });
+    expect(stripe.customers.create).not.toHaveBeenCalled();
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it('anual depois da oferta sem cupom no env segue normal (sem desconto)', async () => {
+    vi.stubEnv('STRIPE_COUPON_BF_PRO_ANUAL', '');
+    await criarSessaoCheckout(pedido({ intervalo: 'ano', agora: DEPOIS_DA_OFERTA }));
     expect(stripe.checkout.sessions.create.mock.calls[0][0].discounts).toBeUndefined();
   });
 
