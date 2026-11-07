@@ -10,6 +10,7 @@ import Providers from './providers';
 import CookieConsentBanner from '@/components/legal/CookieConsentBanner';
 import ServiceWorkerRegistrar from '@/components/pwa/ServiceWorkerRegistrar';
 import { valoresOcultosHabilitado } from '@/lib/valoresOcultosConfig';
+import { assinaturasHabilitadas } from '@/lib/assinaturasConfig';
 import { COOKIE_VALORES_OCULTOS, lerCookieValoresOcultos } from '@/utils/valoresOcultos';
 
 // Self-hosted (src/fonts) para o build não depender do Google Fonts — o
@@ -91,7 +92,12 @@ export default async function RootLayout({
       suppressHydrationWarning={habilitado || undefined}
     >
       <body className={`${albertSans.className} dark:bg-gray-900`}>
-        <Providers valoresOcultos={{ habilitado, inicial: ocultos }}>{children}</Providers>
+        <Providers
+          valoresOcultos={{ habilitado, inicial: ocultos }}
+          assinaturasHabilitadas={assinaturasHabilitadas()}
+        >
+          {children}
+        </Providers>
         <ServiceWorkerRegistrar />
         <CookieConsentBanner />
       </body>
