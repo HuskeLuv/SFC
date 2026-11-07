@@ -142,7 +142,7 @@ describe('Cobertura do FGC na seção 4 por plano', () => {
     expect(container.textContent).toContain('47,1% do teto global de R$ 1 milhão');
   });
 
-  it('Advanced com o olho fechado: valores em R$ escondidos, percentuais visíveis', async () => {
+  it('Advanced com o olho fechado: valores em R$ e % do limite escondidos, tag visível', async () => {
     ocultos.ativo = true;
     try {
       const { FormatoProvider } = await import('../FormatoProvider');
@@ -155,7 +155,11 @@ describe('Cobertura do FGC na seção 4 por plano', () => {
       const linha = container.querySelector('[data-fgc-emissor]')!;
       expect(linha.textContent).not.toContain('123.457');
       expect(linha.textContent).toContain('R$ ••••');
-      expect(linha.textContent).toContain('49,4% de R$ 250 mil por emissor');
+      // % de um limite fixo revela o valor: sai junto com a barra e o % do teto global.
+      expect(linha.textContent).not.toContain('49,4%');
+      expect(linha.textContent).toContain('Limite de R$ 250 mil por emissor');
+      expect(linha.querySelector('.prog')).toBeNull();
+      expect(container.textContent).not.toContain('do teto global');
     } finally {
       ocultos.ativo = false;
     }

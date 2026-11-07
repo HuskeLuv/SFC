@@ -61,7 +61,9 @@ function Aviso({ aviso, fR0 }: { aviso: AvisoFgcRelatorio; fR0: (v: number) => s
  * banco emissor e o teto global de R$ 1 milhão. null = a carga falhou no servidor.
  */
 export function CoberturaFgcReal({ fgc }: { fgc: BlocoFgcRelatorio | null }) {
-  const { fR0 } = useFormato();
+  // Com o olho fechado o % sai também: % de um limite fixo (R$ 250 mil, R$ 1 milhão) revela o
+  // valor. Fica só a tag de status.
+  const { fR0, ocultos } = useFormato();
   if (!fgc) {
     return (
       <Callout>
@@ -76,7 +78,7 @@ export function CoberturaFgcReal({ fgc }: { fgc: BlocoFgcRelatorio | null }) {
   return (
     <ChartBox
       titulo="Cobertura do FGC"
-      sub={vazio ? undefined : `${fP(fgc.pctTetoGlobal)} do teto global de R$ 1 milhão`}
+      sub={vazio || ocultos ? undefined : `${fP(fgc.pctTetoGlobal)} do teto global de R$ 1 milhão`}
     >
       {vazio ? (
         <p className="fine">Nenhum investimento coberto pelo FGC na carteira.</p>
@@ -93,10 +95,11 @@ export function CoberturaFgcReal({ fgc }: { fgc: BlocoFgcRelatorio | null }) {
                     </span>
                     <b>{fR0(e.valorCoberto)}</b>
                   </div>
-                  <Progresso pct={e.pctLimite} tom={tom} />
+                  {ocultos ? null : <Progresso pct={e.pctLimite} tom={tom} />}
                   <div className="row">
                     <span>
-                      {fP(e.pctLimite)} de R$ 250 mil por emissor
+                      {ocultos ? 'Limite de R$ 250 mil' : `${fP(e.pctLimite)} de R$ 250 mil`} por
+                      emissor
                       {e.excedente > 0 ? ` · ${fR0(e.excedente)} acima` : ''}
                     </span>
                     <Tag tom={tom}>{ROTULO_FGC[e.status]}</Tag>
