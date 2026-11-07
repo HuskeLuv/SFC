@@ -2,8 +2,10 @@ import type { Metadata } from 'next';
 import LegalArticle from '@/components/legal/LegalArticle';
 import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import { pluggyHabilitado } from '@/lib/pluggyConfig';
+import { assinaturasHabilitadas } from '@/lib/assinaturasConfig';
 
-// A linha do Open Finance depende de PLUGGY_HABILITADO (lido a cada request).
+// A linha do Open Finance depende de PLUGGY_HABILITADO e a do Stripe de ASSINATURAS_HABILITADAS
+// (lidas a cada request).
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
@@ -117,8 +119,28 @@ const PLUGGY: Subprocessador = {
   internacional: false,
 };
 
+/**
+ * Assinaturas (ClickUp 86e2zkhe2): só aparece com ASSINATURAS_HABILITADAS ligada — desligada, a
+ * página fica idêntica à de hoje. O cartão é digitado na página do Stripe; o My Finance não
+ * recebe o número.
+ */
+const STRIPE: Subprocessador = {
+  nome: 'Stripe, Inc. (Stripe Payments)',
+  finalidade:
+    'Cobrança das assinaturas Pro e Advanced: página de pagamento, recibos, renovação, reembolso e portal para trocar de plano ou cancelar. Só atua se você assinar um plano pago.',
+  dados:
+    'Nome, e-mail, identificador da sua conta no My Finance, plano contratado, histórico de cobranças e reembolsos e os dados do cartão (digitados na página do Stripe; o My Finance guarda só um identificador, nunca o número do cartão).',
+  regiao: 'EUA',
+  internacional: true,
+};
+
 export default function Subprocessadores() {
-  const lista = pluggyHabilitado() ? [...SUBPROCESSADORES, PLUGGY] : SUBPROCESSADORES;
+  const comAssinaturas = assinaturasHabilitadas();
+  const lista = [
+    ...SUBPROCESSADORES,
+    ...(pluggyHabilitado() ? [PLUGGY] : []),
+    ...(comAssinaturas ? [STRIPE] : []),
+  ];
   return (
     <LegalArticle title="Subprocessadores" updatedAt="21 de setembro de 2026">
       <p>
@@ -154,17 +176,31 @@ export default function Subprocessadores() {
       </div>
 
       <h2>Transferência internacional</h2>
-      <p>
-        Toda a infraestrutura de armazenamento de dados pessoais opera em território brasileiro (AWS
-        sa-east-1, São Paulo).{' '}
-        <strong>
-          A única transferência internacional ocorre quando você usa o assistente de IA
-        </strong>
-        : a sua pergunta e um resumo dos seus dados financeiros são enviados à Anthropic (EUA) para
-        gerar a resposta, com base no art. 33, IX, da LGPD (necessidade para a execução do serviço
-        que você solicitou). O assistente é opcional; se você não o usar, nenhum dado seu sai do
-        Brasil.
-      </p>
+      {comAssinaturas ? (
+        <p>
+          Toda a infraestrutura de armazenamento de dados pessoais opera em território brasileiro
+          (AWS sa-east-1, São Paulo).{' '}
+          <strong>Há transferência internacional em dois casos, ambos opcionais</strong>: (1) quando
+          você usa o assistente de IA, a sua pergunta e um resumo dos seus dados financeiros são
+          enviados à Anthropic (EUA) para gerar a resposta; (2) quando você assina um plano pago, os
+          dados da cobrança (nome, e-mail, plano e cartão) são tratados pelo Stripe (EUA). Os dois
+          casos têm base no art. 33, IX, da LGPD (necessidade para a execução do serviço que você
+          solicitou). Se você não usar o assistente nem assinar um plano pago, nenhum dado seu sai
+          do Brasil.
+        </p>
+      ) : (
+        <p>
+          Toda a infraestrutura de armazenamento de dados pessoais opera em território brasileiro
+          (AWS sa-east-1, São Paulo).{' '}
+          <strong>
+            A única transferência internacional ocorre quando você usa o assistente de IA
+          </strong>
+          : a sua pergunta e um resumo dos seus dados financeiros são enviados à Anthropic (EUA)
+          para gerar a resposta, com base no art. 33, IX, da LGPD (necessidade para a execução do
+          serviço que você solicitou). O assistente é opcional; se você não o usar, nenhum dado seu
+          sai do Brasil.
+        </p>
+      )}
       <p>
         Os provedores Yahoo Finance e CoinGecko, embora operem fora do Brasil, recebem apenas
         consultas anônimas (tickers e datas) sem nenhum dado pessoal do usuário.
