@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // Standard error response shape
 interface ApiErrorResponse {
+  [campo: string]: unknown;
   error: string;
   details?: Record<string, string[]>;
 }
@@ -13,6 +14,11 @@ export class ApiError extends Error {
     public statusCode: number,
     message: string,
     public details?: Record<string, string[]>,
+    /**
+     * Campos extras no corpo JSON, ao lado de `error` (aditivo; ex.: assinaturas
+     * {codigo: 'plano_insuficiente', need, plano}). Não sobrescrevem `error` nem `details`.
+     */
+    public extra?: Record<string, unknown>,
   ) {
     super(message);
   }
@@ -37,7 +43,8 @@ export function withErrorHandler(handler: RouteHandler): RouteHandler {
       return await handler(request, context);
     } catch (error) {
       if (error instanceof ApiError) {
-        const body: ApiErrorResponse = { error: error.message };
+        const { error: _error, details: _details, ...extra } = error.extra ?? {};
+        const body: ApiErrorResponse = { ...extra, error: error.message };
         if (error.details) body.details = error.details;
         return NextResponse.json(body, { status: error.statusCode });
       }
