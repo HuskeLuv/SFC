@@ -89,6 +89,13 @@
   flex-direction: column;
   gap: 20px;
 }
+/* Desktop largo: a folha passa da largura A4 para as tabelas de duas colunas (ex.: Completa x
+   simplificada) caberem sem rolagem lateral (Pedro, 07/11). O PDF continua em A4 (@media print). */
+@media screen and (min-width: 1280px) {
+  .mf-rel .doc {
+    max-width: 1080px;
+  }
+}
 .mf-rel .page {
   background: var(--page);
   border-radius: 6px;

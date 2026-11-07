@@ -152,7 +152,12 @@ export default function RelatorioFinanceiroPage({
 
   return (
     <div>
-      <div className="print-hidden mb-4 flex flex-wrap items-center justify-between gap-3">
+      {/* Desktop: fixa no topo ao rolar, para trocar o período sem voltar ao começo (Pedro, 07/11).
+          No celular fica como antes (a barra quebra em duas linhas e tomaria a tela). */}
+      <div
+        className="print-hidden mb-4 flex flex-wrap items-center justify-between gap-3 lg:sticky lg:top-0 lg:z-20 lg:-mx-6 lg:border-b lg:border-gray-200 lg:bg-gray-50/95 lg:px-6 lg:py-2 lg:backdrop-blur lg:dark:border-gray-800 lg:dark:bg-gray-900/95"
+        data-relatorio-barra=""
+      >
         <div className="flex flex-wrap items-center gap-3">
           <SeletorPeriodo valor={meses} onChange={trocarPeriodo} />
           {carregando && relatorio ? (
