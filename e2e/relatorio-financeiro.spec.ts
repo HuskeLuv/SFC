@@ -100,7 +100,9 @@ test.describe('dados reais do usuário demo', () => {
     const quebras = await folhas.evaluateAll((els) =>
       els.map((el) => getComputedStyle(el).breakAfter),
     );
-    expect(quebras.every((q) => q === 'page')).toBe(true);
+    // Toda folha quebra página, menos a última (sem folha em branco no fim do PDF).
+    expect(quebras.slice(0, -1).every((q) => q === 'page')).toBe(true);
+    expect(quebras[quebras.length - 1]).toBe('auto');
     await expect(page.locator('.print-hidden').first()).toBeHidden();
     await expect(page.locator('aside').first()).toBeHidden();
     const pdf = await page.pdf({ format: 'A4', printBackground: true });
