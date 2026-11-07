@@ -348,9 +348,8 @@ function saldoNoFimDe(
  * Juros e amortização PAGOS no mês, só pelos pagamentos registrados (a mesma base do saldo):
  * financiamento = as linhas do cronograma efetivo das parcelas registradas no mês (corrigidas
  * pelo índice nos indexados) + pagamento avulso / amortização de prazo como amortização;
- * rotativa = o que foi pago no mês, com juros = saldo do início do mês × taxa (até o pago) e
- * amortização = o resto. Mês sem pagamento registrado, fora de 'ativa' e rotativa sem taxa
- * (não dá para separar) não entram.
+ * rotativa = o que foi pago no mês, inteiro como amortização (o saldo do app não soma juros no
+ * rotativo). Mês sem pagamento registrado e dívida fora de 'ativa' não entram.
  */
 function parcelaDoMes(
   d: EntradaDivida,
@@ -388,12 +387,11 @@ function parcelaDoMes(
       ),
     };
   }
-  const taxa = taxaConhecida(d, sistemaDaDivida(d));
-  if (taxa === null || !d.dataSaldoInicial || mes < d.dataSaldoInicial) return zero;
+  if (!d.dataSaldoInicial || mes < d.dataSaldoInicial) return zero;
   const pago = round2(doMes.filter((p) => p.tipo !== 'ajuste').reduce((a, p) => a + p.valor, 0));
-  if (!(pago > 0)) return zero;
-  const juros = Math.min(pago, round2((saldo + pago) * taxa));
-  return { juros, amortizacao: round2(pago - juros) };
+  // O saldo do rotativo no app não soma juros (cai pelo valor pago inteiro), então o pago inteiro
+  // é amortização: assim as barras batem com a queda da linha do saldo.
+  return pago > 0 ? { juros: 0, amortizacao: pago } : zero;
 }
 
 /**

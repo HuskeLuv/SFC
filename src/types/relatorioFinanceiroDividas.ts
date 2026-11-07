@@ -15,7 +15,7 @@ export interface PontoSerieDividas {
   saldo: number;
   /**
    * Juros pagos no mês, só pelos pagamentos registrados (linhas do cronograma das parcelas
-   * registradas; rotativa: saldo do início do mês × taxa, até o valor pago). Sem pagamento, 0.
+   * registradas; rotativa: 0, o pago entra todo como amortização). Sem pagamento, 0.
    */
   juros: number;
   /** Amortização paga no mês (idem; + pagamento avulso e amortização de prazo). Sem pagamento, 0. */

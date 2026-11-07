@@ -57,7 +57,7 @@ export function SecaoComoLer({ relatorio }: PropsSecao) {
           contrato, como na Carteira e na Saúde Financeira, e pode diferir da tela Dívidas; a
           parcela do mês segue o cronograma do app (no rotativo, o mínimo de 15%).
           {n > 1
-            ? ' A evolução mês a mês é reconstruída pelo cronograma de cada contrato e pelos pagamentos registrados; juros e amortização do período contam só os meses com pagamento registrado.'
+            ? ' A evolução mês a mês é reconstruída pelo cronograma de cada contrato e pelos pagamentos registrados; juros e amortização do período contam só os meses com pagamento registrado (no rotativo, o valor pago entra todo como amortização).'
             : ''}
         </p>
         {adv ? (
