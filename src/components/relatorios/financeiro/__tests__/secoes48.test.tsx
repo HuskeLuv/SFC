@@ -53,7 +53,7 @@ function comSentinelas(plano: RelatorioFinanceiro['plano'], meses: MesesRelatori
 const fmtSentinela = '987.654.321';
 
 describe('seções 4 a 8 no Advanced (corpo real)', () => {
-  it('4: carteira 4a + 4b com os rótulos do Pedro e os cartões "em breve" com link', async () => {
+  it('4: carteira 4a + 4b com os rótulos do Pedro, o FGC e o cartão "em breve" com link', async () => {
     const rel = relatorioExemplo(12, 'adv');
     const { container } = await renderSecao(
       <SecaoCarteira relatorio={rel} />,
@@ -69,8 +69,9 @@ describe('seções 4 a 8 no Advanced (corpo real)', () => {
     expect(container.textContent).toContain('Rentabilidade (TWR)');
     expect(container.textContent).toContain('Proventos recebidos');
     const links = [...container.querySelectorAll('.callout a')].map((a) => a.textContent);
-    expect(links).toEqual(['Análises > Cobertura FGC', 'Análises > IR']);
-    expect(container.textContent).toContain('Cobertura do FGC: em breve no relatório');
+    expect(links).toEqual(['Análises > IR']);
+    expect(container.textContent).not.toContain('Cobertura do FGC: em breve');
+    expect(container.textContent).toContain('47,1% do teto global de R$ 1 milhão');
     expect(container.textContent).toContain('IR mensal de ações e FIIs: em breve no relatório');
     // 6 fatias na rosca, 12 barras no histórico
     expect(container.querySelectorAll('.dl > div')).toHaveLength(6);
@@ -376,7 +377,8 @@ describe('seções 4 a 8 bloqueadas (corpo fictício)', () => {
     const blurs = container.querySelectorAll('.locked .blur');
     expect(blurs).toHaveLength(4);
     blurs.forEach((b) => expect(b.getAttribute('aria-hidden')).toBe('true'));
-    expect(container.querySelectorAll('.locked .blur .dream')).toHaveLength(4);
+    // 4 sonhos + 4 linhas da cobertura do FGC fictícia (o protótipo usa .dream nas duas)
+    expect(container.querySelectorAll('.locked .blur .dream')).toHaveLength(8);
     expect(container.querySelectorAll('.locked .blur .ind-row')).toHaveLength(6);
     // nada focável dentro do conteúdo desfocado
     expect(container.querySelectorAll('.locked .blur a')).toHaveLength(0);

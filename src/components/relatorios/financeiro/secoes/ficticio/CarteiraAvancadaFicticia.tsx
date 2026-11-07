@@ -9,6 +9,7 @@ import { Callout } from '../../ui/Callout';
 import { ChartBox } from '../../ui/ChartBox';
 import { Kpi } from '../../ui/Kpi';
 import { Legenda } from '../../ui/Legenda';
+import { CoberturaFgcFicticia } from './CoberturaFgcFicticia';
 
 /** Pontos por mês da série fictícia. */
 const PPM = 8;
@@ -107,10 +108,7 @@ export function CarteiraAvancadaFicticia({ meses: n }: PropsFicticio) {
           />
           <span className="fine">Valores líquidos recebidos no período.</span>
         </ChartBox>
-        <Callout>
-          <b>Cobertura do FGC:</b> em breve no relatório. Veja agora em{' '}
-          <span className="lk-txt">Análises &gt; Cobertura FGC</span>.
-        </Callout>
+        <CoberturaFgcFicticia />
       </div>
       <Callout>
         <b>IR mensal de ações e FIIs:</b> em breve no relatório. Veja agora em{' '}

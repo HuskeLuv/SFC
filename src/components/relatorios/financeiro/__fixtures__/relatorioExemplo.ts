@@ -24,6 +24,7 @@ import type {
   SonhoRelatorio,
   StatusSemaforo,
 } from '@/types/relatorioFinanceiro';
+import type { BlocoFgcRelatorio } from '@/types/relatorioFinanceiroFgc';
 import { CORES } from '../cores';
 import { fP } from '../formato';
 
@@ -417,8 +418,39 @@ function carteiraAvancadaExemplo(n: number): BlocoCarteiraAvancada {
       jcp: p.jcp,
       exterior: p.ext,
     })),
-    fgc: null,
+    fgc: fgcExemplo(),
     irRendaVariavel: null,
+  };
+}
+
+/** FGC do protótipo: [emissor, valor coberto, nº de títulos]. */
+const FGC: [string, number, number][] = [
+  ['Banco BMG S.A.', 168478.56, 2],
+  ['BTG Pactual', 119135.56, 1],
+  ['XP Investimentos', 93731.15, 1],
+  ['Banco Inter S.A.', 89406.65, 1],
+];
+
+function fgcExemplo(): BlocoFgcRelatorio {
+  const total = Math.round(FGC.reduce((a, f) => a + f[1], 0) * 100) / 100;
+  return {
+    limitePorEmissor: 250_000,
+    tetoGlobal: 1_000_000,
+    emissores: FGC.map(([nome, valorCoberto, nTitulos], i) => ({
+      chave: `emissor-${i + 1}`,
+      nome,
+      valorCoberto,
+      nTitulos,
+      pctLimite: Math.round((valorCoberto / 250_000) * 10000) / 100,
+      excedente: 0,
+      status: 'dentro',
+      usaCorretora: false,
+    })),
+    totalCoberto: total,
+    pctTetoGlobal: Math.round((total / 1_000_000) * 10000) / 100,
+    totalExcedente: 0,
+    rendaFixaSemCobertura: 0,
+    avisos: [],
   };
 }
 
