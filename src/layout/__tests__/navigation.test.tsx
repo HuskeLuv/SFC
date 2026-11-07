@@ -44,6 +44,7 @@ vi.mock('../../icons/index', () => {
     'PlugInIcon',
     'GroupIcon',
     'InfoIcon',
+    'ShootingStarIcon',
   ];
   return Object.fromEntries(names.map((name) => [name, Icon]));
 });
