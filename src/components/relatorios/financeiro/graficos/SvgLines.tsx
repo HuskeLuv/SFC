@@ -64,7 +64,13 @@ export function SvgLines({
         ))}
       {len > 0 &&
         xTicks.map(([i, lab]) => (
-          <text key={`x${i}`} x={x(i)} y={h - 8} textAnchor="middle">
+          <text
+            key={`x${i}`}
+            x={x(i)}
+            y={h - 8}
+            // O último rótulo encosta na borda direita: ancorado no fim para não sair cortado.
+            textAnchor={len > 1 && i === len - 1 ? 'end' : 'middle'}
+          >
             {lab}
           </text>
         ))}
