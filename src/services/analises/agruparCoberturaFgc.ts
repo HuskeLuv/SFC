@@ -24,6 +24,30 @@ export const FGC_TOTAL_CAP = 1_000_000;
 export const CHAVE_DESCONHECIDA = 'desconhecida';
 export const NOME_EMISSOR_DESCONHECIDO = 'Emissor não identificado';
 
+/** Faixa de uso do limite por emissor (cortes da tela e do relatório): ≥ 100% acima, ≥ 80% atenção. */
+export type FaixaLimiteFgc = 'dentro' | 'atencao' | 'acima';
+
+export function faixaLimiteFgc(percentual: number): FaixaLimiteFgc {
+  if (percentual >= 100) return 'acima';
+  if (percentual >= 80) return 'atencao';
+  return 'dentro';
+}
+
+/**
+ * O ativo pede o emissor? Só quando a edição aceita emissor (há link) e o limite está vindo da
+ * corretora, de lugar nenhum ou de um emissor gravado que é corretora.
+ */
+export function pedeEmissor(
+  ativo: Pick<AssetFgcInfo, 'editarEmissorHref' | 'fonteInstituicao'>,
+): boolean {
+  return (
+    Boolean(ativo.editarEmissorHref) &&
+    (ativo.fonteInstituicao === 'corretora' ||
+      ativo.fonteInstituicao === 'desconhecida' ||
+      ativo.fonteInstituicao === 'emissor-nao-emissor')
+  );
+}
+
 export type OrigemFgc = 'manual' | 'openFinance';
 
 /**

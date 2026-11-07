@@ -7,7 +7,11 @@
  * Uma carga por entrada de cache dos insumos (trocar de período não recarrega). Falha na carga
  * vira null (o front mostra o link para a tela) em vez de derrubar o relatório.
  */
-import type { AssetFgcInfo, ResultadoCoberturaFgc } from '@/services/analises/agruparCoberturaFgc';
+import {
+  faixaLimiteFgc,
+  pedeEmissor,
+  type ResultadoCoberturaFgc,
+} from '@/services/analises/agruparCoberturaFgc';
 import { carregarGruposCoberturaFgc } from '@/services/analises/coberturaFgc';
 import type {
   AvisoFgcRelatorio,
@@ -19,19 +23,10 @@ import type { ContextoMontador, Insumos } from './insumos';
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
-/** Cortes da tela (getStatusLabel de components/analises/CoberturaFgc.tsx). */
+/** Cortes da tela (faixaLimiteFgc, a mesma de components/analises/CoberturaFgc.tsx). */
 export function statusDoEmissor(pctLimite: number): StatusEmissorFgc {
-  if (pctLimite >= 100) return 'acima';
-  if (pctLimite >= 80) return 'atencao';
-  return 'dentro';
+  return faixaLimiteFgc(pctLimite);
 }
-
-/** O título pede o banco emissor (pedeEmissor da tela). */
-const pedeEmissor = (a: AssetFgcInfo) =>
-  Boolean(a.editarEmissorHref) &&
-  (a.fonteInstituicao === 'corretora' ||
-    a.fonteInstituicao === 'desconhecida' ||
-    a.fonteInstituicao === 'emissor-nao-emissor');
 
 /** Recorte do relatório (puro) a partir do resultado da tela. */
 export function montarBlocoFgc(res: ResultadoCoberturaFgc): BlocoFgcRelatorio {
