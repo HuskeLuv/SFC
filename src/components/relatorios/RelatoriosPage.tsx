@@ -25,6 +25,7 @@ import { useQuery } from '@tanstack/react-query';
 import { calcularRentabilidade } from '@/components/analises/RentabilidadeResumo';
 import ResumoExecutivo from './ResumoExecutivo';
 import PosicaoConsolidada, { type PosicaoSecao } from './PosicaoConsolidada';
+import GatePlano from '@/components/planos/GatePlano';
 import MovimentacoesTable, { type Movimentacao } from './MovimentacoesTable';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { MobileCollapsible } from '@/components/ui/mobile/MobileCollapsible';
@@ -107,7 +108,25 @@ const BOTAO_PDF_CELULAR =
 
 const formatDateLabel = (date: Date | null) => (date ? date.toLocaleDateString('pt-BR') : '--');
 
+/**
+ * Relatório "Carteira e movimentações" no Pro (assinaturas): sem o plano, os hooks da carteira
+ * nem montam e entra o cadeado. Chave desligada = como hoje.
+ */
 export default function RelatoriosPage() {
+  return (
+    <GatePlano
+      need="pro"
+      variante="bloco"
+      previa="carteira"
+      recurso="O relatório da carteira"
+      descricao="Rentabilidade, patrimônio, proventos e movimentações da carteira no período, com PDF."
+    >
+      <RelatoriosConteudo />
+    </GatePlano>
+  );
+}
+
+function RelatoriosConteudo() {
   const {
     selected,
     setSelected,

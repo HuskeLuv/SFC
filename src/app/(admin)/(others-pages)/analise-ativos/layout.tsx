@@ -3,7 +3,7 @@
  * - flag ANALISE_ATIVOS_HABILITADA desligada → notFound(). Lançado no próprio layout, ele sobe
  *   para o src/app/not-found.tsx da RAIZ (o segmento não tem not-found próprio).
  * - flag ligada e usuário fora do beta → tela informativa "Área em beta fechado".
- * - liberada → children.
+ * - liberada → children, atrás do GatePlano 'pro' (assinaturas; chave desligada = children).
  * O acesso é do usuário LOGADO (cookie 'token', verificado com jose como em src/app/page.tsx).
  * O middleware já redireciona quem não tem sessão; a revogação (sessionVersion) é checada nas APIs.
  */
@@ -11,6 +11,7 @@ import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { jwtVerify } from 'jose';
 import TelaForaDoBeta from '@/components/analiseAtivos/shell/TelaForaDoBeta';
+import GatePlano from '@/components/planos/GatePlano';
 import { analiseAtivosHabilitada } from '@/lib/analiseAtivosConfig';
 import { estadoAcessoAnalise } from '@/services/analiseAtivos/acesso/acessoAnalise';
 
@@ -35,5 +36,16 @@ export default async function AnaliseAtivosLayout({ children }: { children: Reac
   const estado = await estadoAcessoAnalise(userId);
   if (estado === 'desligada') notFound();
   if (estado === 'fora_do_beta') return <TelaForaDoBeta />;
-  return <>{children}</>;
+  // Assinaturas: a área inteira é do Pro na v1 (cadeado de página no cliente; as APIs já
+  // respondem 403 pelo exigirAcessoAnalise). Chave desligada = children, como hoje.
+  return (
+    <GatePlano
+      need="pro"
+      previa="quadro"
+      recurso="A Análise de Ativos"
+      descricao="Pesquise e compare ações e FIIs pelos números que importam."
+    >
+      {children}
+    </GatePlano>
+  );
 }

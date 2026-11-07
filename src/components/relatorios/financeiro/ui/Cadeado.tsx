@@ -52,7 +52,8 @@ export function Cadeado({
           <p>{descricao}</p>
           {ganho ?? null}
           {gancho ? <p className="hook">{gancho}</p> : null}
-          <a className="cta" href={OFERTAS_PLANOS.url} target="_blank" rel="noopener">
+          {/* /planos interno (assinaturas): a página certa já abre no plano que libera o bloco. */}
+          <a className="cta" href={`/planos?need=${plano}`}>
             {vigente ? `Liberar no ${nome} com ${oferta.desconto} off` : `Conhecer o ${nome}`}
           </a>
           <span className="url">

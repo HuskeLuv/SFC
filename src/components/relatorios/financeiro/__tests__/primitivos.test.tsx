@@ -50,8 +50,8 @@ describe('primitivos do relatório (mesmo DOM/classes do protótipo)', () => {
     );
     const cta = container.querySelector('a.cta')!;
     expect(cta.textContent).toBe('Liberar no Pro com 20% off');
-    expect(cta.getAttribute('href')).toBe('https://appmyfinance.com.br/planos');
-    expect(cta.getAttribute('target')).toBe('_blank');
+    expect(cta.getAttribute('href')).toBe('/planos?need=pro');
+    expect(cta.getAttribute('target')).toBeNull();
     expect(container.querySelector('.url')!.textContent).toBe(
       'Anual: R$ 479,04/ano, equivale a R$ 39,92 por mês · Black Friday até 05/12 · appmyfinance.com.br/planos',
     );

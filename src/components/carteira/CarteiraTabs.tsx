@@ -14,6 +14,7 @@ import { ResponsiveTabNav } from '@/components/ui/tabs/ResponsiveTabNav';
 import { QUICK_LAUNCH_EVENT, takePendingQuickLaunch } from '@/layout/mobile/quickLaunch';
 import { CarteiraLaunchProvider, type CarteiraLaunchValue } from './CarteiraLaunchContext';
 import CarteiraSkeleton from './CarteiraSkeleton';
+import GatePlano from '@/components/planos/GatePlano';
 import {
   CARTEIRA_ABA_ANALISE,
   CARTEIRA_ABA_PARAM,
@@ -132,7 +133,28 @@ const MOBILE_STATE_ICON =
 const MOBILE_PRIMARY_BUTTON =
   'inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-mf-patrimonio px-4 text-base font-semibold text-white';
 
+/**
+ * Carteira inteira no Pro (assinaturas): com a chave ligada e sem o plano, nada abaixo monta (os
+ * hooks da carteira nem disparam) e entra o cadeado de página. Chave desligada = como hoje.
+ */
 export default function CarteiraTabs() {
+  const isBelowLg = useIsBelowLg();
+  return (
+    <GatePlano
+      need="pro"
+      previa="carteira"
+      recurso="A Carteira"
+      descricao="Veja ações, FIIs, renda fixa, Tesouro, cripto e imóveis num lugar só, com a rentabilidade e a meta."
+      carregando={
+        isBelowLg ? <CarteiraSkeleton /> : <LoadingSpinner text="Carregando dados da carteira..." />
+      }
+    >
+      <CarteiraTabsConteudo />
+    </GatePlano>
+  );
+}
+
+function CarteiraTabsConteudo() {
   const [activeMainTab, setActiveMainTab] = useState<MainTabId>('resumo');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isRedeemOpen, setIsRedeemOpen] = useState(false);
@@ -418,9 +440,18 @@ export default function CarteiraTabs() {
             </MainTabContent>
 
             <MainTabContent id="analise" isActive={activeMainTab === 'analise'}>
-              <Suspense fallback={<LoadingSpinner text="Carregando análises..." />}>
-                <CarteiraAnalise />
-              </Suspense>
+              {/* Aba Análise (TWR/MWR, proventos, risco x retorno, FGC, IR) no Advanced. */}
+              <GatePlano
+                need="adv"
+                variante="bloco"
+                previa="analise"
+                recurso="A análise da carteira"
+                descricao="Rentabilidade comparável (TWR), proventos, risco x retorno, cobertura do FGC e imposto de renda."
+              >
+                <Suspense fallback={<LoadingSpinner text="Carregando análises..." />}>
+                  <CarteiraAnalise />
+                </Suspense>
+              </GatePlano>
             </MainTabContent>
           </div>
         </div>
