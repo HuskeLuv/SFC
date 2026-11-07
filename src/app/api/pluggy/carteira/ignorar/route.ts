@@ -3,8 +3,11 @@ import { z } from 'zod';
 import { withErrorHandler, ApiError } from '@/utils/apiErrorHandler';
 import { ignorarInvestimento } from '@/services/pluggy/importarCarteira';
 import { requireProprioUsuarioPluggy } from '../../_lib/auth';
+import { exigirPlano } from '@/services/planos/exigirPlano';
 
 /** POST /api/pluggy/carteira/ignorar { id } — não importar esta posição. */
+// Assinaturas (F2): importar investimentos do Open Finance para a carteira é Pro (exigirPlano
+// explícito, além do gate central; com ASSINATURAS_HABILITADAS desligada não consulta nada).
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +15,7 @@ const schema = z.object({ id: z.string().uuid() });
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const user = await requireProprioUsuarioPluggy(request);
+  await exigirPlano(user.id, 'pro');
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) throw new ApiError(400, 'id inválido');
   const ok = await ignorarInvestimento(user.id, parsed.data.id);

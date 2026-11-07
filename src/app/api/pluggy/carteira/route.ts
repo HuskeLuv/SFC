@@ -8,6 +8,7 @@ import {
 } from '@/lib/pluggyDestinos';
 import { contarParaRevisar, destinoAtualPorPortfolio } from '@/services/pluggy/destinosImportacao';
 import { requireProprioUsuarioPluggy } from '../_lib/auth';
+import { exigirPlano } from '@/services/planos/exigirPlano';
 
 /**
  * GET /api/pluggy/carteira — investimentos e empréstimos espelhados do banco,
@@ -17,6 +18,8 @@ import { requireProprioUsuarioPluggy } from '../_lib/auth';
  * cada investimento ganha `destino` (onde está na Carteira) e `situacaoDestino`,
  * e a resposta ganha `paraRevisar`. Desligada: payload idêntico ao de antes.
  */
+// Assinaturas (F2): importar investimentos do Open Finance para a carteira é Pro (exigirPlano
+// explícito, além do gate central; com ASSINATURAS_HABILITADAS desligada não consulta nada).
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +54,7 @@ function situacaoDe(
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const user = await requireProprioUsuarioPluggy(request);
+  await exigirPlano(user.id, 'pro');
   const [investimentos, emprestimos] = await Promise.all([
     prisma.bankInvestment.findMany({
       where: { userId: user.id },
