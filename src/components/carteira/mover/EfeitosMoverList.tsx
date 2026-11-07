@@ -21,6 +21,7 @@ import {
   type SaudePrevia,
 } from '@/lib/moverEfeitos';
 import { TextoSensivel } from '@/components/common/valores/Sensivel';
+import { usePlano } from '@/hooks/usePlano';
 import type { SaudeFinanceiraPayload } from '@/services/saudeFinanceira/saudeFinanceiraServer';
 
 /**
@@ -35,7 +36,11 @@ import type { SaudeFinanceiraPayload } from '@/services/saudeFinanceira/saudeFin
  */
 
 /** Saúde Financeira (mesma cache de useSaudeFinanceira), buscada só quando a Emergência entra. */
-export function useSaudePrevia(enabled: boolean): SaudePrevia | null {
+export function useSaudePrevia(pedido: boolean): SaudePrevia | null {
+  // A Saúde Financeira é do Advanced (assinaturas): sem o plano, a prévia não é buscada (seria
+  // 403) e a lista segue só com o que veio do GET /mover. Chave desligada = como hoje.
+  const liberaSaude = usePlano().libera('adv');
+  const enabled = pedido && liberaSaude;
   const { data } = useQuery<SaudeFinanceiraPayload>({
     queryKey: queryKeys.saudeFinanceira.all,
     queryFn: async () => {

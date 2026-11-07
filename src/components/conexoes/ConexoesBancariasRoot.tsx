@@ -38,6 +38,10 @@ import ConexaoCard from './ConexaoCard';
 import { STATUS_DESCONECTADA } from './statusConexao';
 import ExtratoConta from './ExtratoConta';
 import PluggyConnectWidget from './PluggyConnectWidget';
+import Link from 'next/link';
+import { usePlano } from '@/hooks/usePlano';
+import { LIMITES_PLANO, NOME_PLANO } from '@/lib/planos';
+import { IconeCadeadoPlano } from '@/components/planos/planosUi';
 
 /** Texto da confirmação de "Desconectar" (o mesmo no window.confirm do desktop e no sheet). */
 const DESCONECTAR_TEXTO =
@@ -110,6 +114,11 @@ export default function ConexoesBancariasRoot() {
   const [revisaoAberta, setRevisaoAberta] = useState(false);
   // Definido = voltou à "Conexão realizada" depois de salvar a revisão (quantos mudaram).
   const [destinosAplicados, setDestinosAplicados] = useState<number | undefined>(undefined);
+  // Assinaturas (só com a chave ligada): "X de Y conexões", cadeado no Conectar no limite e,
+  // sem o Pro, nada de investimentos na Carteira (nem GET /api/pluggy/carteira nem revisão dos
+  // destinos, que dariam 403). Chave desligada: sem limite e tudo como hoje.
+  const { plano, habilitado: assinaturas, libera } = usePlano();
+  const importaCarteira = libera('pro');
   const connectToken = useConnectToken();
   const registrar = useRegistrarConexao();
   const atualizar = useAtualizarConexao();
@@ -338,6 +347,8 @@ export default function ConexoesBancariasRoot() {
   }
 
   const lista = conexoes ?? [];
+  const limiteConexoes = assinaturas ? LIMITES_PLANO.conexoes[plano] : null;
+  const noLimite = limiteConexoes !== null && lista.length >= limiteConexoes;
 
   const bannerAviso = aviso ? (
     <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
@@ -379,14 +390,47 @@ export default function ConexoesBancariasRoot() {
           </a>
           .
         </p>
-        <Button
-          onClick={() => abrirJornada()}
-          disabled={ocupada}
-          className="max-lg:w-full max-lg:min-h-11"
-        >
-          Conectar banco
-        </Button>
+        <div className="flex flex-col items-end gap-1 max-lg:w-full max-lg:items-stretch">
+          <Button
+            onClick={() => abrirJornada()}
+            disabled={ocupada || noLimite}
+            className="max-lg:w-full max-lg:min-h-11"
+          >
+            {noLimite ? (
+              <span className="inline-flex items-center gap-2">
+                <IconeCadeadoPlano />
+                Conectar banco
+              </span>
+            ) : (
+              'Conectar banco'
+            )}
+          </Button>
+          {limiteConexoes !== null ? (
+            <span
+              className="text-xs text-gray-500 dark:text-gray-400 max-lg:text-center"
+              data-mf-conexoes-limite={`${lista.length}/${limiteConexoes}`}
+            >
+              {lista.length} de {limiteConexoes} {limiteConexoes === 1 ? 'conexão' : 'conexões'} do
+              plano {NOME_PLANO[plano]}
+            </span>
+          ) : null}
+        </div>
       </div>
+
+      {noLimite ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-[#DCE6F2] bg-[#EDF2F8] px-4 py-3 text-sm text-gray-800 dark:border-gray-700 dark:bg-white/5 dark:text-gray-100">
+          <span className="min-w-0 flex-[1_1_260px]">
+            Você usa todas as conexões do plano {NOME_PLANO[plano]}. Para conectar outro banco,
+            desconecte um ou mude de plano. Reconectar um banco da lista continua liberado.
+          </span>
+          <Link
+            href="/planos"
+            className="font-semibold text-mf-patrimonio dark:text-mf-tranquilidade"
+          >
+            Ver planos
+          </Link>
+        </div>
+      ) : null}
 
       {bannerAviso}
       {registrar.isPending ? (
@@ -400,7 +444,7 @@ export default function ConexoesBancariasRoot() {
           <CaixaEntrada onAviso={avisar} />
         )
       ) : null}
-      {lista.length > 0 ? (
+      {lista.length > 0 && importaCarteira ? (
         <CarteiraImportada
           onAviso={avisar}
           onConferirDestinos={() => abrirRevisao({ somenteNovos: true, daConexao: false })}
@@ -497,14 +541,16 @@ export default function ConexoesBancariasRoot() {
           importados={realizada.importados}
           aviso={realizada.aviso}
           onFechar={() => setRealizada(null)}
-          onConferirDestinos={() =>
-            abrirRevisao({ connectionId: realizada.connection.id, daConexao: true })
+          onConferirDestinos={
+            importaCarteira
+              ? () => abrirRevisao({ connectionId: realizada.connection.id, daConexao: true })
+              : undefined
           }
           destinosAplicados={destinosAplicados}
         />
       ) : null}
 
-      {revisao ? (
+      {revisao && importaCarteira ? (
         <RevisarDestinos
           aberto={revisaoAberta}
           connectionId={revisao.connectionId}
