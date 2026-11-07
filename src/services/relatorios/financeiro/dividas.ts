@@ -1,6 +1,6 @@
 /**
- * Seção 3 (Dívidas) do Relatório financeiro. Todos os planos. Sem série histórica na v1 (com
- * n > 1 o front mostra o callout "em breve").
+ * Seção 3 (Dívidas) do Relatório financeiro. Todos os planos. Com n > 1 o front desenha a
+ * `serie` (saldo no fim de cada mês e parcela juros × amortização; ver `montarSerieDividas`).
  *
  * Regras (decisão 3 do Wellington, 06/11):
  *  - Saldo CORRIGIDO pelo índice realizado (`resumoDivida` × `accruedIndexFactor`), como a
@@ -25,6 +25,7 @@ import type {
   MotivoSemDividasForaImovel,
   SistemaDividaRelatorio,
 } from '@/types/relatorioFinanceiro';
+import type { PontoSerieDividas } from '@/types/relatorioFinanceiroDividas';
 import {
   corrigirCronograma,
   gerarCronograma,
@@ -159,7 +160,7 @@ export function sistemaDaDivida(d: EntradaDivida): SistemaDividaRelatorio {
 }
 
 /** Taxa a.m. conhecida (null = "taxa não informada": rotativa sem CET, Pluggy com taxa 0). */
-function taxaConhecida(d: EntradaDivida, sistema: SistemaDividaRelatorio): number | null {
+export function taxaConhecida(d: EntradaDivida, sistema: SistemaDividaRelatorio): number | null {
   if (d.taxaAm == null) return null;
   if (sistema === 'Cartão parcelado') return 0;
   return d.taxaAm > 0 ? d.taxaAm : null;
@@ -278,15 +279,129 @@ export function cetMedioPonderado(itens: ItemDividaRelatorio[]): number | null {
   return round2(comCet.reduce((a, i) => a + i.saldo * (i.cetAA as number), 0) / saldo);
 }
 
-/** Pura: o bloco da seção 3 a partir das dívidas e dos fatores já carregados. */
+// ── Série mensal (gráficos com n > 1) ─────────────────────────────────────────
+
+const mesSeguinte = (mes: string): string => {
+  const [a, m] = mes.split('-').map(Number);
+  const s = somarMeses(a, m - 1, 1);
+  return chaveMes(s.ano, s.mes0);
+};
+
+/**
+ * Fator do índice realizado até o FIM do mês `mes`: o do aniversário do mês seguinte em
+ * `monthlyIndexFactors` (que acumula [1º vencimento, M)). Fora do mapa, o último fator até ali
+ * (sem projeção); sem mapa (prefixado), 1.
+ */
+export function fatorFimDoMes(mensais: Record<string, number>, mes: string): number {
+  const seguinte = mesSeguinte(mes);
+  if (mensais[seguinte] !== undefined) return mensais[seguinte];
+  let chave = '';
+  let fator = 1;
+  for (const [k, v] of Object.entries(mensais)) {
+    if (k <= seguinte && k > chave) {
+      chave = k;
+      fator = v;
+    }
+  }
+  return fator;
+}
+
+/** Mês em que a dívida passa a contar na série: 1º vencimento (rotativa: data do saldo). */
+function inicioDaDivida(d: EntradaDivida): string | null {
+  return d.modalidade === 'financiamento' ? d.primeiroVencimento : d.dataSaldoInicial;
+}
+
+/** Saldo no fim de um mês PASSADO: o mesmo resumo do app só com os pagamentos até ali. */
+function saldoNoFimDe(d: EntradaDivida, fatores: FatoresDivida, mes: string): number {
+  const inicio = inicioDaDivida(d);
+  if (!inicio || mes < inicio) return 0;
+  const pagamentos = d.pagamentos.filter((p) => p.month <= mes);
+  const resumo = resumoDivida(d, pagamentos);
+  const fator = d.modalidade === 'financiamento' ? fatorFimDoMes(fatores.mensais, mes) : 1;
+  return round2(resumo.saldoDevedor * fator);
+}
+
+/**
+ * Juros e amortização da parcela do mês: a linha do cronograma efetivo (corrigida pelo índice
+ * nos indexados, como a parcela do mês do item); rotativa = mínimo de 15% do saldo do fim do
+ * mês, juros = saldo × taxa (limitados ao mínimo), amortização = o resto. Fora de 'ativa', e
+ * rotativa sem taxa (não dá para separar), não entram.
+ */
+function parcelaDoMes(
+  d: EntradaDivida,
+  fatores: FatoresDivida,
+  mes: string,
+  saldo: number,
+  crono: ParcelaCronograma[],
+): { juros: number; amortizacao: number } {
+  const zero = { juros: 0, amortizacao: 0 };
+  if (d.status !== 'ativa') return zero;
+  if (d.modalidade === 'financiamento') {
+    const linha = crono.find((p) => p.mes === mes);
+    if (!linha) return zero;
+    const c = isIndexadorCorrigivel(d.indexador)
+      ? corrigirCronograma([linha], fatores.mensais)[0]
+      : linha;
+    return {
+      juros: round2(c.jurosCorrigido ?? c.juros),
+      amortizacao: round2(c.amortizacaoCorrigida ?? c.amortizacao),
+    };
+  }
+  const taxa = taxaConhecida(d, sistemaDaDivida(d));
+  if (taxa === null || !(saldo > 0)) return zero;
+  const minimo = round2(saldo * MINIMO_ROTATIVO);
+  const juros = Math.min(minimo, round2(saldo * taxa));
+  return { juros, amortizacao: round2(minimo - juros) };
+}
+
+/**
+ * Pura: a evolução das dívidas não quitadas nos `meses` do período ('YYYY-MM', o último é o
+ * corrente). O saldo dos meses passados é reconstruído pelo cronograma e pelos pagamentos
+ * registrados até o fim de cada mês (corrigido pelo índice até ali); o do mês corrente é o saldo
+ * do item (bate com o KPI "Saldo devedor total"). Dívida antes do início não conta.
+ */
+export function montarSerieDividas(
+  dividas: { entrada: EntradaDivida; fatores: FatoresDivida; saldoAtual: number }[],
+  meses: string[],
+  mesAtual: string,
+): PontoSerieDividas[] {
+  const abertas = dividas
+    .filter(({ entrada }) => entrada.status !== 'quitada')
+    .map((d) => ({ ...d, crono: cronogramaEfetivo(d.entrada) }));
+  return meses.map((mes) => {
+    let saldo = 0;
+    let juros = 0;
+    let amortizacao = 0;
+    for (const { entrada, fatores, saldoAtual, crono } of abertas) {
+      const s = mes >= mesAtual ? saldoAtual : saldoNoFimDe(entrada, fatores, mes);
+      const p = parcelaDoMes(entrada, fatores, mes, s, crono);
+      saldo += s;
+      juros += p.juros;
+      amortizacao += p.amortizacao;
+    }
+    return { mes, saldo: round2(saldo), juros: round2(juros), amortizacao: round2(amortizacao) };
+  });
+}
+
+/**
+ * Pura: o bloco da seção 3 a partir das dívidas e dos fatores já carregados. `meses` = os meses
+ * do período para a série (padrão: só o corrente).
+ */
 export function montarBlocoDividas(
   dividas: { entrada: EntradaDivida; fatores: FatoresDivida }[],
   mesAtual: string,
+  meses: string[] = [mesAtual],
 ): BlocoDividas {
-  const calculados = dividas
-    .filter(({ entrada }) => entrada.status !== 'quitada')
-    .map(({ entrada, fatores }) => calcularItemDivida(entrada, fatores, mesAtual));
+  const abertas = dividas.filter(({ entrada }) => entrada.status !== 'quitada');
+  const calculados = abertas.map(({ entrada, fatores }) =>
+    calcularItemDivida(entrada, fatores, mesAtual),
+  );
   const itens = ordenarPorCet(calculados.map((c) => c.item));
+  const serie = montarSerieDividas(
+    abertas.map((d, k) => ({ ...d, saldoAtual: calculados[k].item.saldo })),
+    meses,
+    mesAtual,
+  );
   return {
     itens,
     semDividasForaImovel: semDividasForaImovel(itens),
@@ -294,6 +409,7 @@ export function montarBlocoDividas(
       semCet: itens.filter((i) => i.saldo > 0 && i.cetAA === null).length,
       parcelasVencidasSemPagamento: calculados.reduce((a, c) => a + c.vencidasSemPagamento, 0),
     },
+    serie,
   };
 }
 
@@ -319,5 +435,9 @@ export async function montarDividas(ctx: ContextoMontador): Promise<BlocoDividas
   const comFatores = await Promise.all(
     entradas.map(async (entrada) => ({ entrada, fatores: await fatoresDa(entrada, ctx.agora) })),
   );
-  return montarBlocoDividas(comFatores, chaveMes(ctx.hojeSP.ano, ctx.hojeSP.mes0));
+  return montarBlocoDividas(
+    comFatores,
+    chaveMes(ctx.hojeSP.ano, ctx.hojeSP.mes0),
+    ctx.mesesDoPeriodo,
+  );
 }

@@ -140,6 +140,8 @@ export interface BlocoDividas {
     /** Nº de parcelas vencidas sem pagamento registrado. */
     parcelasVencidasSemPagamento: number;
   };
+  /** Evolução mês a mês do período (gráficos com n > 1), do mais antigo ao corrente. */
+  serie: import('./relatorioFinanceiroDividas').PontoSerieDividas[];
 }
 
 // ── 4a Carteira (Pro) ───────────────────────────────────────────────────────────

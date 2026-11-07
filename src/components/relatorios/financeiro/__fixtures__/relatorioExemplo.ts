@@ -25,6 +25,7 @@ import type {
   StatusSemaforo,
 } from '@/types/relatorioFinanceiro';
 import type { BlocoFgcRelatorio } from '@/types/relatorioFinanceiroFgc';
+import type { PontoSerieDividas } from '@/types/relatorioFinanceiroDividas';
 import { CORES } from '../cores';
 import { fP } from '../formato';
 
@@ -189,9 +190,15 @@ const DEBTS: DividaEx[] = (
   return { ...d, i, parcela, jurosMes: d.saldo * i, jr };
 });
 
-// DEBT_M: a série de dívidas não entra na v1, mas os sorteios precisam acontecer na ordem.
-MLAB.forEach((_, m) => {
-  if (m !== 11) R();
+/** DEBT_M do protótipo: saldo no fim de cada mês e parcela juros × amortização. */
+const DEBT_M: PontoSerieDividas[] = MLAB.map((_, m) => {
+  const back = 11 - m;
+  const imob = 312400 + 1459.8 * back;
+  const car = 38600 + 985 * back;
+  const parc = m === 11 ? 4850 : Math.round(2600 + R() * 3400);
+  const rot = m >= 9 ? (2300 * (m - 8)) / 3 : 0;
+  const juros = imob * DEBTS[0].i + car * DEBTS[1].i + rot * DEBTS[3].i;
+  return { mes: mesDe(m), saldo: imob + car + parc + rot, juros, amortizacao: 1459.8 + 985 };
 });
 
 const CLASSES: [ItemCarteira['chave'], string, number, string][] = [
@@ -353,7 +360,7 @@ function orcamentoExemplo(n: number): BlocoOrcamento {
   };
 }
 
-function dividasExemplo(): BlocoDividas {
+function dividasExemplo(n: number): BlocoDividas {
   return {
     itens: DEBTS.map((d, k) => ({
       id: `divida-${k + 1}`,
@@ -372,6 +379,7 @@ function dividasExemplo(): BlocoDividas {
     })),
     semDividasForaImovel: { mes: mesDepois(DEBTS[1].rest ?? 0), motivo: 'com_rotativo' },
     avisos: { semCet: 0, parcelasVencidasSemPagamento: 0 },
+    serie: DEBT_M.slice(12 - n),
   };
 }
 
@@ -750,7 +758,7 @@ export function relatorioExemplo(meses: MesesRelatorio, plano: Plano): Relatorio
     },
     geradoEm: GERADO_EM_EXEMPLO,
     orcamento: orcamentoExemplo(meses),
-    dividas: dividasExemplo(),
+    dividas: dividasExemplo(meses),
     carteira: carteiraExemplo(meses),
     carteiraAvancada: carteiraAvancadaExemplo(meses),
     planejamento: planejamentoExemplo(meses),
