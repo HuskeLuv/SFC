@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { getPluggyClient } from '@/lib/pluggy';
 import { pluggyIncluiSandbox, pluggyOauthRedirectUrl } from '@/lib/pluggyConfig';
 import { requireProprioUsuarioPluggy } from '../_lib/auth';
+import { exigirVagaConexao } from '../_lib/limiteConexoes';
 import { PRODUTOS_OPEN_FINANCE } from '@/lib/openFinanceConsentimento';
 import { exigirConsentimentoPendente } from '@/services/pluggy/consentimento';
 import { conectoresPermitidos } from '@/services/pluggy/conectoresPermitidos';
@@ -15,6 +16,8 @@ import { conectoresPermitidos } from '@/services/pluggy/conectoresPermitidos';
  * Exige `consentimentoId` (aceite registrado em /consentimentos).
  * O token é amarrado ao usuário (clientUserId) — é isso que permite ao
  * POST /connections recusar item de terceiro.
+ * Assinaturas (F2): conexão NOVA (sem itemId) com o plano no limite de conexões → 403
+ * { codigo: 'limite_plano' } (só com ASSINATURAS_HABILITADAS ligada); reconexão sempre passa.
  */
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,6 +31,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const raw = await request.json().catch(() => ({}));
   const parsed = bodySchema.safeParse(raw ?? {});
   if (!parsed.success) throw new ApiError(400, 'Dados inválidos');
+
+  // Limite de conexões do plano: só para conexão nova (reconectar não ocupa vaga nova).
+  if (!parsed.data.itemId) await exigirVagaConexao(user.id);
 
   // Sem o aceite registrado no My Finance (tela de consentimento) não abre o widget.
   await exigirConsentimentoPendente(user.id, parsed.data.consentimentoId);
