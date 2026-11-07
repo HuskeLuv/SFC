@@ -61,7 +61,7 @@ export function SecaoCarteira({ relatorio }: PropsSecao) {
         <Cadeado
           plano="adv"
           titulo="Análises da carteira"
-          descricao="Rentabilidade contra CDI, Ibovespa e inflação, e proventos por tipo."
+          descricao="Rentabilidade contra CDI, Ibovespa e inflação, proventos por tipo, cobertura do FGC e IR mensal de ações e FIIs."
           gancho={
             temPro && carteira
               ? `Seu patrimônio investido é ${fR0(carteira.patrimonio)}. Veja quanto ele rendeu de verdade.`
