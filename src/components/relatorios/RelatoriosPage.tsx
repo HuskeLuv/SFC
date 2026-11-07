@@ -26,6 +26,7 @@ import { calcularRentabilidade } from '@/components/analises/RentabilidadeResumo
 import ResumoExecutivo from './ResumoExecutivo';
 import PosicaoConsolidada, { type PosicaoSecao } from './PosicaoConsolidada';
 import GatePlano from '@/components/planos/GatePlano';
+import { usePlano } from '@/hooks/usePlano';
 import MovimentacoesTable, { type Movimentacao } from './MovimentacoesTable';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import { MobileCollapsible } from '@/components/ui/mobile/MobileCollapsible';
@@ -152,16 +153,26 @@ function RelatoriosConteudo() {
     useCarteiraHistorico(startTimestamp);
   const { indices: indices1d, loading: loadingIndices } = useIndices('1y', startTimestamp);
   const { indices: indices1mo } = useIndices('1mo', startTimestamp);
+  // Proventos são do Advanced (/api/analises/proventos = 'adv'): no Pro não busca (sem 403) e a
+  // seção vira cadeado de bloco, em vez de mostrar R$ 0,00. Chave desligada = libera sempre.
+  const { libera } = usePlano();
+  const liberaProventos = libera('adv');
   const {
     proventos,
     grouped,
     loading: loadingProventos,
-  } = useProventos(startDateISO, endDateISO, 'ativo');
+  } = useProventos(startDateISO, endDateISO, 'ativo', 'pagamento', liberaProventos);
   const { data: cashflowData, loading: loadingCashflow } = useCashflowData();
   const cashflowProcessed = useProcessedData(cashflowData);
   const { grouped: instituicaoGrouped, loading: loadingInstituicaoDistribuicao } =
     useInstituicaoDistribuicao();
-  const { total: proventosTotal } = useProventos(startDateISO, endDateISO, 'ativo');
+  const { total: proventosTotal } = useProventos(
+    startDateISO,
+    endDateISO,
+    'ativo',
+    'pagamento',
+    liberaProventos,
+  );
 
   // Posição consolidada (por categoria → ativo) — mesma fonte da tela Histórico.
   const { data: posicaoData } = useQuery({
@@ -415,7 +426,7 @@ function RelatoriosConteudo() {
       resultadoPeriodo,
       rentabilidadePeriodo,
       cdiPeriodo,
-      proventosPeriodo: proventosTotal ?? 0,
+      proventosPeriodo: liberaProventos ? (proventosTotal ?? 0) : null,
       aportesLiquidosPeriodo,
     };
   }, [
@@ -425,6 +436,7 @@ function RelatoriosConteudo() {
     filteredIndices1d,
     movimentacoesData,
     proventosTotal,
+    liberaProventos,
     startTimestamp,
     endTimestamp,
   ]);
@@ -679,26 +691,34 @@ function RelatoriosConteudo() {
                   <p className="text-sm text-gray-500 dark:text-gray-400">{periodLabel}</p>
                 </div>
               </div>
-              <div className="space-y-6">
-                <ComponentCard title="Histórico de Proventos" className="avoid-break">
-                  {proventos.length > 0 ? (
-                    <ProventosHistoricoChart proventos={proventos} />
-                  ) : (
-                    <div className="flex h-64 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
-                      Sem dados para o período selecionado.
-                    </div>
-                  )}
-                </ComponentCard>
-                <ComponentCard title="Distribuição de Proventos" className="avoid-break">
-                  {Object.keys(grouped).length > 0 ? (
-                    <ProventosDistribuicaoChart grouped={grouped} viewMode="total" />
-                  ) : (
-                    <div className="flex h-64 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
-                      Sem dados para o período selecionado.
-                    </div>
-                  )}
-                </ComponentCard>
-              </div>
+              <GatePlano
+                need="adv"
+                variante="bloco"
+                previa="analise"
+                recurso="Os proventos do período"
+                descricao="Histórico e distribuição dos proventos recebidos no período."
+              >
+                <div className="space-y-6">
+                  <ComponentCard title="Histórico de Proventos" className="avoid-break">
+                    {proventos.length > 0 ? (
+                      <ProventosHistoricoChart proventos={proventos} />
+                    ) : (
+                      <div className="flex h-64 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+                        Sem dados para o período selecionado.
+                      </div>
+                    )}
+                  </ComponentCard>
+                  <ComponentCard title="Distribuição de Proventos" className="avoid-break">
+                    {Object.keys(grouped).length > 0 ? (
+                      <ProventosDistribuicaoChart grouped={grouped} viewMode="total" />
+                    ) : (
+                      <div className="flex h-64 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+                        Sem dados para o período selecionado.
+                      </div>
+                    )}
+                  </ComponentCard>
+                </div>
+              </GatePlano>
             </SecaoRelatorio>
 
             <SecaoRelatorio

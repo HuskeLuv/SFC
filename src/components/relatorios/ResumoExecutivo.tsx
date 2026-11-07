@@ -29,7 +29,8 @@ export interface ResumoExecutivoProps {
   rentabilidadePeriodo: number | null;
   /** CDI acumulado do mesmo período (%). */
   cdiPeriodo: number | null;
-  proventosPeriodo: number;
+  /** null = o plano não libera proventos (assinaturas: só no Advanced); mostra "—", nunca zero. */
+  proventosPeriodo: number | null;
   /** Compras − vendas do período (sem operações "dinheiro já estava investido"). */
   aportesLiquidosPeriodo: number | null;
 }
@@ -56,7 +57,11 @@ export default function ResumoExecutivo({
       accent: MYFINANCE_BRAND.outside,
       sub: cdiPeriodo === null ? undefined : `CDI no período: ${pct(cdiPeriodo)}`,
     },
-    { label: 'Proventos recebidos', value: <Sensivel>{brl(proventosPeriodo)}</Sensivel> },
+    {
+      label: 'Proventos recebidos',
+      value: proventosPeriodo === null ? '—' : <Sensivel>{brl(proventosPeriodo)}</Sensivel>,
+      sub: proventosPeriodo === null ? 'Disponível no Advanced' : undefined,
+    },
     {
       label: 'Aportes líquidos',
       value:

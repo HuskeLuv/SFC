@@ -188,3 +188,15 @@ describe('Relatórios — detalhes da marcação', () => {
     expectPilulas(container, 3);
   });
 });
+
+describe('Relatórios — proventos fora do plano (assinaturas: Pro)', () => {
+  it('proventosPeriodo null mostra "—" e o plano, nunca R$ 0,00', () => {
+    const { container, getByText } = render(
+      <ComValoresOcultos ocultos={false}>
+        <ResumoExecutivo {...resumoProps} proventosPeriodo={null} />
+      </ComValoresOcultos>,
+    );
+    expect(getByText('Disponível no Advanced')).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/R\$\s*0,00/);
+  });
+});
