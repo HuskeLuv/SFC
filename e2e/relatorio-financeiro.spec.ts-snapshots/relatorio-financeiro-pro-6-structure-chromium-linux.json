@@ -64,14 +64,15 @@
    "div.kpis",
    "div.block",
    "div.callout.warn",
-   "div.callout",
+   "div.two",
+   "p.fine",
    "div.pf"
   ],
   "kpis": 6,
   "kpisBloqueados": 0,
   "linhas": 5,
   "barras": 0,
-  "graficos": 0,
+  "graficos": 2,
   "cadeados": 0,
   "destaques": 0
  },

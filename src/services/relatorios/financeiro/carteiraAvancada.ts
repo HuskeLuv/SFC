@@ -1,6 +1,6 @@
 /**
  * Seção 4b (Carteira: TWR x índices, proventos) do Relatório financeiro. Plano Advanced.
- * fgc e irRendaVariavel ficam null na v1 (o front mostra "em breve").
+ * fgc vem de ./fgc; irRendaVariavel vem de ./irRendaVariavel.
  *
  *  - TWR: cumulativeReturn de portfolio_performance REBASEADO no último ponto antes do período
  *    ((1+cum)/(1+cum_base) − 1), sem buildPatrimonioHistorico. Carteira que começou dentro do
@@ -22,6 +22,8 @@ import { resolveProventoEvents, type ProventoEvent } from '@/services/portfolio/
 import { carregarSerieCambio, type SerieCambio } from '@/services/market/cambioUsdBrl';
 import { serieAcumuladaFatoresPct, serieAcumuladaPrecoPct } from '@/services/market/benchmarks';
 import type { ContextoMontador, Insumos, PontoPerformance } from './insumos';
+import { montarFgc } from './fgc';
+import { montarIrRendaVariavel } from './irRendaVariavel';
 
 const IBOV_SYMBOL = '^BVSP';
 const DIA_MS = 24 * 60 * 60 * 1000;
@@ -215,9 +217,11 @@ async function carregarBenchmarks(baseMs: number, fimMs: number) {
 export async function montarCarteiraAvancada(
   ctx: ContextoMontador,
 ): Promise<BlocoCarteiraAvancada> {
-  const [perf, proventos13m] = await Promise.all([
+  const [perf, proventos13m, fgc, irRendaVariavel] = await Promise.all([
     ctx.insumos.performance13m(),
     proventosDaJanela(ctx),
+    montarFgc(ctx),
+    montarIrRendaVariavel(ctx),
   ]);
   const periodo = new Set(ctx.mesesDoPeriodo);
   const proventos = proventos13m.filter((p) => periodo.has(p.mes));
@@ -231,8 +235,8 @@ export async function montarCarteiraAvancada(
       ipca: null,
       ibov: null,
       proventos,
-      fgc: null,
-      irRendaVariavel: null,
+      fgc,
+      irRendaVariavel,
     };
   }
 
@@ -258,7 +262,7 @@ export async function montarCarteiraAvancada(
     ipca: bench.ipca.length > 0 ? ultimo(ipca) : null,
     ibov: temIbov ? ultimo(ibov) : null,
     proventos,
-    fgc: null,
-    irRendaVariavel: null,
+    fgc,
+    irRendaVariavel,
   };
 }

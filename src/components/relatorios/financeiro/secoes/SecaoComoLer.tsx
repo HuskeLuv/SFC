@@ -12,7 +12,7 @@ const P = { margin: 0 } as const;
 
 /**
  * Seção 9: textos do Pedro (fontes, período, métodos e aviso) + uma linha por divergência com as
- * telas do app e pelos blocos que chegam "em breve". Em todos os planos a rentabilidade é descrita
+ * telas do app e por método dos blocos novos. Em todos os planos a rentabilidade é descrita
  * "sem o efeito de entradas e saídas de dinheiro" (decisão 6: o texto é estático e vai no mesmo
  * chunk do Basic).
  */
@@ -21,14 +21,6 @@ export function SecaoComoLer({ relatorio }: PropsSecao) {
   const plano = relatorio.plano;
   const pro = temAcesso(plano, 'pro');
   const adv = temAcesso(plano, 'adv');
-
-  const emBreve: string[] = [];
-  if (n > 1) emBreve.push('a evolução das dívidas mês a mês');
-  if (adv) emBreve.push('a cobertura do FGC', 'o IR mensal de ações e FIIs');
-  const listaEmBreve =
-    emBreve.length > 1
-      ? `${emBreve.slice(0, -1).join(', ')} e ${emBreve[emBreve.length - 1]}`
-      : emBreve[0];
 
   return (
     <Pagina
@@ -64,6 +56,9 @@ export function SecaoComoLer({ relatorio }: PropsSecao) {
           consideram as parcelas atuais, sem antecipação. O saldo é corrigido pelo índice de cada
           contrato, como na Carteira e na Saúde Financeira, e pode diferir da tela Dívidas; a
           parcela do mês segue o cronograma do app (no rotativo, o mínimo de 15%).
+          {n > 1
+            ? ' A evolução mês a mês é reconstruída pelo cronograma de cada contrato e pelos pagamentos registrados; juros e amortização do período contam só os meses com pagamento registrado (no rotativo, o valor pago entra todo como amortização).'
+            : ''}
         </p>
         {adv ? (
           <p style={P}>
@@ -74,9 +69,16 @@ export function SecaoComoLer({ relatorio }: PropsSecao) {
             Proventos.
           </p>
         ) : null}
-        {listaEmBreve ? (
+        {adv ? (
           <p style={P}>
-            <b>Em breve.</b> Chegam ao relatório {listaEmBreve}. Até lá, veja nas telas do app.
+            <b>FGC.</b> Limite de R$ 250 mil por banco emissor e teto global de R$ 1 milhão, sobre o
+            valor efetivamente coberto, como na aba Análises &gt; Cobertura FGC.
+          </p>
+        ) : null}
+        {adv ? (
+          <p style={P}>
+            <b>IR mensal de ações e FIIs.</b> Mesma apuração da aba Análises &gt; IR, com prejuízo
+            compensado. DARF abaixo de R$ 10 acumula para o mês seguinte.
           </p>
         ) : null}
         {adv ? <ParagrafoPgbl /> : null}

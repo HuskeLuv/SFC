@@ -7,6 +7,7 @@ import { mockFetchResponse } from '@/test/mocks/fetch';
 import type { Plano } from '@/lib/planos';
 import type { MesesRelatorio, RelatorioFinanceiro } from '@/types/relatorioFinanceiro';
 import { relatorioExemplo } from '../__fixtures__/relatorioExemplo';
+import { fR0, soma } from '../formato';
 
 const mocks = vi.hoisted(() => ({
   ocultos: false,
@@ -198,14 +199,82 @@ describe('seção 3 — Dívidas', () => {
     expect(s3.textContent).not.toContain('chega em breve');
   });
 
-  it("n>1: cartão 'em breve' no lugar dos gráficos, com link", () => {
-    const { container } = renderDoc(6, 'basic');
-    const s3 = secao(container, 3);
+  it('n=1: sem os gráficos de evolução', () => {
+    const s3 = secao(renderDoc(1, 'adv').container, 3);
     expect(s3.querySelectorAll('svg[role="img"]')).toHaveLength(0);
-    const breve = [...s3.querySelectorAll('.callout')].find((c) =>
-      c.textContent?.includes('chega em breve'),
-    )!;
-    expect(breve.querySelector('a')!.getAttribute('href')).toBe('/dividas');
+    expect(s3.querySelector('.two')).toBeNull();
+  });
+
+  for (const plano of ['basic', 'pro', 'adv'] as const) {
+    it(`n>1 (${plano}): saldo devedor e juros x amortização lado a lado`, () => {
+      const r = relatorioExemplo(6, plano);
+      // A 4b (Advanced) não chega ao Basic nem ao Pro; a seção 3 é de todos os planos.
+      if (plano === 'adv') expect(r.carteiraAvancada).not.toBeNull();
+      else expect(r.carteiraAvancada).toBeNull();
+      const { container } = render(<DocumentoRelatorio relatorio={r} />);
+      const s3 = secao(container, 3);
+      const two = s3.querySelector('.two')!;
+      expect([...two.querySelectorAll('.chart > h3')].map((h) => h.textContent)).toEqual([
+        'Saldo devedor fim de cada mês',
+        'Parcela: juros x amortização pagos em cada mês',
+      ]);
+      expect(
+        two.querySelector('svg[aria-label="Saldo devedor no fim de cada mês"]'),
+      ).not.toBeNull();
+      const barras = two.querySelector(
+        'svg[aria-label="Parcela paga em cada mês: amortização e juros"]',
+      )!;
+      expect(barras).not.toBeNull();
+      expect(barras.querySelectorAll('rect').length).toBeGreaterThanOrEqual(12);
+      expect([...two.querySelectorAll('.legend span')].map((l) => l.textContent)).toEqual([
+        'Amortização',
+        'Juros',
+      ]);
+      expect(s3.textContent).not.toContain('chega em breve');
+      const amort = soma(r.dividas.serie.map((p) => p.amortizacao));
+      expect(s3.querySelector('.two + p.fine')!.textContent).toBe(
+        `Pelos pagamentos registrados, no período você amortizou ${fR0(amort)} e pagou ${fR0(soma(r.dividas.serie.map((p) => p.juros)))} de juros.`,
+      );
+      expect(s3.textContent).not.toMatch(PROIBIDAS_TODOS);
+      if (plano === 'basic') expect(s3.textContent).not.toMatch(APORTE);
+    });
+  }
+
+  it('n>1: o último mês da série bate com o KPI "Saldo devedor total"', () => {
+    const r = relatorioExemplo(12, 'basic');
+    const kpi = soma(r.dividas.itens.map((d) => d.saldo));
+    expect(r.dividas.serie).toHaveLength(12);
+    expect(r.dividas.serie[11].saldo).toBeCloseTo(kpi, 6);
+  });
+
+  it('n>1 com o olho fechado: o texto do período sem valores', () => {
+    mocks.ocultos = true;
+    const s3 = secao(renderDoc(3, 'basic').container, 3);
+    expect(s3.querySelector('.two + p.fine')!.textContent).toBe(
+      'Pelos pagamentos registrados, no período você amortizou R$ •••• e pagou R$ •••• de juros.',
+    );
+  });
+
+  it('n>1 com saldo e sem pagamento registrado: não afirma que amortizou', () => {
+    const { container } = renderDoc(6, 'basic', (r) => {
+      r.dividas.serie = r.dividas.serie.map((p) => ({ ...p, juros: 0, amortizacao: 0 }));
+    });
+    const s3 = secao(container, 3);
+    expect(s3.querySelector('.two + p.fine')!.textContent).toBe(
+      'Nenhum pagamento registrado no período.',
+    );
+  });
+
+  it('n>1 sem dívida: nada de gráfico', () => {
+    const { container } = renderDoc(6, 'basic', (r) => {
+      r.dividas.itens = [];
+      r.dividas.semDividasForaImovel = { mes: null, motivo: 'sem_dividas' };
+      r.dividas.serie = r.dividas.serie.map((p) => ({ ...p, saldo: 0, juros: 0, amortizacao: 0 }));
+    });
+    const s3 = secao(container, 3);
+    expect(s3.querySelector('.two')).toBeNull();
+    expect(s3.querySelectorAll('svg[role="img"]')).toHaveLength(0);
+    expect(s3.textContent).toContain('Você não tem dívidas em aberto');
   });
 
   it('sem dívidas: estado vazio', () => {
@@ -228,13 +297,23 @@ describe('seção 9 — Como ler', () => {
     expect(s9.innerHTML).not.toMatch(APORTE);
   });
 
-  it('Advanced: saúde, proventos e os blocos em breve', () => {
+  it('Advanced: saúde, proventos e os métodos de FGC, IR mensal e dívidas, sem "em breve"', () => {
     const { container } = renderDoc(12, 'adv');
     const s9 = secao(container, 9);
     expect(s9.textContent).toContain('A nota de 0 a 100 é provisória');
-    expect(s9.textContent).toContain(
-      'a evolução das dívidas mês a mês, a cobertura do FGC e o IR mensal de ações e FIIs',
-    );
+    expect(s9.textContent).toContain('R$ 250 mil por banco emissor e teto global de R$ 1 milhão');
+    expect(s9.textContent).toContain('DARF abaixo de R$ 10 acumula para o mês seguinte');
+    expect(s9.textContent).toContain('pelo cronograma de cada contrato e pelos pagamentos');
+    expect(s9.textContent).not.toMatch(/em breve/i);
+  });
+
+  it('Basic n=1: sem as notas de FGC/IR mensal e sem a evolução das dívidas', () => {
+    const { container } = renderDoc(1, 'basic');
+    const s9 = secao(container, 9);
+    expect(s9.textContent).not.toContain('FGC');
+    expect(s9.textContent).not.toContain('IR mensal');
+    expect(s9.textContent).not.toContain('pelos pagamentos registrados');
+    expect(s9.textContent).not.toMatch(/em breve/i);
   });
 });
 

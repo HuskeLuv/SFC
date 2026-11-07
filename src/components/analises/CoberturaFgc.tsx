@@ -17,6 +17,7 @@ import {
 import { ResponsiveCardList } from '@/components/ui/table/ResponsiveTable';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 import type { SemCoberturaFgc } from '@/services/analises/semCoberturaFgc';
+import { faixaLimiteFgc, pedeEmissor } from '@/services/analises/agruparCoberturaFgc';
 import { rotuloCnpj } from '@/lib/instituicoes/cnpj';
 import { Sensivel, TextoSensivel, ValorVisivel } from '@/components/common/valores/Sensivel';
 
@@ -80,9 +81,11 @@ export function getStatusLabel(
         'Esta instituição possui apenas produtos que não são protegidos pelo FGC (CRI, CRA, debêntures não-incentivadas, LF). Em caso de inadimplência do emissor, o investidor não recupera o capital via FGC.',
     };
   }
-  if (percent >= 100)
+  const faixa = faixaLimiteFgc(percent);
+  if (faixa === 'acima')
     return { text: 'Limite excedido', className: 'text-red-600 dark:text-red-400' };
-  if (percent >= 80) return { text: 'Atenção', className: 'text-amber-600 dark:text-amber-400' };
+  if (faixa === 'atencao')
+    return { text: 'Atenção', className: 'text-amber-600 dark:text-amber-400' };
   return { text: 'Dentro do limite', className: 'text-emerald-600 dark:text-emerald-400' };
 }
 
@@ -95,20 +98,8 @@ export function chaveDoGrupo(
   return inst.chave || inst.cnpj || inst.instituicaoId;
 }
 
-/**
- * O ativo pede o emissor? Só quando a edição aceita emissor (há link) e o limite está vindo da
- * corretora, de lugar nenhum ou de um emissor gravado que é corretora.
- */
-export function pedeEmissor(
-  ativo: Pick<AssetFgcInfo, 'editarEmissorHref' | 'fonteInstituicao'>,
-): boolean {
-  return (
-    Boolean(ativo.editarEmissorHref) &&
-    (ativo.fonteInstituicao === 'corretora' ||
-      ativo.fonteInstituicao === 'desconhecida' ||
-      ativo.fonteInstituicao === 'emissor-nao-emissor')
-  );
-}
+/** Regra única com o relatório (services/analises/agruparCoberturaFgc). */
+export { pedeEmissor };
 
 /** Grupo sem emissor identificado (nem emissor nem corretora). */
 export function ehGrupoDesconhecido(

@@ -24,7 +24,10 @@ import type {
   SonhoRelatorio,
   StatusSemaforo,
 } from '@/types/relatorioFinanceiro';
+import type { BlocoFgcRelatorio } from '@/types/relatorioFinanceiroFgc';
+import type { PontoSerieDividas } from '@/types/relatorioFinanceiroDividas';
 import { CORES } from '../cores';
+import { apurarIrFicticio } from '../ficticio/irMensal';
 import { fP } from '../formato';
 
 // ── utilidades do protótipo ─────────────────────────────────────────────────────
@@ -188,9 +191,15 @@ const DEBTS: DividaEx[] = (
   return { ...d, i, parcela, jurosMes: d.saldo * i, jr };
 });
 
-// DEBT_M: a série de dívidas não entra na v1, mas os sorteios precisam acontecer na ordem.
-MLAB.forEach((_, m) => {
-  if (m !== 11) R();
+/** DEBT_M do protótipo: saldo no fim de cada mês e parcela juros × amortização. */
+const DEBT_M: PontoSerieDividas[] = MLAB.map((_, m) => {
+  const back = 11 - m;
+  const imob = 312400 + 1459.8 * back;
+  const car = 38600 + 985 * back;
+  const parc = m === 11 ? 4850 : Math.round(2600 + R() * 3400);
+  const rot = m >= 9 ? (2300 * (m - 8)) / 3 : 0;
+  const juros = imob * DEBTS[0].i + car * DEBTS[1].i + rot * DEBTS[3].i;
+  return { mes: mesDe(m), saldo: imob + car + parc + rot, juros, amortizacao: 1459.8 + 985 };
 });
 
 const CLASSES: [ItemCarteira['chave'], string, number, string][] = [
@@ -239,6 +248,15 @@ const PLAN_P: number[] = new Array(12);
 PLAN_P[0] = PAT[0] * 1.004;
 const APORTE_P = MLAB.map((_, m) => Math.round(3500 * Math.pow(1.004, m)));
 for (let m = 1; m < 12; m++) PLAN_P[m] = PLAN_P[m - 1] * (1 + META_M / 100) + APORTE_P[m];
+
+// IR mensal de renda variável (IRM do protótipo): sorteado logo depois dos proventos.
+const IRM = apurarIrFicticio(
+  MLAB.map(() => ({
+    va: Math.round(6000 + R() * 22000),
+    la: Math.round((R() - 0.3) * 3200),
+    lf: Math.round((R() - 0.2) * 1400),
+  })),
+);
 
 const DREAMS = [
   {
@@ -337,7 +355,7 @@ function orcamentoExemplo(n: number): BlocoOrcamento {
   };
 }
 
-function dividasExemplo(): BlocoDividas {
+function dividasExemplo(n: number): BlocoDividas {
   return {
     itens: DEBTS.map((d, k) => ({
       id: `divida-${k + 1}`,
@@ -356,6 +374,7 @@ function dividasExemplo(): BlocoDividas {
     })),
     semDividasForaImovel: { mes: mesDepois(DEBTS[1].rest ?? 0), motivo: 'com_rotativo' },
     avisos: { semCet: 0, parcelasVencidasSemPagamento: 0 },
+    serie: DEBT_M.slice(12 - n),
   };
 }
 
@@ -417,8 +436,56 @@ function carteiraAvancadaExemplo(n: number): BlocoCarteiraAvancada {
       jcp: p.jcp,
       exterior: p.ext,
     })),
-    fgc: null,
-    irRendaVariavel: null,
+    fgc: fgcExemplo(),
+    irRendaVariavel: {
+      meses: IRM.slice(12 - n).map((r, k) => ({
+        mes: mesDe(12 - n + k),
+        vendasAcoes: r.va,
+        vendasEtf: 0,
+        isentoAcoes: r.isento,
+        lucroAcoes: r.la,
+        prejuizoCompensadoAcoes: r.compAcoes,
+        irAcoes: r.irAcoes,
+        vendasFii: 0,
+        lucroFii: r.lf,
+        prejuizoCompensadoFii: r.compFii,
+        irFii: r.irFii,
+        irMes: r.irMes,
+        acumuladoAnterior: r.acumuladoAnterior,
+        darf: r.darf,
+      })),
+    },
+  };
+}
+
+/** FGC do protótipo: [emissor, valor coberto, nº de títulos]. */
+const FGC: [string, number, number][] = [
+  ['Banco BMG S.A.', 168478.56, 2],
+  ['BTG Pactual', 119135.56, 1],
+  ['XP Investimentos', 93731.15, 1],
+  ['Banco Inter S.A.', 89406.65, 1],
+];
+
+function fgcExemplo(): BlocoFgcRelatorio {
+  const total = Math.round(FGC.reduce((a, f) => a + f[1], 0) * 100) / 100;
+  return {
+    limitePorEmissor: 250_000,
+    tetoGlobal: 1_000_000,
+    emissores: FGC.map(([nome, valorCoberto, nTitulos], i) => ({
+      chave: `emissor-${i + 1}`,
+      nome,
+      valorCoberto,
+      nTitulos,
+      pctLimite: Math.round((valorCoberto / 250_000) * 10000) / 100,
+      excedente: 0,
+      status: 'dentro',
+      usaCorretora: false,
+    })),
+    totalCoberto: total,
+    pctTetoGlobal: Math.round((total / 1_000_000) * 10000) / 100,
+    totalExcedente: 0,
+    rendaFixaSemCobertura: 0,
+    avisos: [],
   };
 }
 
@@ -678,7 +745,7 @@ export function relatorioExemplo(meses: MesesRelatorio, plano: Plano): Relatorio
     },
     geradoEm: GERADO_EM_EXEMPLO,
     orcamento: orcamentoExemplo(meses),
-    dividas: dividasExemplo(),
+    dividas: dividasExemplo(meses),
     carteira: carteiraExemplo(meses),
     carteiraAvancada: carteiraAvancadaExemplo(meses),
     planejamento: planejamentoExemplo(meses),

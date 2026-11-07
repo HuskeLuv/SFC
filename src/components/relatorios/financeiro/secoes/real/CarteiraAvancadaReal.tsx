@@ -1,17 +1,14 @@
-import Link from 'next/link';
 import { CORES } from '../../cores';
 import { fAxP, fP, rotuloMes, soma } from '../../formato';
 import { useFormato } from '../../FormatoProvider';
 import { SvgBars } from '../../graficos/SvgBars';
 import { SvgLines } from '../../graficos/SvgLines';
 import type { PropsCarteiraAvancadaReal } from '../../tipos';
-import { Callout } from '../../ui/Callout';
 import { ChartBox } from '../../ui/ChartBox';
 import { Kpi } from '../../ui/Kpi';
 import { Legenda } from '../../ui/Legenda';
-
-/** Tela que já mostra o que a v1 do relatório ainda não traz (FGC e IR de renda variável). */
-export const LINK_ANALISES = '/carteira?aba=analise';
+import { CoberturaFgcReal } from './CoberturaFgcReal';
+import { IrRendaVariavelReal } from './IrRendaVariavelReal';
 
 /** Marcas do eixo x: dias com n=1, início de cada mês nos demais (de 2 em 2 com 12 meses). */
 function marcasX(datas: string[], n: number): [number, string][] {
@@ -137,15 +134,9 @@ export default function CarteiraAvancadaReal({
             Líquido pago, em reais pelo câmbio da data de pagamento. Pode diferir da aba Proventos.
           </span>
         </ChartBox>
-        <Callout>
-          <b>Cobertura do FGC:</b> em breve no relatório. Veja agora em{' '}
-          <Link href={LINK_ANALISES}>Análises &gt; Cobertura FGC</Link>.
-        </Callout>
+        <CoberturaFgcReal fgc={ca.fgc} />
       </div>
-      <Callout>
-        <b>IR mensal de ações e FIIs:</b> em breve no relatório. Veja agora em{' '}
-        <Link href={LINK_ANALISES}>Análises &gt; IR</Link>.
-      </Callout>
+      <IrRendaVariavelReal bloco={ca.irRendaVariavel} />
     </>
   );
 }

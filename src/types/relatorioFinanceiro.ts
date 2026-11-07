@@ -14,6 +14,8 @@
  */
 import type { Plano } from '@/lib/planos';
 import type { ResultadoIrpfAnual } from '@/services/ir/irpfAnual';
+import type { BlocoFgcRelatorio } from './relatorioFinanceiroFgc';
+import type { BlocoIrRendaVariavelRelatorio } from './relatorioFinanceiroIrRendaVariavel';
 
 export type { Plano } from '@/lib/planos';
 
@@ -138,6 +140,8 @@ export interface BlocoDividas {
     /** Nº de parcelas vencidas sem pagamento registrado. */
     parcelasVencidasSemPagamento: number;
   };
+  /** Evolução mês a mês do período (gráficos com n > 1), do mais antigo ao corrente. */
+  serie: import('./relatorioFinanceiroDividas').PontoSerieDividas[];
 }
 
 // ── 4a Carteira (Pro) ───────────────────────────────────────────────────────────
@@ -212,10 +216,10 @@ export interface BlocoCarteiraAvancada {
   ipca: number | null;
   ibov: number | null;
   proventos: ProventosMesRelatorio[];
-  /** Fora da v1: o front mostra "em breve". */
-  fgc: null;
-  /** Fora da v1: o front mostra "em breve". */
-  irRendaVariavel: null;
+  /** Cobertura do FGC (null = carga falhou: o front leva à tela de Análises). */
+  fgc: BlocoFgcRelatorio | null;
+  /** IR mensal de ações e FIIs: a apuração da aba Análises > IR. */
+  irRendaVariavel: BlocoIrRendaVariavelRelatorio | null;
 }
 
 // ── 5 Planejamento (Pro) ────────────────────────────────────────────────────────
