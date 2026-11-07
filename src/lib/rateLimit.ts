@@ -187,6 +187,12 @@ export const RATE_LIMIT_TIERS: RateLimitTier[] = [
     config: { limit: 30, windowMs: 60_000 },
   },
   {
+    // Webhook do Stripe (assinaturas): rajadas legítimas de eventos (renovações em lote,
+    // retentativas) vêm dos IPs do Stripe — teto próprio de 300/min, ANTES do genérico.
+    match: (p) => p === '/api/webhooks/stripe',
+    config: { limit: 300, windowMs: 60_000 },
+  },
+  {
     // General API
     match: (p) => p.startsWith('/api/'),
     config: { limit: 60, windowMs: 60_000 },

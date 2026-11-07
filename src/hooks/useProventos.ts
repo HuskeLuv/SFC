@@ -134,6 +134,8 @@ export const useProventos = (
   endDate?: string,
   groupBy: 'ativo' | 'classe' | 'tipo' = 'ativo',
   dataBase: ProventosDataBase = 'pagamento',
+  /** false = não busca (assinaturas: /api/analises/proventos é do Advanced). */
+  enabled = true,
 ): UseProventosResult => {
   const {
     data = emptyResponse,
@@ -147,6 +149,7 @@ export const useProventos = (
     // Sem isso, cada clique em pílula troca a queryKey e isLoading volta a true,
     // fazendo a página inteira piscar o spinner.
     placeholderData: keepPreviousData,
+    enabled,
     queryFn: async ({ signal }) => {
       const params = new URLSearchParams();
       if (startDate) params.append('startDate', startDate);

@@ -4,6 +4,9 @@
  * e registro de cada chamada ao modelo com custo (spec v1.1 §7).
  */
 import prisma from '@/lib/prisma';
+import { assinaturasHabilitadas, limiteDoPlano } from '@/lib/assinaturasConfig';
+import type { Plano } from '@/lib/planos';
+import { planoDoUsuario } from '@/services/planos/resolverPlano';
 import type { LlmResponse } from './llm';
 import type { Intencao } from './intencao';
 
@@ -11,9 +14,16 @@ export const LIMITE_MENSAL_PADRAO = 300;
 /** A partir desta fração da cota o cliente avisa que está perto do limite. */
 export const FRACAO_MODO_ECONOMICO = 0.8;
 
-export function limiteMensal(): number {
+/**
+ * Cota mensal. Sem plano, ou com ASSINATURAS_HABILITADAS desligada, é a de sempre
+ * (ASSISTENTE_LIMITE_MENSAL, padrão 300). Com a chave ligada e um plano, é a do plano
+ * (LIMITES_PLANO.ia / ASSINATURAS_LIMITE_IA_*), nunca acima do teto global.
+ */
+export function limiteMensal(plano?: Plano): number {
   const n = Number(process.env.ASSISTENTE_LIMITE_MENSAL);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : LIMITE_MENSAL_PADRAO;
+  const teto = Number.isFinite(n) && n > 0 ? Math.floor(n) : LIMITE_MENSAL_PADRAO;
+  if (plano === undefined || !assinaturasHabilitadas()) return teto;
+  return Math.min(limiteDoPlano('ia', plano), teto);
 }
 
 export function assistenteHabilitado(): boolean {
@@ -25,14 +35,21 @@ export interface UsoMensal {
   limite: number;
   restantes: number;
   economico: boolean;
+  /** Plano que definiu a cota; só com ASSINATURAS_HABILITADAS ligada (ausente = como antes). */
+  plano?: Plano;
 }
 
 export function inicioDoMes(agora = new Date()): Date {
   return new Date(agora.getFullYear(), agora.getMonth(), 1);
 }
 
+/**
+ * Uso do mês de `userId`, o DONO dos dados: com o consultor agindo, a cota conta no cliente
+ * (decisão 4 de 07/11) e o plano é o do cliente, nunca o max com o consultor.
+ */
 export async function usoMensal(userId: string, agora = new Date()): Promise<UsoMensal> {
-  const limite = limiteMensal();
+  const plano = assinaturasHabilitadas() ? await planoDoUsuario(userId) : undefined;
+  const limite = limiteMensal(plano);
   const usadas = await prisma.assistenteMensagem.count({
     where: { userId, ok: true, createdAt: { gte: inicioDoMes(agora) } },
   });
@@ -41,6 +58,7 @@ export async function usoMensal(userId: string, agora = new Date()): Promise<Uso
     limite,
     restantes: Math.max(0, limite - usadas),
     economico: usadas >= Math.floor(limite * FRACAO_MODO_ECONOMICO),
+    ...(plano !== undefined ? { plano } : {}),
   };
 }
 

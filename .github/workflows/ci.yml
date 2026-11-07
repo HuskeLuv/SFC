@@ -112,6 +112,10 @@ jobs:
           npx prisma generate
           npx prisma migrate deploy
           npm run seed
+          # Assinaturas: basic.e2e (sem linha) e pro.e2e (linha active fake) do projeto
+          # Playwright "assinaturas", que sobe um segundo servidor com a chave ligada e valores
+          # FAKE (playwright.config.ts). O servidor principal segue com a chave desligada.
+          npx tsx prisma/seedAssinaturas.ts --apply
       - name: Build
         run: npm run build
       - name: Start app

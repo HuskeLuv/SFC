@@ -6,6 +6,8 @@ import { usePluggyConfig } from '@/hooks/useConexoesBancarias';
 import { useComunidadeConfig } from '@/hooks/useComunidade';
 import { useAnaliseAtivosConfig } from '@/hooks/useAnaliseAtivos';
 import { useRelatorioFinanceiroConfig } from '@/hooks/useRelatorioFinanceiroConfig';
+import { usePlano } from '@/hooks/usePlano';
+import { temAcesso, type Plano, type PlanoPago } from '@/lib/planos';
 import {
   CalenderIcon,
   CreditCardIcon,
@@ -22,6 +24,7 @@ import {
   PlugInIcon,
   GroupIcon,
   InfoIcon,
+  ShootingStarIcon,
 } from '../icons/index';
 
 /**
@@ -33,9 +36,14 @@ export type NavItem = {
   name: string;
   icon: React.ReactNode;
   path?: string;
-  subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
+  subItems?: { name: string; path: string; new?: boolean }[];
   /** Selo NOVO ao lado do nome (sidebar e painel Mais). */
   novo?: boolean;
+  /**
+   * Plano mínimo da página (assinaturas). Só vale com a chave ASSINATURAS_HABILITADAS ligada:
+   * o item continua visível, com cadeado e o selo do plano (ver `planoParaDestravar`).
+   */
+  plano?: PlanoPago;
 };
 
 /** Lupa sobre barras (Análise de Ativos): traço em currentColor, 24px como os demais ícones. */
@@ -64,6 +72,7 @@ export const MAIN_NAV_ITEMS: NavItem[] = [
     icon: <DollarLineIcon />,
     name: 'Carteira',
     path: '/carteira',
+    plano: 'pro',
   },
   {
     name: 'Fluxo de Caixa',
@@ -74,11 +83,13 @@ export const MAIN_NAV_ITEMS: NavItem[] = [
     name: 'Planejamento',
     icon: <PencilIcon />,
     path: '/planejamento-financeiro',
+    plano: 'pro',
   },
   {
     name: 'Saúde Financeira',
     icon: <PieChartIcon />,
     path: '/saude-financeira',
+    plano: 'adv',
   },
   {
     name: 'Dívidas',
@@ -132,7 +143,25 @@ const ANALISE_ATIVOS_ITEM: NavItem = {
   icon: <AnaliseAtivosIcon />,
   name: ANALISE_ATIVOS_NOME,
   path: '/analise-ativos',
+  plano: 'pro',
 };
+
+/** Planos (assinaturas): só com a chave ligada e fora do modo consultor. */
+export const PLANOS_NOME = 'Planos';
+const PLANOS_ITEM: NavItem = { icon: <ShootingStarIcon />, name: PLANOS_NOME, path: '/planos' };
+
+/**
+ * Plano que destrava o item para quem está no `plano` atual, ou null quando o item está liberado
+ * (sem `plano`, chave desligada ou plano suficiente). Base do cadeado + selo do menu.
+ */
+export function planoParaDestravar(
+  item: Pick<NavItem, 'plano'>,
+  plano: Plano,
+  assinaturasHabilitadas: boolean,
+): PlanoPago | null {
+  if (!assinaturasHabilitadas || !item.plano) return null;
+  return temAcesso(plano, item.plano) ? null : item.plano;
+}
 
 /**
  * Relatório financeiro (86e3yg90z): com a chave ligada, "Relatórios" vira um grupo com o
@@ -182,6 +211,8 @@ export interface BuildNavOptions {
   analiseAtivosNovo?: boolean;
   /** Chave RELATORIO_FINANCEIRO_HABILITADO (GET /api/relatorios/financeiro/config). */
   relatorioFinanceiroHabilitado?: boolean;
+  /** Chave ASSINATURAS_HABILITADAS (GET /api/assinaturas/me → habilitado): item Planos. */
+  assinaturasHabilitadas?: boolean;
 }
 
 /** Versão pura do filtro do menu (a lógica que antes vivia no useMemo da AppSidebar). */
@@ -193,6 +224,7 @@ export function buildMainNavItems({
   analiseAtivosHabilitada = false,
   analiseAtivosNovo = false,
   relatorioFinanceiroHabilitado = false,
+  assinaturasHabilitadas = false,
 }: BuildNavOptions): NavItem[] {
   const dashboardPath = role === 'consultant' && !isActing ? '/dashboard/consultor' : '/carteira';
 
@@ -238,6 +270,16 @@ export function buildMainNavItems({
         : [...items, PLUGGY_ITEM];
   }
 
+  // Planos (assinaturas): logo antes do Perfil, só com a chave ligada. Fora da lista do consultor
+  // personificado (o cliente é quem assina).
+  if (assinaturasHabilitadas) {
+    const idx = items.findIndex((item) => item.name === 'Perfil');
+    items =
+      idx >= 0
+        ? [...items.slice(0, idx), PLANOS_ITEM, ...items.slice(idx)]
+        : [...items, PLANOS_ITEM];
+  }
+
   // Comunidade (23/09/2026): atrás de COMUNIDADE_HABILITADA até liberar em prod.
   if (comunidadeHabilitada) {
     items = [...items, COMUNIDADE_ITEM];
@@ -266,6 +308,7 @@ export function useMainNavItems(): NavItem[] {
   const analiseAtivosHabilitada = analiseConfig?.habilitada === true;
   const analiseAtivosNovo = analiseAtivosHabilitada && seloNovoAtivo(analiseConfig?.novoAte);
   const relatorioFinanceiroHabilitado = useRelatorioFinanceiroConfig().data?.habilitado === true;
+  const assinaturasHabilitadas = usePlano().habilitado;
   const role = user?.role ?? null;
   const isActing = Boolean(actingClient);
 
@@ -279,6 +322,7 @@ export function useMainNavItems(): NavItem[] {
         analiseAtivosHabilitada,
         analiseAtivosNovo,
         relatorioFinanceiroHabilitado,
+        assinaturasHabilitadas,
       }),
     [
       role,
@@ -288,6 +332,7 @@ export function useMainNavItems(): NavItem[] {
       analiseAtivosHabilitada,
       analiseAtivosNovo,
       relatorioFinanceiroHabilitado,
+      assinaturasHabilitadas,
     ],
   );
 }
@@ -309,7 +354,7 @@ export const MORE_GROUPS: { label: MoreGroupLabel; names: string[] }[] = [
     label: 'Finanças',
     names: [ANALISE_ATIVOS_NOME, 'Saúde Financeira', 'Dívidas', 'Conexões bancárias'],
   },
-  { label: 'Organização', names: ['Agenda', 'Relatórios', 'Histórico'] },
+  { label: 'Organização', names: ['Agenda', 'Relatórios', 'Histórico', PLANOS_NOME] },
   { label: 'Aprender e conversar', names: ['Educação', 'FAQ', 'Comunidade', 'Administração'] },
 ];
 
@@ -353,6 +398,7 @@ function expandirSubitens(item: NavItem): NavItem[] {
     name: sub.path === item.path ? item.name : sub.name,
     path: sub.path,
     novo: sub.new,
+    plano: item.plano,
   }));
 }
 
@@ -383,7 +429,14 @@ const matchesPrefix = (pathname: string, prefix: string) =>
 export function getMobilePageTitle(pathname: string | null | undefined): string {
   if (!pathname) return 'My Finance';
   const candidates: { prefix: string; title: string }[] = [
-    ...[...MAIN_NAV_ITEMS, ANALISE_ATIVOS_ITEM, PLUGGY_ITEM, COMUNIDADE_ITEM, ADMIN_ITEM]
+    ...[
+      ...MAIN_NAV_ITEMS,
+      ANALISE_ATIVOS_ITEM,
+      PLUGGY_ITEM,
+      COMUNIDADE_ITEM,
+      ADMIN_ITEM,
+      PLANOS_ITEM,
+    ]
       .filter((item) => item.name !== 'Dashboard' && item.path)
       .map((item) => ({ prefix: item.path as string, title: item.name })),
     ...EXTRA_TITLES,

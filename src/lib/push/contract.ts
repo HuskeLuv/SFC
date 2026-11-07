@@ -81,6 +81,15 @@ export const ANALISE_CURADORIA_SLA_TYPE = 'analise_ativos_curadoria_sla';
 export const ANALISE_SALVOS_ALERTA_PUSH_TYPE = 'analise_ativos_salvos_alerta';
 
 /**
+ * Assinaturas (ClickUp 86e2zkhe2; os mesmos literais de services/assinaturas/checkout, repetidos
+ * aqui pelo mesmo motivo do ciclo de import): confirmação da desistência ao usuário, aviso aos
+ * admins e falha de pagamento. Categoria 'conta'; o push leva só o título.
+ */
+export const ASSINATURA_ARREPENDIMENTO_TYPE = 'assinatura_arrependimento';
+export const ASSINATURA_ARREPENDIMENTO_ADMIN_TYPE = 'assinatura_arrependimento_admin';
+export const ASSINATURA_PAGAMENTO_FALHOU_TYPE = 'assinatura_pagamento_falhou';
+
+/**
  * Categoria de push por `Notification.type`, usando as constantes exportadas
  * pelos serviços reais. Type fora deste mapa NÃO envia push.
  */
@@ -95,6 +104,9 @@ export const CATEGORIA_POR_TYPE: Readonly<Record<string, CategoriaPush>> = {
   [ANALISE_RELATO_RESPOSTA_TYPE]: 'conta',
   [ANALISE_CURADORIA_SLA_TYPE]: 'conta',
   [ANALISE_SALVOS_ALERTA_PUSH_TYPE]: 'analise',
+  [ASSINATURA_ARREPENDIMENTO_TYPE]: 'conta',
+  [ASSINATURA_ARREPENDIMENTO_ADMIN_TYPE]: 'conta',
+  [ASSINATURA_PAGAMENTO_FALHOU_TYPE]: 'conta',
 };
 
 /** null = type desconhecido: não envia push. */

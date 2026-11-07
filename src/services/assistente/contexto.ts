@@ -10,6 +10,7 @@
  */
 import { NextRequest } from 'next/server';
 import { getTtlCache, deleteTtlCacheKeyPrefix } from '@/lib/simpleTtlCache';
+import { assinaturasHabilitadas } from '@/lib/assinaturasConfig';
 import {
   abaDoAssetPlanejado,
   listarTodosPlanejados,
@@ -995,8 +996,11 @@ export async function buildContextoUsuario(request: NextRequest, userId: string)
   classes.forEach((c, i) => {
     posicoes[c] = posicoesArr[i];
   });
-  // Direto do banco (e não das abas): cobre classe sem posição alguma.
-  const planejados = await listarTodosPlanejados(userId).catch(() => []);
+  // Direto do banco (e não das abas): cobre classe sem posição alguma. Assinaturas (F2): as rotas
+  // internas sem o plano respondem 403 e a seção some (chamarRota → null); os planejados são da
+  // carteira, então somem junto quando o resumo da carteira foi recusado. Chave desligada: sempre.
+  const semCarteira = resumo === null && assinaturasHabilitadas();
+  const planejados = semCarteira ? [] : await listarTodosPlanejados(userId).catch(() => []);
 
   const contexto = montarContexto({
     ano,
@@ -1015,6 +1019,8 @@ export async function buildContextoUsuario(request: NextRequest, userId: string)
     fgc,
     planejados: planejados.map(planejadoParaContexto),
   });
+  // Sem a carteira no plano, a seção sai inteira (um objeto vazio faria o modelo dizer "R$ 0").
+  if (semCarteira) delete contexto.carteira;
   const json = JSON.stringify(contexto);
   cache.set(key, json, CACHE_TTL_MS);
   return json;

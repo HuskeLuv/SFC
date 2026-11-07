@@ -7,11 +7,34 @@ import { useSidebar } from '../context/SidebarContext';
 import { ChevronDownIcon, HorizontaLDots } from '../icons/index';
 import SidebarFooter from './SidebarFooter';
 import CashflowYearSelect from './CashflowYearSelect';
-import { useMainNavItems, type NavItem } from './navigation';
+import { planoParaDestravar, useMainNavItems, type NavItem } from './navigation';
+import { usePlano } from '@/hooks/usePlano';
+import { NOME_PLANO, type PlanoPago } from '@/lib/planos';
+import { IconeCadeadoPlano, SELO_PLANO } from '@/components/planos/planosUi';
 import { SELO_NOVO } from '@/constants/analiseAtivosVisual';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 
 const othersItems: NavItem[] = [];
+
+/** Cadeado + nome do plano que libera o item (assinaturas; só com a chave ligada). */
+function SeloPlanoMenu({ plano, compacto }: { plano: PlanoPago; compacto: boolean }) {
+  if (compacto) {
+    return (
+      <span
+        className="pointer-events-none absolute -top-1 right-1 grid h-4 w-4 place-items-center rounded-full bg-mf-seguranca text-white"
+        aria-label={`Disponível no ${NOME_PLANO[plano]}`}
+      >
+        <IconeCadeadoPlano className="h-2.5 w-2.5" />
+      </span>
+    );
+  }
+  return (
+    <span className={`${SELO_PLANO} mt-0.5 self-start`} data-mf-selo-plano={plano}>
+      <IconeCadeadoPlano className="h-[11px] w-[11px]" />
+      {NOME_PLANO[plano]}
+    </span>
+  );
+}
 
 const supportItems: NavItem[] = [];
 
@@ -21,6 +44,7 @@ const AppSidebar: React.FC = () => {
   // Lista compartilhada com a casca mobile (src/layout/navigation.tsx): mesmos filtros de
   // perfil, personificação e flags (Pluggy, Comunidade, Administração).
   const mainNavItems = useMainNavItems();
+  const { plano, habilitado } = usePlano();
 
   const renderMenuItems = (navItems: NavItem[], menuType: 'main' | 'support' | 'others') => (
     <ul className="flex flex-col gap-4">
@@ -63,6 +87,7 @@ const AppSidebar: React.FC = () => {
             nav.path && (
               <Link
                 href={nav.path}
+                data-mf-trancado={planoParaDestravar(nav, plano, habilitado) ?? undefined}
                 className={`menu-item group ${
                   isActive(nav.path) ? 'menu-item-active' : 'menu-item-inactive'
                 }`}
@@ -74,9 +99,19 @@ const AppSidebar: React.FC = () => {
                 >
                   {nav.icon}
                 </span>
-                {(isExpanded || isHovered || isMobileOpen) && (
-                  <span className={`menu-item-text`}>{nav.name}</span>
-                )}
+                {(() => {
+                  // Item acima do plano: continua visível, com cadeado e o nome do plano que
+                  // libera (embaixo do nome, para caber na sidebar de 200px).
+                  const trava = planoParaDestravar(nav, plano, habilitado);
+                  const aberta = isExpanded || isHovered || isMobileOpen;
+                  if (!aberta) return trava ? <SeloPlanoMenu plano={trava} compacto /> : null;
+                  return (
+                    <span className={`menu-item-text${trava ? ' flex flex-col' : ''}`}>
+                      {nav.name}
+                      {trava ? <SeloPlanoMenu plano={trava} compacto={false} /> : null}
+                    </span>
+                  );
+                })()}
                 {/* Selo NOVO no canto do ícone: cabe na sidebar de 200px (o nome quebra em
                     2 linhas como os demais) e aparece também com a sidebar recolhida. */}
                 {nav.novo && (
@@ -124,17 +159,6 @@ const AppSidebar: React.FC = () => {
                             } menu-dropdown-badge `}
                           >
                             new
-                          </span>
-                        )}
-                        {subItem.pro && (
-                          <span
-                            className={`ml-auto ${
-                              isActive(subItem.path)
-                                ? 'menu-dropdown-badge-active'
-                                : 'menu-dropdown-badge-inactive'
-                            } menu-dropdown-badge `}
-                          >
-                            pro
                           </span>
                         )}
                       </span>

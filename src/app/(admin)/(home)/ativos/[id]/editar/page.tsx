@@ -7,6 +7,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
+import GatePlano from '@/components/planos/GatePlano';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import Button from '@/components/ui/button/Button';
 import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
@@ -1873,7 +1874,10 @@ const AtivoEditarContent = () => {
 export default function AtivoEditarPage() {
   return (
     <ProtectedRoute>
-      <AtivoEditarContent />
+      {/* Página do ativo da carteira no Pro (assinaturas; chave desligada = como hoje). */}
+      <GatePlano need="pro" previa="carteira" recurso="A Carteira">
+        <AtivoEditarContent />
+      </GatePlano>
     </ProtectedRoute>
   );
 }

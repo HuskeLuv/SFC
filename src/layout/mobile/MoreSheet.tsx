@@ -12,7 +12,15 @@ import {
   PERFIL_NOTIFICACOES_HREF,
   pushAtivoNesteAparelho,
 } from '@/lib/pwa/pushClient';
-import { groupMoreItems, pathAtivoDoMais, useMainNavItems } from '@/layout/navigation';
+import {
+  groupMoreItems,
+  pathAtivoDoMais,
+  planoParaDestravar,
+  useMainNavItems,
+} from '@/layout/navigation';
+import { usePlano } from '@/hooks/usePlano';
+import { NOME_PLANO } from '@/lib/planos';
+import { IconeCadeadoPlano, SELO_PLANO } from '@/components/planos/planosUi';
 import { SELO_NOVO } from '@/constants/analiseAtivosVisual';
 import { TEXTOS_TELA } from '@/services/analiseAtivos/textosTela';
 
@@ -190,6 +198,7 @@ export default function MoreSheet() {
   const { open, section } = useMoreSheetState();
   const pathname = usePathname();
   const items = useMainNavItems();
+  const { plano, habilitado } = usePlano();
   const { user, logout } = useAuth();
   const contaRef = useRef<HTMLHeadingElement>(null);
   const lastPathname = useRef(pathname);
@@ -246,6 +255,7 @@ export default function MoreSheet() {
           <ul className="grid grid-cols-3 gap-2">
             {group.items.map((item) => {
               const active = Boolean(item.path) && item.path === pathAtivo;
+              const trava = planoParaDestravar(item, plano, habilitado);
               return (
                 <li key={`${item.name}-${item.path}`}>
                   <Link
@@ -265,6 +275,12 @@ export default function MoreSheet() {
                       {item.icon}
                     </span>
                     {item.name}
+                    {trava ? (
+                      <span className={SELO_PLANO} data-mf-selo-plano={trava}>
+                        <IconeCadeadoPlano className="h-[10px] w-[10px]" />
+                        {NOME_PLANO[trava]}
+                      </span>
+                    ) : null}
                     {item.novo ? (
                       <span
                         className={`absolute top-1.5 right-1.5 rounded-full px-1.5 py-px text-[10px] leading-4 font-semibold tracking-[0.04em] ${SELO_NOVO}`}

@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState, useMemo, Suspense } from 'reac
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
+import GatePlano from '@/components/planos/GatePlano';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import ComponentCard from '@/components/common/ComponentCard';
 import MetricCard from '@/components/carteira/shared/MetricCard';
@@ -1093,7 +1094,10 @@ function AtivoDetalheContent() {
 export default function AtivoDetalhePage() {
   return (
     <ProtectedRoute>
-      <AtivoDetalheContent />
+      {/* Página do ativo da carteira no Pro (assinaturas; chave desligada = como hoje). */}
+      <GatePlano need="pro" previa="carteira" recurso="A Carteira">
+        <AtivoDetalheContent />
+      </GatePlano>
     </ProtectedRoute>
   );
 }

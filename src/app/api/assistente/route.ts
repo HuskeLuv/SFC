@@ -50,6 +50,7 @@ import {
   TOOL_CONSULTAR_DADOS,
 } from '@/services/assistente/secoes';
 import { assistenteHabilitado, registrarMensagem, usoMensal } from '@/services/assistente/limite';
+import type { ErroLimitePlano } from '@/types/assinatura';
 import {
   MAX_LANCAMENTOS_POR_MENSAGEM,
   MESES_LONGOS,
@@ -240,13 +241,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   const uso = await usoMensal(targetUserId);
   if (uso.restantes <= 0) {
-    return NextResponse.json(
-      {
-        error: `Você usou as ${uso.limite} mensagens deste mês. O limite renova no dia 1º.`,
-        uso,
-      },
-      { status: 429 },
-    );
+    const error = `Você usou as ${uso.limite} mensagens deste mês. O limite renova no dia 1º.`;
+    // Assinaturas (F2): com a chave ligada a cota é a do plano do cliente; o corpo ganha o
+    // contrato ErroLimitePlano para o front oferecer o upgrade. Desligada: corpo de sempre.
+    const limitePlano: Omit<ErroLimitePlano, 'error'> | null = uso.plano
+      ? { codigo: 'limite_plano', plano: uso.plano, limite: uso.limite, recurso: 'ia' }
+      : null;
+    return NextResponse.json({ error, uso, ...limitePlano }, { status: 429 });
   }
 
   const intencao = classificarIntencao(mensagem);

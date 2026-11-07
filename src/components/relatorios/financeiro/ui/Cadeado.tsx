@@ -22,8 +22,8 @@ export interface CadeadoProps {
 
 /**
  * Bloco bloqueado + cartão de upgrade: porte de lock(need, title, what, hook, inner, short, gain)
- * do protótipo. Com a oferta vigente: 'Liberar no {Plano} com {desconto} off' e a linha das
- * parcelas; depois da validade (data em SP): só 'Conhecer o {Plano}'.
+ * do protótipo. Com a oferta vigente: 'Liberar no {Plano} com {desconto} off' e a linha do
+ * anual (cobrado de uma vez, sem '12x'); depois da validade (data em SP): só 'Conhecer o {Plano}'.
  */
 export function Cadeado({
   plano,
@@ -52,12 +52,13 @@ export function Cadeado({
           <p>{descricao}</p>
           {ganho ?? null}
           {gancho ? <p className="hook">{gancho}</p> : null}
-          <a className="cta" href={OFERTAS_PLANOS.url} target="_blank" rel="noopener">
+          {/* /planos interno (assinaturas): a página certa já abre no plano que libera o bloco. */}
+          <a className="cta" href={`/planos?need=${plano}`}>
             {vigente ? `Liberar no ${nome} com ${oferta.desconto} off` : `Conhecer o ${nome}`}
           </a>
           <span className="url">
             {vigente
-              ? `${oferta.parcelas} no plano anual · Black Friday até 05/12 · ${OFERTAS_PLANOS.urlTexto}`
+              ? `Anual: ${oferta.anual}, equivale a ${oferta.equivalente} · Black Friday até 05/12 · ${OFERTAS_PLANOS.urlTexto}`
               : OFERTAS_PLANOS.urlTexto}
           </span>
         </div>

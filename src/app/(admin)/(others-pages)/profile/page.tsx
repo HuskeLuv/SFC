@@ -6,6 +6,7 @@ import { TwoFactorAuthAutoLoad } from '@/components/user-profile/TwoFactorAuth';
 import AgendaPreferencias from '@/components/user-profile/AgendaPreferencias';
 import NotificacoesPreferencias from '@/components/user-profile/NotificacoesPreferencias';
 import PerfilMobile from '@/components/user-profile/mobile/PerfilMobile';
+import MinhaAssinatura from '@/components/user-profile/MinhaAssinatura';
 import { useIsBelowLg } from '@/hooks/useMediaQuery';
 
 interface User {
@@ -47,6 +48,9 @@ export default function ProfilePage() {
           <UserMetaCard user={user || undefined} />
         </div>
       </div>
+
+      {/* Assinaturas: some com a chave ASSINATURAS_HABILITADAS desligada (Perfil como hoje). */}
+      {user && <MinhaAssinatura />}
 
       {/* Agenda: liga/desliga os lembretes do sininho */}
       {user && <AgendaPreferencias />}

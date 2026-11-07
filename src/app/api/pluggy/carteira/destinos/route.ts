@@ -15,6 +15,7 @@ import { recordDestinoImportacao } from '@/services/changeHistory/destinoImporta
 import { invalidateCaixaCaches } from '@/services/portfolio/caixaParaInvestir';
 import { invalidarContextoUsuario } from '@/services/assistente/contexto';
 import { requireProprioUsuarioPluggyAuth } from '../../_lib/auth';
+import { exigirPlano } from '@/services/planos/exigirPlano';
 
 /**
  * Escolher o destino dos investimentos importados do banco (out/2026).
@@ -29,6 +30,8 @@ import { requireProprioUsuarioPluggyAuth } from '../../_lib/auth';
  * Chave PLUGGY_DESTINOS_HABILITADO desligada: GET vazio, POST 404. CSRF pelo
  * middleware (o cliente chama com csrfFetch).
  */
+// Assinaturas (F2): importar investimentos do Open Finance para a carteira é Pro (exigirPlano
+// explícito, além do gate central; com ASSINATURAS_HABILITADAS desligada não consulta nada).
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -36,6 +39,7 @@ const NO_STORE = { 'Cache-Control': 'no-store' };
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
   const auth = await requireProprioUsuarioPluggyAuth(request);
+  await exigirPlano(auth.targetUserId, 'pro');
   const { searchParams } = new URL(request.url);
   const parsed = destinosQuerySchema.safeParse({
     connectionId: searchParams.get('connectionId') ?? undefined,
@@ -67,6 +71,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
 
 export const POST = withErrorHandler(async (request: NextRequest) => {
   const auth = await requireProprioUsuarioPluggyAuth(request);
+  await exigirPlano(auth.targetUserId, 'pro');
   if (!pluggyDestinosHabilitado()) throw new ApiError(404, 'Recurso indisponível');
 
   let body: unknown;

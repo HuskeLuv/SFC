@@ -5,6 +5,8 @@ import { resolveActingContext } from '@/utils/consultantActing';
 import { ApiError } from '@/utils/apiErrorHandler';
 import { assertSessionVersion } from '@/lib/auth/sessionVersion';
 import { SESSION_COOKIE } from '@/lib/auth/session';
+import { assinaturasHabilitadas } from '@/lib/assinaturasConfig';
+import { exigirPlanoDaRota } from '@/services/planos/exigirPlano';
 
 export interface JWTPayload {
   id: string;
@@ -93,12 +95,40 @@ export interface AuthWithActingResult {
   actingClient: Awaited<ReturnType<typeof resolveActingContext>>['actingClient'];
 }
 
-export async function requireAuthWithActing(request: NextRequest): Promise<AuthWithActingResult> {
+export interface OpcoesAuthWithActing {
+  /**
+   * false = não aplica o gate de plano por rota. Só para quem confere o plano por conta própria
+   * DEPOIS de outra checagem que precisa vir antes (exigirAcessoAnalise: flag e beta → 404, só
+   * então exigirPlano → 403).
+   */
+  gatePlano?: boolean;
+}
+
+/**
+ * Sessão + contexto do consultor + GATE CENTRAL DE PLANO (assinaturas, ClickUp 86e2zkhe2): com
+ * ASSINATURAS_HABILITADAS ligada, a rota é conferida em ACESSO_ROTAS pelo pathname e método
+ * (prefixo mais longo; DELETE livre na carteira) e, sem o plano, lança ApiError 403
+ * { codigo: 'plano_insuficiente', need, plano } — withErrorHandler devolve esse JSON. Consultor
+ * agindo pelo cliente = max(plano do cliente, plano do consultor). Com a chave desligada não
+ * olha nada (nem o pathname): comportamento idêntico ao de antes.
+ */
+export async function requireAuthWithActing(
+  request: NextRequest,
+  opcoes: OpcoesAuthWithActing = {},
+): Promise<AuthWithActingResult> {
   const payload = await requireSession(request);
   const actingContext = await resolveActingContext(request, {
     id: payload.id,
     role: payload.role as UserRole,
   });
+
+  if (opcoes.gatePlano !== false && assinaturasHabilitadas()) {
+    await exigirPlanoDaRota(
+      { payload, targetUserId: actingContext.targetUserId },
+      request.nextUrl.pathname,
+      request.method,
+    );
+  }
 
   return {
     payload,

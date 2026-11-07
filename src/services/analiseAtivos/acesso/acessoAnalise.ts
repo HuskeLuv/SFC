@@ -28,6 +28,12 @@
  * alavAtivo no mesmo mecanismo, SEM dependência entre eles (cada um só com a área liberada). As
  * rotas novas usam exigirRecursoAnalise(request, 'imoveisFii' | 'societario'): chave desligada →
  * 404 antes da sessão. A chave de ingestão ANALISE_ATIVOS_CVM_DVA não é recurso de tela.
+ *
+ * Assinaturas (F2, ClickUp 86e2zkhe2): a Análise de Ativos inteira é Pro (decisão 5). O plano entra
+ * DEPOIS das flags e do beta: flag desligada e fora do beta continuam 404; sem o plano, 403
+ * { codigo: 'plano_insuficiente' }. Vale o plano do dono dos dados (targetUserId) com a regra do
+ * consultor (max cliente/consultor, decisão 4). Por isso exigirAcessoAnalise chama
+ * requireAuthWithActing com gatePlano:false e confere o plano depois. Chave desligada: nada muda.
  */
 import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
@@ -51,6 +57,7 @@ import {
 } from '@/lib/analiseAtivosConfig';
 import { ApiError } from '@/utils/apiErrorHandler';
 import { requireAuthWithActing, type AuthWithActingResult } from '@/utils/auth';
+import { exigirPlanoRequisicao } from '@/services/planos/exigirPlano';
 import {
   ehClasseEua,
   type ClasseQuadro,
@@ -105,15 +112,18 @@ export async function podeAcessarAnaliseAtivos(userId: string): Promise<boolean>
 
 /**
  * Para TODA rota /api/analise-ativos/* (exceto /config): flag desligada → 404 antes de olhar a
- * sessão; sem sessão → 401; sem acesso (decidido por payload.id) → 404 'Recurso não disponível'.
- * Devolve o contexto de requireAuthWithActing (targetUserId = cliente quando consultor age).
+ * sessão; sem sessão → 401; sem acesso (decidido por payload.id) → 404 'Recurso não disponível';
+ * com ASSINATURAS_HABILITADAS ligada e sem o Pro (plano do targetUserId, max com o consultor) →
+ * 403 plano_insuficiente. Devolve o contexto de requireAuthWithActing (targetUserId = cliente
+ * quando consultor age).
  */
 export async function exigirAcessoAnalise(request: NextRequest): Promise<AuthWithActingResult> {
   if (!analiseAtivosHabilitada()) throw new ApiError(404, MENSAGEM_SEM_ACESSO);
-  const auth = await requireAuthWithActing(request);
+  const auth = await requireAuthWithActing(request, { gatePlano: false });
   if (!(await podeAcessarAnaliseAtivos(auth.payload.id))) {
     throw new ApiError(404, MENSAGEM_SEM_ACESSO);
   }
+  await exigirPlanoRequisicao(auth, 'pro');
   return auth;
 }
 

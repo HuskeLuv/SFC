@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import BottomSheet from '@/components/ui/sheet/BottomSheet';
 import UserMetaCard from '@/components/user-profile/UserMetaCard';
 import PrivacyControls, { type PrivacySection } from '@/components/user-profile/PrivacyControls';
 import { TwoFactorAuthAutoLoad } from '@/components/user-profile/TwoFactorAuth';
 import AgendaPreferencias from '@/components/user-profile/AgendaPreferencias';
 import NotificacoesPreferencias from '@/components/user-profile/NotificacoesPreferencias';
+import MinhaAssinatura, { resumoDaAssinatura } from '@/components/user-profile/MinhaAssinatura';
 import { ABRIR_NOTIFICACOES_EVENT } from '@/lib/pwa/pushClient';
+import { usePlano } from '@/hooks/usePlano';
 
 /**
  * Perfil no celular (PWA fase 3, U1–U3): lista de ajustes em grupos. Cada linha abre, num sheet, o
@@ -31,7 +33,8 @@ type ItemId =
   | 'notificacoes'
   | 'agenda'
   | 'dados'
-  | 'excluir';
+  | 'excluir'
+  | 'assinatura';
 
 interface Item {
   id: ItemId;
@@ -99,7 +102,18 @@ const SECAO_PRIVACIDADE: Partial<Record<ItemId, PrivacySection>> = {
   excluir: 'excluir',
 };
 
-const TODOS_ITENS = GRUPOS.flatMap((g) => g.itens);
+/**
+ * Grupo "Assinatura" logo após "Conta" (assinaturas, ClickUp 86e2zkhe2). Só existe com a chave
+ * ASSINATURAS_HABILITADAS ligada: desligada, a lista fica igual à de hoje.
+ */
+export function gruposDoPerfil(assinatura: { hint: string } | null): typeof GRUPOS {
+  if (!assinatura) return GRUPOS;
+  const grupo = {
+    titulo: 'Assinatura',
+    itens: [{ id: 'assinatura' as const, label: 'Minha assinatura', hint: assinatura.hint }],
+  };
+  return [GRUPOS[0], grupo, ...GRUPOS.slice(1)];
+}
 
 function Chevron() {
   return (
@@ -124,7 +138,14 @@ function Chevron() {
 
 export default function PerfilMobile({ user }: { user: PerfilMobileUser }) {
   const [aberto, setAberto] = useState<ItemId | null>(null);
-  const itemAberto = TODOS_ITENS.find((i) => i.id === aberto) ?? null;
+  const { habilitado, assinatura } = usePlano();
+  // O Perfil não abre no modo consultor (fora de ACTING_ALLOWED_ITEMS): o resumo é sempre do dono.
+  const hintAssinatura = habilitado ? resumoDaAssinatura(assinatura, false) : null;
+  const grupos = useMemo(
+    () => gruposDoPerfil(hintAssinatura === null ? null : { hint: hintAssinatura }),
+    [hintAssinatura],
+  );
+  const itemAberto = grupos.flatMap((g) => g.itens).find((i) => i.id === aberto) ?? null;
   const secao = aberto ? SECAO_PRIVACIDADE[aberto] : undefined;
 
   // Atalho do painel Mais: `?abrir=notificacoes` na chegada (o parâmetro sai da URL) ou o evento,
@@ -151,7 +172,7 @@ export default function PerfilMobile({ user }: { user: PerfilMobileUser }) {
 
       <UserMetaCard user={user} />
 
-      {GRUPOS.map((grupo, g) => (
+      {grupos.map((grupo, g) => (
         <section
           key={grupo.titulo || g}
           aria-labelledby={grupo.titulo ? `perfil-grupo-${g}` : undefined}
@@ -205,6 +226,8 @@ export default function PerfilMobile({ user }: { user: PerfilMobileUser }) {
             <NotificacoesPreferencias />
           ) : aberto === 'agenda' ? (
             <AgendaPreferencias />
+          ) : aberto === 'assinatura' ? (
+            <MinhaAssinatura variante="sheet" />
           ) : secao ? (
             <PrivacyControls user={user} section={secao} />
           ) : null}

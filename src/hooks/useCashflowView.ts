@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useCashflowData, useCollapsibleState, useProcessedData } from '@/hooks/useCashflow';
 import { useProventos } from '@/hooks/useProventos';
 import { useCashflowDerivedRows } from '@/hooks/useCashflowDerivedRows';
+import { usePlano } from '@/hooks/usePlano';
 
 /**
  * Modelo de LEITURA do fluxo de caixa de um ano (PWA fase 2): a mesma composição que a planilha
@@ -17,7 +18,16 @@ export function useCashflowView(year: number) {
   // Mesmas datas do DataTableTwo: o ano inteiro no fuso local.
   const startDateISO = useMemo(() => new Date(year, 0, 1).toISOString(), [year]);
   const endDateISO = useMemo(() => new Date(year, 11, 31, 23, 59, 59).toISOString(), [year]);
-  const { proventos } = useProventos(startDateISO, endDateISO);
+  // Assinaturas: /api/analises/proventos é do Advanced. Sem o plano, a linha de proventos do fluxo
+  // fica vazia em vez de dar 403 (chave desligada = como hoje).
+  const proventosLiberados = usePlano().libera('adv');
+  const { proventos } = useProventos(
+    startDateISO,
+    endDateISO,
+    'ativo',
+    'pagamento',
+    proventosLiberados,
+  );
   const collapsible = useCollapsibleState();
   const processedData = useProcessedData(data);
   const derived = useCashflowDerivedRows({

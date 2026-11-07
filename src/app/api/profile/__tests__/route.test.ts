@@ -40,12 +40,16 @@ const mockRequireAuthWithActing = vi.hoisted(() =>
 
 const mockBumpSessionVersion = vi.hoisted(() => vi.fn());
 const mockExcluirConexoesDoUsuario = vi.hoisted(() => vi.fn().mockResolvedValue(0));
+const mockCancelarAssinaturasDaConta = vi.hoisted(() => vi.fn().mockResolvedValue(0));
 
 vi.mock('@/utils/auth', () => ({ requireAuthWithActing: mockRequireAuthWithActing }));
 vi.mock('@/lib/auth/sessionVersion', () => ({ bumpSessionVersion: mockBumpSessionVersion }));
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma, default: mockPrisma }));
 vi.mock('@/services/pluggy/sync', () => ({
   excluirConexoesDoUsuario: mockExcluirConexoesDoUsuario,
+}));
+vi.mock('@/services/assinaturas/customer', () => ({
+  cancelarAssinaturasDaConta: mockCancelarAssinaturasDaConta,
 }));
 
 import { GET, PATCH, DELETE } from '../route';
@@ -74,6 +78,7 @@ beforeEach(() => {
     actingClient: null,
   });
   mockExcluirConexoesDoUsuario.mockResolvedValue(0);
+  mockCancelarAssinaturasDaConta.mockResolvedValue(0);
 });
 
 describe('GET /api/profile', () => {
@@ -313,6 +318,52 @@ describe('DELETE /api/profile', () => {
     expect(res.status).toBe(503);
     expect(mockPrisma.user.update).not.toHaveBeenCalled();
     expect(mockPrisma.planningAssetTarget.deleteMany).not.toHaveBeenCalled();
+    expect(mockBumpSessionVersion).not.toHaveBeenCalled();
+    // A assinatura paga não pode ser encerrada se a exclusão não vai até o fim.
+    expect(mockCancelarAssinaturasDaConta).not.toHaveBeenCalled();
+  });
+
+  it('assinatura (Stripe): cancela ANTES de anonimizar', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 't@t.com',
+      name: 'X',
+      avatarUrl: null,
+      role: 'user',
+      password: await bcrypt.hash('123', 4),
+    });
+    mockPrisma.user.update.mockResolvedValue({});
+    mockPrisma.userConsent.updateMany.mockResolvedValue({ count: 0 });
+    mockPrisma.userChangeLog.deleteMany.mockResolvedValue({ count: 0 });
+    const res = await DELETE(reqDelete({ currentPassword: '123', confirm: true }));
+    expect(res.status).toBe(200);
+    expect(mockCancelarAssinaturasDaConta).toHaveBeenCalledWith('user-1');
+    expect(mockCancelarAssinaturasDaConta.mock.invocationCallOrder[0]).toBeLessThan(
+      mockPrisma.user.update.mock.invocationCallOrder[0],
+    );
+    // Pluggy primeiro (não envolve dinheiro); o cancelamento irreversível vem por último.
+    expect(mockExcluirConexoesDoUsuario.mock.invocationCallOrder[0]).toBeLessThan(
+      mockCancelarAssinaturasDaConta.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('falha no Stripe ao cancelar a assinatura: 503 sem anonimizar', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 't@t.com',
+      name: 'X',
+      avatarUrl: null,
+      role: 'user',
+      password: await bcrypt.hash('123', 4),
+    });
+    const { ApiError } = await import('@/utils/apiErrorHandler');
+    mockCancelarAssinaturasDaConta.mockRejectedValue(
+      new ApiError(503, 'Não conseguimos cancelar sua assinatura agora.'),
+    );
+    const res = await DELETE(reqDelete({ currentPassword: '123', confirm: true }));
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toContain('cancelar sua assinatura');
+    expect(mockPrisma.user.update).not.toHaveBeenCalled();
     expect(mockBumpSessionVersion).not.toHaveBeenCalled();
   });
 

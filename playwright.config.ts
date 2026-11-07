@@ -19,6 +19,27 @@ const E2E_HEADERS = {
   },
 };
 
+// Assinaturas (ClickUp 86e2zkhe2): o servidor principal fica com ASSINATURAS_HABILITADAS DESLIGADA
+// (igual a prod; snapshots de hoje). O projeto "assinaturas" usa um SEGUNDO servidor, em porta
+// própria, com a chave ligada e valores FAKE (nenhuma conta Stripe; nada chama a API do Stripe).
+// No CI ele sobe do mesmo build (`next start`); localmente só entra com E2E_ASSINATURAS_PORT
+// (aponte para um `next dev` já de pé com as mesmas variáveis: dois `next dev` não dividem o .next).
+const ASSINATURAS_PORT = Number(process.env.E2E_ASSINATURAS_PORT ?? 3100);
+const COM_ASSINATURAS = Boolean(process.env.CI || process.env.E2E_ASSINATURAS_PORT);
+const ENV_ASSINATURAS_FAKE: Record<string, string> = {
+  ASSINATURAS_HABILITADAS: 'true',
+  STRIPE_SECRET_KEY: 'sk_test_fake_e2e',
+  STRIPE_WEBHOOK_SECRET: 'whsec_test_e2e',
+  STRIPE_PRICE_PRO_MENSAL: 'price_e2e_pro_mensal',
+  STRIPE_PRICE_PRO_ANUAL: 'price_e2e_pro_anual',
+  STRIPE_PRICE_ADV_MENSAL: 'price_e2e_adv_mensal',
+  STRIPE_PRICE_ADV_ANUAL: 'price_e2e_adv_anual',
+  // Ninguém é legado neste servidor e não há lançamento: basic.e2e resolve 'basic'.
+  ASSINATURAS_CORTESIA_CORTE: '2000-01-01T00:00:00Z',
+  ASSINATURAS_LANCAMENTO_ATE: '',
+  ASSINATURAS_APP_URL: `http://localhost:${ASSINATURAS_PORT}`,
+};
+
 export default defineConfig({
   testDir: './e2e',
   timeout: 30000,
@@ -44,7 +65,12 @@ export default defineConfig({
         storageState: 'e2e/.auth/user.json',
       },
       dependencies: ['setup'],
-      testIgnore: [/auth\.setup\.ts/, /mobile-.*\.spec\.ts/, /\.escrita\.spec\.ts/],
+      testIgnore: [
+        /auth\.setup\.ts/,
+        /mobile-.*\.spec\.ts/,
+        /\.escrita\.spec\.ts/,
+        /assinaturas\.spec\.ts/,
+      ],
     },
     {
       // PWA fase 0: iPhone-like 390x844 (layout viewport estica com isMobile — ver
@@ -78,11 +104,41 @@ export default defineConfig({
       dependencies: ['chromium', 'mobile'],
       testMatch: /\.escrita\.spec\.ts/,
     },
+    ...(COM_ASSINATURAS
+      ? [
+          {
+            // Chave ligada, valores fake, segundo servidor. Cada teste entra com o próprio
+            // usuário do seed (prisma/seedAssinaturas.ts); não depende do setup do demo.
+            name: 'assinaturas',
+            testMatch: /assinaturas\.spec\.ts/,
+            timeout: 180000,
+            use: {
+              browserName: 'chromium' as const,
+              baseURL: `http://localhost:${ASSINATURAS_PORT}`,
+            },
+          },
+        ]
+      : []),
   ],
-  webServer: {
-    command: `npm run dev -- -p ${PORT}`,
-    port: PORT,
-    reuseExistingServer: true,
-    timeout: 60000,
-  },
+  webServer: [
+    {
+      command: `npm run dev -- -p ${PORT}`,
+      port: PORT,
+      reuseExistingServer: true,
+      timeout: 60000,
+    },
+    ...(COM_ASSINATURAS
+      ? [
+          {
+            command: process.env.CI
+              ? `npx next start -p ${ASSINATURAS_PORT}`
+              : `npx next dev -p ${ASSINATURAS_PORT}`,
+            port: ASSINATURAS_PORT,
+            reuseExistingServer: !process.env.CI,
+            timeout: 120000,
+            env: ENV_ASSINATURAS_FAKE,
+          },
+        ]
+      : []),
+  ],
 });

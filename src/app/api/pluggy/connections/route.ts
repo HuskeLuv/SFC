@@ -2,18 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { withErrorHandler, ApiError } from '@/utils/apiErrorHandler';
 import { prisma } from '@/lib/prisma';
+import { assinaturasHabilitadas } from '@/lib/assinaturasConfig';
 import { registrarConexao, resumoImportado } from '@/services/pluggy/sync';
 import {
   exigirConsentimentoPendente,
   vincularConsentimento,
 } from '@/services/pluggy/consentimento';
 import { requireProprioUsuarioPluggy } from '../_lib/auth';
+import { exigirVagaConexao } from '../_lib/limiteConexoes';
 import { serializeConnection } from '../_lib/serializer';
 
 /**
  * GET  /api/pluggy/connections          → conexões do usuário com contas
  * POST /api/pluggy/connections {itemId, consentimentoId} → registra o item criado pelo widget,
- *      liga o aceite à conexão e faz a 1ª carga
+ *      liga o aceite à conexão e faz a 1ª carga. Assinaturas (F2): defesa dupla do limite de
+ *      conexões do connect-token — item que ainda não é do usuário com o plano no limite → 403
+ *      { codigo: 'limite_plano' } (só com ASSINATURAS_HABILITADAS ligada). O item já criado no
+ *      Pluggy NÃO é apagado aqui (o widget só abre com o token, que já barra no limite).
  */
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -37,6 +42,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const user = await requireProprioUsuarioPluggy(request);
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) throw new ApiError(400, 'itemId ou autorização inválidos');
+  if (assinaturasHabilitadas()) {
+    const jaEhDoUsuario = await prisma.bankConnection.findFirst({
+      where: { providerItemId: parsed.data.itemId, userId: user.id },
+      select: { id: true },
+    });
+    if (!jaEhDoUsuario) await exigirVagaConexao(user.id);
+  }
   await exigirConsentimentoPendente(user.id, parsed.data.consentimentoId);
   const r = await registrarConexao(user.id, parsed.data.itemId);
   await vincularConsentimento(user.id, parsed.data.consentimentoId, r.conexao);
