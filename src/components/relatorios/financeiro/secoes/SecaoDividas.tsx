@@ -1,9 +1,15 @@
 import type { BlocoDividas, ItemDividaRelatorio } from '@/types/relatorioFinanceiro';
+import type { PontoSerieDividas } from '@/types/relatorioFinanceiroDividas';
 import { CORES } from '../cores';
 import { fP, rotuloMes, soma } from '../formato';
 import { useFormato } from '../FormatoProvider';
+import { ticks } from '../graficos/escala';
+import { SvgBars } from '../graficos/SvgBars';
+import { SvgLines } from '../graficos/SvgLines';
 import { Callout } from '../ui/Callout';
+import { ChartBox } from '../ui/ChartBox';
 import { Kpi } from '../ui/Kpi';
+import { Legenda } from '../ui/Legenda';
 import { Pagina } from '../ui/Pagina';
 import { Tag } from '../ui/Tag';
 import type { PropsSecao } from '../tipos';
@@ -69,6 +75,57 @@ function semDividasForaImovel(d: BlocoDividas['semDividasForaImovel']): [string,
     default:
       return [d.mes ? rotuloMes(d.mes) : '—', 'se mantiver as parcelas'];
   }
+}
+
+/** Há o que desenhar: algum mês com saldo ou parcela. */
+export const temEvolucao = (serie: PontoSerieDividas[]) =>
+  serie.some((p) => p.saldo > 0 || p.juros > 0 || p.amortizacao > 0);
+
+/** Os 2 gráficos do protótipo com n > 1: saldo no fim de cada mês e juros × amortização. */
+function EvolucaoDividas({ serie }: { serie: PontoSerieDividas[] }) {
+  const { fR0, fAx } = useFormato();
+  const labels = serie.map((p) => rotuloMes(p.mes));
+  return (
+    <>
+      <div className="two">
+        <ChartBox titulo="Saldo devedor" sub="fim de cada mês">
+          <SvgLines
+            fmt={fAx}
+            series={[{ color: CORES.navy, values: serie.map((p) => p.saldo), dot: true }]}
+            xTicks={ticks(labels, 4)}
+            h={190}
+            area
+            W={340}
+            ariaLabel="Saldo devedor no fim de cada mês"
+          />
+        </ChartBox>
+        <ChartBox titulo="Parcela: juros x amortização" sub="por mês">
+          <Legenda
+            series={[
+              { nome: 'Amortização', cor: CORES.blue },
+              { nome: 'Juros', cor: CORES.bad },
+            ]}
+          />
+          <SvgBars
+            fmt={fAx}
+            labels={labels}
+            stack
+            h={176}
+            W={340}
+            series={[
+              { color: CORES.blue, values: serie.map((p) => p.amortizacao) },
+              { color: CORES.bad, values: serie.map((p) => p.juros) },
+            ]}
+            ariaLabel="Parcela de cada mês: amortização e juros"
+          />
+        </ChartBox>
+      </div>
+      <p className="fine">
+        No período você amortizou {fR0(soma(serie.map((p) => p.amortizacao)))} e pagou{' '}
+        {fR0(soma(serie.map((p) => p.juros)))} de juros.
+      </p>
+    </>
+  );
 }
 
 export function SecaoDividas({ relatorio }: PropsSecao) {
@@ -216,15 +273,7 @@ export function SecaoDividas({ relatorio }: PropsSecao) {
         </p>
       ) : null}
 
-      {n > 1 ? (
-        <Callout>
-          A evolução do saldo e dos juros mês a mês chega em breve ao relatório. Veja agora em{' '}
-          <a href="/dividas" style={{ color: 'inherit', fontWeight: 600 }}>
-            Dívidas
-          </a>
-          .
-        </Callout>
-      ) : null}
+      {n > 1 && temEvolucao(dividas.serie) ? <EvolucaoDividas serie={dividas.serie} /> : null}
     </Pagina>
   );
 }
