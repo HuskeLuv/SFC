@@ -85,6 +85,8 @@ export const temEvolucao = (serie: PontoSerieDividas[]) =>
 function EvolucaoDividas({ serie }: { serie: PontoSerieDividas[] }) {
   const { fR0, fAx } = useFormato();
   const labels = serie.map((p) => rotuloMes(p.mes));
+  const amortizado = soma(serie.map((p) => p.amortizacao));
+  const juros = soma(serie.map((p) => p.juros));
   return (
     <>
       <div className="two">
@@ -99,7 +101,7 @@ function EvolucaoDividas({ serie }: { serie: PontoSerieDividas[] }) {
             ariaLabel="Saldo devedor no fim de cada mês"
           />
         </ChartBox>
-        <ChartBox titulo="Parcela: juros x amortização" sub="por mês">
+        <ChartBox titulo="Parcela: juros x amortização" sub="pagos em cada mês">
           <Legenda
             series={[
               { nome: 'Amortização', cor: CORES.blue },
@@ -116,13 +118,19 @@ function EvolucaoDividas({ serie }: { serie: PontoSerieDividas[] }) {
               { color: CORES.blue, values: serie.map((p) => p.amortizacao) },
               { color: CORES.bad, values: serie.map((p) => p.juros) },
             ]}
-            ariaLabel="Parcela de cada mês: amortização e juros"
+            ariaLabel="Parcela paga em cada mês: amortização e juros"
           />
         </ChartBox>
       </div>
       <p className="fine">
-        No período você amortizou {fR0(soma(serie.map((p) => p.amortizacao)))} e pagou{' '}
-        {fR0(soma(serie.map((p) => p.juros)))} de juros.
+        {amortizado > 0 || juros > 0 ? (
+          <>
+            Pelos pagamentos registrados, no período você amortizou {fR0(amortizado)} e pagou{' '}
+            {fR0(juros)} de juros.
+          </>
+        ) : (
+          'Nenhum pagamento registrado no período.'
+        )}
       </p>
     </>
   );

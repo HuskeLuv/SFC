@@ -100,13 +100,42 @@ describe('montarBlocoDividas — série mensal', () => {
     expect(s[5].saldo).toBe(total(b));
     expect(s[5].saldo).toBe(Math.round((CRONO_SAC[4].saldoDevedor + 1_500) * 100) / 100);
 
-    // Parcela: a linha do cronograma de cada mês; rotativa = mínimo de 15% (juros = saldo × 10%).
+    // Pago no mês: a linha do cronograma da parcela registrada; rotativa = o pago em out (500),
+    // juros = saldo do início do mês (2.000) × 10% = 200, amortização = o resto.
     expect(s[0].juros).toBe(CRONO_SAC[0].juros);
     expect(s[0].amortizacao).toBe(CRONO_SAC[0].amortizacao);
-    expect(s[3].juros).toBeCloseTo(CRONO_SAC[3].juros + 200, 2);
-    expect(s[3].amortizacao).toBeCloseTo(CRONO_SAC[3].amortizacao + 100, 2);
-    expect(s[4].juros).toBeCloseTo(CRONO_SAC[4].juros + 150, 2);
-    expect(s[4].amortizacao).toBeCloseTo(CRONO_SAC[4].amortizacao + 75, 2);
+    expect(s[3].juros).toBe(CRONO_SAC[3].juros);
+    expect(s[3].amortizacao).toBe(CRONO_SAC[3].amortizacao);
+    expect(s[4].juros).toBeCloseTo(CRONO_SAC[4].juros + 200, 2);
+    expect(s[4].amortizacao).toBeCloseTo(CRONO_SAC[4].amortizacao + 300, 2);
+    // Mês corrente com a parcela 6 em aberto: nada pago.
+    expect(s[5].juros).toBe(0);
+    expect(s[5].amortizacao).toBe(0);
+  });
+
+  it('sem pagamento registrado: o saldo fica parado e nada entra como pago', () => {
+    const b = montarBlocoDividas(sem([{ ...SAC, pagamentos: [] }]), MES, MESES_6);
+    expect(b.serie.every((p) => p.saldo === 120_000)).toBe(true);
+    expect(b.serie.every((p) => p.juros === 0 && p.amortizacao === 0)).toBe(true);
+  });
+
+  it('pagamento avulso e amortização de prazo entram como amortização do mês', () => {
+    const b = montarBlocoDividas(
+      sem([
+        {
+          ...SAC,
+          pagamentos: [
+            ...pagas(MESES_6.slice(0, 1)),
+            { valor: 1_000, parcelaNumero: null, tipo: 'pagamento', month: '2026-08' },
+            { valor: 2_000, parcelaNumero: 3, tipo: 'amortizacao_prazo', month: '2026-08' },
+          ],
+        },
+      ]),
+      MES,
+      MESES_6,
+    );
+    expect(b.serie[1]).toMatchObject({ juros: 0, amortizacao: 0 });
+    expect(b.serie[2]).toMatchObject({ juros: 0, amortizacao: 3_000 });
   });
 
   it('mês antes do início do contrato não conta', () => {
@@ -131,15 +160,19 @@ describe('montarBlocoDividas — série mensal', () => {
     expect(b.serie[3].saldo).toBe(240_000);
     expect(b.serie[4].saldo).toBe(CRONO_SAC[4].saldoDevedor + 120_000);
     expect(b.serie[5].saldo).toBe(total(b));
-    // Só a ativa tem parcela.
-    expect(b.serie[0].juros).toBe(CRONO_SAC[0].juros);
+    // As 5 parcelas registradas em out entram em out; pausada e quitada, nunca.
+    expect(b.serie[0].juros).toBe(0);
+    expect(b.serie[4].juros).toBeCloseTo(
+      CRONO_SAC.slice(0, 5).reduce((a, p) => a + p.juros, 0),
+      2,
+    );
   });
 
   it('borda: rotativa sem taxa conta no saldo mas não nas barras', () => {
     const b = montarBlocoDividas(sem([{ ...ROT, taxaAm: null }]), MES, MESES_6);
     expect(b.serie[3].saldo).toBe(2_000);
-    expect(b.serie[3].juros).toBe(0);
-    expect(b.serie[3].amortizacao).toBe(0);
+    expect(b.serie[4].juros).toBe(0);
+    expect(b.serie[4].amortizacao).toBe(0);
   });
 
   it('borda: indexado corrige o saldo passado pelo fator até o fim do mês e a parcela pelo do mês', () => {
@@ -152,6 +185,7 @@ describe('montarBlocoDividas — série mensal', () => {
     expect(b.serie[0].saldo).toBeCloseTo(CRONO_SAC[0].saldoDevedor * 1.01, 1);
     expect(b.serie[0].juros).toBeCloseTo(CRONO_SAC[0].juros * 1, 2);
     expect(b.serie[2].juros).toBeCloseTo(CRONO_SAC[2].juros * 1.02, 1);
+    expect(b.serie[5].juros).toBe(0);
     // Corrente: o saldo do item (fator acumulado até hoje).
     expect(b.serie[5].saldo).toBe(total(b));
     expect(b.serie[5].saldo).toBeCloseTo(CRONO_SAC[4].saldoDevedor * 1.06, 1);

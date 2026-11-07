@@ -216,13 +216,13 @@ describe('seção 3 — Dívidas', () => {
       const two = s3.querySelector('.two')!;
       expect([...two.querySelectorAll('.chart > h3')].map((h) => h.textContent)).toEqual([
         'Saldo devedor fim de cada mês',
-        'Parcela: juros x amortização por mês',
+        'Parcela: juros x amortização pagos em cada mês',
       ]);
       expect(
         two.querySelector('svg[aria-label="Saldo devedor no fim de cada mês"]'),
       ).not.toBeNull();
       const barras = two.querySelector(
-        'svg[aria-label="Parcela de cada mês: amortização e juros"]',
+        'svg[aria-label="Parcela paga em cada mês: amortização e juros"]',
       )!;
       expect(barras).not.toBeNull();
       expect(barras.querySelectorAll('rect').length).toBeGreaterThanOrEqual(12);
@@ -233,7 +233,7 @@ describe('seção 3 — Dívidas', () => {
       expect(s3.textContent).not.toContain('chega em breve');
       const amort = soma(r.dividas.serie.map((p) => p.amortizacao));
       expect(s3.querySelector('.two + p.fine')!.textContent).toBe(
-        `No período você amortizou ${fR0(amort)} e pagou ${fR0(soma(r.dividas.serie.map((p) => p.juros)))} de juros.`,
+        `Pelos pagamentos registrados, no período você amortizou ${fR0(amort)} e pagou ${fR0(soma(r.dividas.serie.map((p) => p.juros)))} de juros.`,
       );
       expect(s3.textContent).not.toMatch(PROIBIDAS_TODOS);
       if (plano === 'basic') expect(s3.textContent).not.toMatch(APORTE);
@@ -251,7 +251,17 @@ describe('seção 3 — Dívidas', () => {
     mocks.ocultos = true;
     const s3 = secao(renderDoc(3, 'basic').container, 3);
     expect(s3.querySelector('.two + p.fine')!.textContent).toBe(
-      'No período você amortizou R$ •••• e pagou R$ •••• de juros.',
+      'Pelos pagamentos registrados, no período você amortizou R$ •••• e pagou R$ •••• de juros.',
+    );
+  });
+
+  it('n>1 com saldo e sem pagamento registrado: não afirma que amortizou', () => {
+    const { container } = renderDoc(6, 'basic', (r) => {
+      r.dividas.serie = r.dividas.serie.map((p) => ({ ...p, juros: 0, amortizacao: 0 }));
+    });
+    const s3 = secao(container, 3);
+    expect(s3.querySelector('.two + p.fine')!.textContent).toBe(
+      'Nenhum pagamento registrado no período.',
     );
   });
 

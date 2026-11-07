@@ -345,10 +345,12 @@ function saldoNoFimDe(
 }
 
 /**
- * Juros e amortização da parcela do mês: a linha do cronograma efetivo (corrigida pelo índice
- * nos indexados, como a parcela do mês do item); rotativa = mínimo de 15% do saldo do fim do
- * mês, juros = saldo × taxa (limitados ao mínimo), amortização = o resto. Fora de 'ativa', e
- * rotativa sem taxa (não dá para separar), não entram.
+ * Juros e amortização PAGOS no mês, só pelos pagamentos registrados (a mesma base do saldo):
+ * financiamento = as linhas do cronograma efetivo das parcelas registradas no mês (corrigidas
+ * pelo índice nos indexados) + pagamento avulso / amortização de prazo como amortização;
+ * rotativa = o que foi pago no mês, com juros = saldo do início do mês × taxa (até o pago) e
+ * amortização = o resto. Mês sem pagamento registrado, fora de 'ativa' e rotativa sem taxa
+ * (não dá para separar) não entram.
  */
 function parcelaDoMes(
   d: EntradaDivida,
@@ -359,22 +361,39 @@ function parcelaDoMes(
 ): { juros: number; amortizacao: number } {
   const zero = { juros: 0, amortizacao: 0 };
   if (d.status !== 'ativa') return zero;
+  const doMes = d.pagamentos.filter((p) => p.month === mes);
+  if (doMes.length === 0) return zero;
   if (d.modalidade === 'financiamento') {
-    const linha = crono.find((p) => p.mes === mes);
-    if (!linha) return zero;
+    const ehParcela = (p: EntradaDivida['pagamentos'][number]) =>
+      p.tipo === 'pagamento' && p.parcelaNumero != null;
+    const antes = Math.min(
+      crono.length,
+      d.pagamentos.filter((p) => ehParcela(p) && p.month < mes).length,
+    );
+    const ate = Math.min(crono.length, antes + doMes.filter(ehParcela).length);
+    const linhas = crono.slice(antes, ate);
     const c = isIndexadorCorrigivel(d.indexador)
-      ? corrigirCronograma([linha], fatores.mensais)[0]
-      : linha;
+      ? corrigirCronograma(linhas, fatores.mensais)
+      : linhas;
+    const extras = doMes
+      .filter(
+        (p) =>
+          (p.tipo === 'pagamento' && p.parcelaNumero == null) || p.tipo === 'amortizacao_prazo',
+      )
+      .reduce((a, p) => a + p.valor, 0);
     return {
-      juros: round2(c.jurosCorrigido ?? c.juros),
-      amortizacao: round2(c.amortizacaoCorrigida ?? c.amortizacao),
+      juros: round2(c.reduce((a, l) => a + (l.jurosCorrigido ?? l.juros), 0)),
+      amortizacao: round2(
+        c.reduce((a, l) => a + (l.amortizacaoCorrigida ?? l.amortizacao), 0) + extras,
+      ),
     };
   }
   const taxa = taxaConhecida(d, sistemaDaDivida(d));
-  if (taxa === null || !(saldo > 0)) return zero;
-  const minimo = round2(saldo * MINIMO_ROTATIVO);
-  const juros = Math.min(minimo, round2(saldo * taxa));
-  return { juros, amortizacao: round2(minimo - juros) };
+  if (taxa === null || !d.dataSaldoInicial || mes < d.dataSaldoInicial) return zero;
+  const pago = round2(doMes.filter((p) => p.tipo !== 'ajuste').reduce((a, p) => a + p.valor, 0));
+  if (!(pago > 0)) return zero;
+  const juros = Math.min(pago, round2((saldo + pago) * taxa));
+  return { juros, amortizacao: round2(pago - juros) };
 }
 
 /**

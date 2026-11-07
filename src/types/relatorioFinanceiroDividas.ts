@@ -13,8 +13,11 @@ export interface PontoSerieDividas {
    * fica fora.
    */
   saldo: number;
-  /** Juros da parcela do mês (cronograma; rotativa: saldo × taxa, até o mínimo de 15%). */
+  /**
+   * Juros pagos no mês, só pelos pagamentos registrados (linhas do cronograma das parcelas
+   * registradas; rotativa: saldo do início do mês × taxa, até o valor pago). Sem pagamento, 0.
+   */
   juros: number;
-  /** Amortização da parcela do mês (cronograma; rotativa: o que o mínimo de 15% abate). */
+  /** Amortização paga no mês (idem; + pagamento avulso e amortização de prazo). Sem pagamento, 0. */
   amortizacao: number;
 }
