@@ -7,7 +7,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePlano } from '@/hooks/usePlano';
 import { EMAIL_SUPORTE } from '@/content/faq';
 import {
-  MATRIZ_EXIBICAO,
   NOME_PLANO,
   OFERTAS_PLANOS,
   PLANOS,
@@ -16,11 +15,11 @@ import {
   equivalenteMensalOferta,
   formatarReais,
   ofertaVigente,
-  type CelulaMatriz,
   type Intervalo,
   type Plano,
   type PlanoPago,
 } from '@/lib/planos';
+import { MATRIZ_EXIBICAO, type CelulaMatriz } from '@/lib/planosMatriz';
 import { TABLE_HEADER_STYLE, TABLE_STYLES } from '@/components/ui/table/tableStyles';
 import ConfirmarAssinaturaModal from './ConfirmarAssinaturaModal';
 import {

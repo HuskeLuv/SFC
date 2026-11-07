@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   ACESSO_BLOCOS,
   LIMITES_PLANO,
-  MATRIZ_EXIBICAO,
   OFERTAS_PLANOS,
   PLANOS,
   PLANOS_PAGOS,
@@ -17,6 +16,7 @@ import {
   ofertaVigente,
   temAcesso,
 } from '../planos';
+import { MATRIZ_EXIBICAO } from '../planosMatriz';
 import type { RelatorioFinanceiro } from '@/types/relatorioFinanceiro';
 
 describe('planos', () => {

@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePlano } from '@/hooks/usePlano';
 import {
-  MATRIZ_EXIBICAO,
   NOME_PLANO,
   OFERTAS_PLANOS,
   PRECOS_PLANOS,
@@ -15,6 +14,7 @@ import {
   temAcesso,
   type PlanoPago,
 } from '@/lib/planos';
+import { MATRIZ_EXIBICAO } from '@/lib/planosMatriz';
 import {
   BTN_PRIMARIO,
   FAIXA_OFERTA,
