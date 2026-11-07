@@ -15,6 +15,7 @@
 import type { Plano } from '@/lib/planos';
 import type { ResultadoIrpfAnual } from '@/services/ir/irpfAnual';
 import type { BlocoFgcRelatorio } from './relatorioFinanceiroFgc';
+import type { BlocoIrRendaVariavelRelatorio } from './relatorioFinanceiroIrRendaVariavel';
 
 export type { Plano } from '@/lib/planos';
 
@@ -215,8 +216,8 @@ export interface BlocoCarteiraAvancada {
   proventos: ProventosMesRelatorio[];
   /** Cobertura do FGC (null = carga falhou: o front leva à tela de Análises). */
   fgc: BlocoFgcRelatorio | null;
-  /** Fora da v1: o front mostra "em breve". */
-  irRendaVariavel: null;
+  /** IR mensal de ações e FIIs: a apuração da aba Análises > IR. */
+  irRendaVariavel: BlocoIrRendaVariavelRelatorio | null;
 }
 
 // ── 5 Planejamento (Pro) ────────────────────────────────────────────────────────

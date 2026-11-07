@@ -16,6 +16,8 @@ vi.mock('@/services/pricing/assetPriceService', () => ({ getAssetHistory: mockGe
 vi.mock('@/services/market/cambioUsdBrl', () => ({ carregarSerieCambio: mockCarregarSerieCambio }));
 // A cobertura do FGC tem teste próprio (fgc.test.ts); aqui só o encaixe no bloco.
 vi.mock('../fgc', () => ({ montarFgc: vi.fn(async () => null) }));
+const IR_RV = vi.hoisted(() => ({ meses: [] }));
+vi.mock('../irRendaVariavel', () => ({ montarIrRendaVariavel: vi.fn(async () => IR_RV) }));
 
 import type { MesesRelatorio } from '@/types/relatorioFinanceiro';
 import type { ContextoMontador, Insumos, PontoPerformance } from '../insumos';
@@ -169,7 +171,7 @@ describe('montarCarteiraAvancada (4b)', () => {
     expect(b.retornoDiario.ipca).toEqual([0, 0.5, 0.5]); // degrau mensal
     expect(b.ibov).toBeCloseTo(10, 4);
     expect(b.fgc).toBeNull();
-    expect(b.irRendaVariavel).toBeNull();
+    expect(b.irRendaVariavel).toBe(IR_RV);
     // CDI e IPCA a partir da base (exclusiva) até a data final
     const where = mockPrisma.economicIndex.findMany.mock.calls[0][0].where;
     expect(where.date.gt.toISOString().slice(0, 10)).toBe('2026-07-31');
@@ -195,6 +197,7 @@ describe('montarCarteiraAvancada (4b)', () => {
     expect(b.ibov).toBeNull();
     expect(b.retornoDiario.datas).toEqual([]);
     expect(b.proventos).toHaveLength(1);
+    expect(b.irRendaVariavel).toBe(IR_RV);
     expect(mockPrisma.economicIndex.findMany).not.toHaveBeenCalled();
   });
 });
