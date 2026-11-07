@@ -57,6 +57,24 @@ function comIr(plano: RelatorioFinanceiro['plano'], ir: BlocoIrRendaVariavelRela
 }
 
 describe('IR mensal de ações e FIIs (4b)', () => {
+  it('mês sem venda nem imposto fica de fora da tabela, com a nota', () => {
+    const { container } = render(
+      <IrRendaVariavelReal
+        bloco={{
+          meses: [
+            mes('2026-09', {}),
+            mes('2026-10', { vendasAcoes: 343, lucroAcoes: -12 }),
+            mes('2026-11', {}),
+          ],
+        }}
+      />,
+    );
+    const linhas = container.querySelectorAll('tbody tr');
+    expect(linhas).toHaveLength(1);
+    expect(linhas[0].textContent).toContain('Out/26');
+    expect(container.textContent).toContain('Os 2 meses sem venda nem imposto ficam de fora.');
+  });
+
   it('Advanced: tabela do protótipo, um mês por linha, data-label e o texto do DARF', async () => {
     const rel = relatorioExemplo(12, 'adv');
     const { container } = render(<SecaoCarteira relatorio={rel} />);
@@ -116,7 +134,7 @@ describe('IR mensal de ações e FIIs (4b)', () => {
     expect(linhas[1]).toContain('R$ 6,00');
     expect(linhas[2]).toContain('R$ 231,00 · código 6015');
     expect(linhas[2]).toContain('+ R$ 5.000 em ETFs');
-    expect(linhas[2]).toContain('R$ 500 de prejuízo compensado');
+    expect(linhas[2]).toContain('R$ 500 compensado');
     expect(linhas[2]).toContain('inclui R$ 6,00 de meses anteriores');
     expect(container.querySelector('.tag.warn')!.textContent).toContain('código 6015');
   });

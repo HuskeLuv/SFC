@@ -445,6 +445,10 @@
   font-size: 11px;
   color: var(--soft);
 }
+/* Nota que pode quebrar linha (prejuízo compensado do IR) em vez de empurrar a última coluna. */
+.mf-rel td .sub.quebra {
+  white-space: normal;
+}
 
 /* Orçado x real (barras horizontais) */
 .mf-rel .hb {

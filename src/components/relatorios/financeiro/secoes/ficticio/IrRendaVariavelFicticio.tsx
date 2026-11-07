@@ -61,7 +61,7 @@ export function IrRendaVariavelFicticio({ meses: n }: { meses: number }) {
                     <span>
                       {fR0(r.la)}
                       {r.compAcoes > 0 && (
-                        <span className="sub">{fR0(r.compAcoes)} de prejuízo compensado</span>
+                        <span className="sub quebra">{fR0(r.compAcoes)} compensado</span>
                       )}
                     </span>
                   </td>
@@ -72,7 +72,7 @@ export function IrRendaVariavelFicticio({ meses: n }: { meses: number }) {
                     <span>
                       {fR0(r.lf)}
                       {r.compFii > 0 && (
-                        <span className="sub">{fR0(r.compFii)} de prejuízo compensado</span>
+                        <span className="sub quebra">{fR0(r.compFii)} compensado</span>
                       )}
                     </span>
                   </td>

@@ -26,8 +26,10 @@ const temMovimento = (m: MesIrRendaVariavelRelatorio) =>
  */
 export function IrRendaVariavelReal({ bloco }: { bloco: BlocoIrRendaVariavelRelatorio | null }) {
   const { fR, fR0 } = useFormato();
-  const meses = bloco?.meses ?? [];
-  const vazio = !meses.some(temMovimento);
+  // Só os meses com movimento: 1 venda em 12 meses não vira 11 linhas zeradas.
+  const meses = (bloco?.meses ?? []).filter(temMovimento);
+  const ocultos = (bloco?.meses.length ?? 0) - meses.length;
+  const vazio = meses.length === 0;
   return (
     <div className="block">
       <h3>
@@ -72,8 +74,8 @@ export function IrRendaVariavelReal({ bloco }: { bloco: BlocoIrRendaVariavelRela
                       <span>
                         {fR0(r.lucroAcoes)}
                         {r.prejuizoCompensadoAcoes > 0 && (
-                          <span className="sub">
-                            {fR0(r.prejuizoCompensadoAcoes)} de prejuízo compensado
+                          <span className="sub quebra">
+                            {fR0(r.prejuizoCompensadoAcoes)} compensado
                           </span>
                         )}
                       </span>
@@ -85,8 +87,8 @@ export function IrRendaVariavelReal({ bloco }: { bloco: BlocoIrRendaVariavelRela
                       <span>
                         {fR0(r.lucroFii)}
                         {r.prejuizoCompensadoFii > 0 && (
-                          <span className="sub">
-                            {fR0(r.prejuizoCompensadoFii)} de prejuízo compensado
+                          <span className="sub quebra">
+                            {fR0(r.prejuizoCompensadoFii)} compensado
                           </span>
                         )}
                       </span>
@@ -116,6 +118,9 @@ export function IrRendaVariavelReal({ bloco }: { bloco: BlocoIrRendaVariavelRela
             </table>
           </div>
           <p className="fine">
+            {ocultos > 0
+              ? `${ocultos === 1 ? 'O mês' : `Os ${ocultos} meses`} sem venda nem imposto ${ocultos === 1 ? 'fica' : 'ficam'} de fora. `
+              : ''}
             DARF vence no último dia útil do mês seguinte à venda. DARF abaixo de R$ 10 é somado ao
             do mês seguinte. Ganhos no exterior (stocks e REITs) são apurados na declaração anual
             (Lei 14.754/2023). Prejuízo de meses anteriores compensa lucro da mesma categoria. ETFs
