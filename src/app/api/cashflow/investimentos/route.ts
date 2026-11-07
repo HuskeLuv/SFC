@@ -44,10 +44,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     );
   }
 
-  const { porTipo, totaisPorMes, planejamentoPorMes, tipos } = await computeInvestimentosPorMes(
-    targetUserId,
-    targetYear,
-  );
+  const { porTipo, totaisPorMes, planejamentoPorMes, importacaoPorMes, tipos } =
+    await computeInvestimentosPorMes(targetUserId, targetYear);
 
   // Mapear tipos de ativos para nomes amigáveis
   const tipoAtivoLabels: Record<string, string> = {
@@ -168,5 +166,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     reinvestimentos,
     totaisReinvestimentosPorMes,
     totalReinvestimentos,
+    // Posições importadas do Open Finance: fora do Aporte/Resgate, dentro da Evolução.
+    totaisImportacaoPorMes: importacaoPorMes,
   });
 });

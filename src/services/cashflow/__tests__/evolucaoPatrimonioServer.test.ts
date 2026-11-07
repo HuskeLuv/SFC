@@ -46,6 +46,7 @@ beforeEach(() => {
     totaisPorMes: Array(12).fill(0),
     planejamentoPorMes: Array(12).fill(0),
     reinvestimentoPorMes: Array(12).fill(0),
+    importacaoPorMes: Array(12).fill(0),
     tipos: new Set<string>(),
   });
 });
@@ -110,6 +111,7 @@ describe('getAportesPorMes', () => {
       totaisPorMes: totais,
       planejamentoPorMes: sonho,
       reinvestimentoPorMes: reinvest,
+      importacaoPorMes: Array(12).fill(0),
       tipos: new Set<string>(),
     });
 
@@ -120,6 +122,26 @@ describe('getAportesPorMes', () => {
     expect(aportesFullPorMes[7]).toBeCloseTo(1000 + 200 + 7333.68, 2);
   });
 
+  it('posição importada do Open Finance entra na série cheia e fica fora do fluxo livre (86e3zhgzx)', async () => {
+    const importacao = Array(12).fill(0);
+    importacao[9] = 727410.07;
+    const totais = Array(12).fill(0);
+    totais[9] = 500;
+    mockComputeInvestimentos.mockResolvedValue({
+      porTipo: {},
+      totaisPorMes: totais,
+      planejamentoPorMes: Array(12).fill(0),
+      reinvestimentoPorMes: Array(12).fill(0),
+      importacaoPorMes: importacao,
+      tipos: new Set<string>(),
+    });
+
+    const { totaisPorMes, aportesFullPorMes } = await getAportesPorMes('u1', 2026);
+
+    expect(totaisPorMes[9]).toBe(500);
+    expect(aportesFullPorMes[9]).toBeCloseTo(727910.07, 2);
+  });
+
   it('venda-troca marcada anula a compra correspondente na série cheia (rolagem)', async () => {
     const reinvest = Array(12).fill(0);
     reinvest[3] = 0; // compra +5000 e venda −5000 no mesmo mês
@@ -128,6 +150,7 @@ describe('getAportesPorMes', () => {
       totaisPorMes: Array(12).fill(0),
       planejamentoPorMes: Array(12).fill(0),
       reinvestimentoPorMes: reinvest,
+      importacaoPorMes: Array(12).fill(0),
       tipos: new Set<string>(),
     });
 
@@ -159,6 +182,7 @@ describe('recomputeEvolucaoSnapshots', () => {
       totaisPorMes: aportes,
       planejamentoPorMes: Array(12).fill(0),
       reinvestimentoPorMes: Array(12).fill(0),
+      importacaoPorMes: Array(12).fill(0),
       tipos: new Set<string>(),
     });
     mockPrisma.cashflowPatrimonioSnapshot.findMany.mockResolvedValue([snap({})]);

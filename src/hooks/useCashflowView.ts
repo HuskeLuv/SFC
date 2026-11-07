@@ -12,8 +12,15 @@ import { useCashflowDerivedRows } from '@/hooks/useCashflowDerivedRows';
  * números, sem duplicar regra.
  */
 export function useCashflowView(year: number) {
-  const { data, planejamentoPorMes, reinvestimentosPorMes, loading, error, refetch } =
-    useCashflowData(year);
+  const {
+    data,
+    planejamentoPorMes,
+    reinvestimentosPorMes,
+    importacaoPorMes,
+    loading,
+    error,
+    refetch,
+  } = useCashflowData(year);
   // Mesmas datas do DataTableTwo: o ano inteiro no fuso local.
   const startDateISO = useMemo(() => new Date(year, 0, 1).toISOString(), [year]);
   const endDateISO = useMemo(() => new Date(year, 11, 31, 23, 59, 59).toISOString(), [year]);
@@ -26,6 +33,7 @@ export function useCashflowView(year: number) {
     proventos,
     planejamentoPorMes,
     reinvestimentosPorMes,
+    importacaoPorMes,
   });
 
   return { data, loading, error, refetch, processedData, derived, collapsible };

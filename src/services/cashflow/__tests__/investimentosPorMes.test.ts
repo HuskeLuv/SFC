@@ -179,6 +179,32 @@ describe('computeInvestimentosPorMes', () => {
     expect(reinvestimentoPorMes[0]).toBe(-250);
   });
 
+  it('posição importada do Open Finance fica fora do Aporte/Resgate e entra em importacaoPorMes (86e3zhgzx)', async () => {
+    mockPrisma.stockTransaction.findMany.mockResolvedValue([
+      tx({
+        total: 554835.1,
+        notes: 'Importado do banco (Open Finance)',
+        asset: { type: 'fii', symbol: 'HGLG11' },
+      }),
+      tx({
+        total: 1000,
+        notes: JSON.stringify({
+          observacoes: 'Importado do banco (Open Finance)',
+          operation: { action: 'compra', origem: 'open-finance', precoMedioNaoInformado: true },
+        }),
+      }),
+      tx({ total: 300 }),
+    ]);
+
+    const { porTipo, totaisPorMes, importacaoPorMes, reinvestimentoPorMes } =
+      await computeInvestimentosPorMes('u1', 2026);
+
+    expect(totaisPorMes[0]).toBe(300);
+    expect(importacaoPorMes[0]).toBe(555835.1);
+    expect(reinvestimentoPorMes[0]).toBe(0);
+    expect(porTipo.fii).toBeUndefined();
+  });
+
   describe('Tesouro de catálogo em reserva (report 10/08)', () => {
     // duas queries de stockTransaction: a do ano (transações) e a de compras
     // de Tesouro (where.asset presente) — distingue pelo shape do where
